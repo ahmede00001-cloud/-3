@@ -4,14 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0f172a">
-<meta name="description" content="نظام مسح الباركود المتكامل - إدارة المنتجات والمخزون">
+<meta name="description" content="نظام مسح الباركود المتكامل - إدارة المنتجات والمخزون والمبيعات">
 <title>نظام مسح الباركود</title>
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='192' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230f172a'/%3E%3Ctext x='50' y='65' font-size='50' text-anchor='middle' fill='white' font-family='monospace'%3EBC%3C/text%3E%3C/svg%3E">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="باركود">
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" onerror="window.__qrLoadFailed=true"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
 
@@ -107,6 +106,7 @@
   }
   .status-pip.error { background: var(--error); animation: none; }
   .status-pip.loading { background: var(--warning); }
+  .status-pip.local { background: var(--text-faint); animation: none; }
   @keyframes pipPulse { 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:.35; transform:scale(0.85);} }
 
   .dock {
@@ -548,6 +548,45 @@
   .camera-placeholder__title { font-size: 0.9375rem; font-weight: 700; margin-bottom: 6px; }
   .camera-placeholder__body { font-size: 0.8125rem; color: var(--text-faint); margin-bottom: 16px; max-width: 280px; margin-left: auto; margin-right: auto; }
 
+  .lockout-banner {
+    display: none;
+    background: var(--error-bg);
+    border: 1.5px solid var(--error);
+    color: var(--error);
+    padding: 10px 16px;
+    margin: 12px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-align: center;
+  }
+  .lockout-banner.show { display: block; }
+
+  .firebase-banner {
+    display: none;
+    background: var(--warning-bg);
+    border: 1.5px solid var(--warning);
+    color: var(--warning);
+    padding: 10px 16px;
+    margin: 12px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-align: center;
+  }
+  .firebase-banner.show { display: block; }
+
+  .sales-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    font-size: 0.8125rem;
+  }
+  .sales-row:last-child { border-bottom: none; }
+  .sales-row__no { font-family: var(--mono); font-size: 0.625rem; color: var(--text-faint); white-space: nowrap; min-width: 40px; }
+  .sales-row__time { font-family: var(--mono); font-size: 0.625rem; color: var(--text-faint); white-space: nowrap; }
+  .sales-row__items { flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sales-row__total { font-family: var(--mono); font-weight: 700; color: var(--success); white-space: nowrap; }
+
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; animation: none !important; }
   }
@@ -568,6 +607,10 @@
 
   <main>
     <div class="view active" id="view-scan">
+      <div class="firebase-banner" id="firebaseBanner">
+        ⚠️ الوضع المحلي فقط — اذهب إلى الإعدادات لربط Firebase
+      </div>
+
       <div class="panel" style="margin-top:16px;">
         <div class="panel__header">
           <span class="panel__title">كاميرا الماسح</span>
@@ -645,6 +688,9 @@
         <div style="font-size:3rem; margin-bottom:16px; opacity:.5;">🔐</div>
         <div style="font-size:1.125rem; font-weight:800; margin-bottom:6px; letter-spacing:0.02em;">لوحة التحكم</div>
         <div style="font-size:0.8125rem; color:var(--text-dim); margin-bottom:24px;">أدخل كلمة السر للمتابعة</div>
+        <div class="lockout-banner" id="lockoutBanner">
+          ⛔ تم حظر الوصول مؤقتاً — حاول مجدداً بعد <span id="lockoutTimer">15</span> دقيقة
+        </div>
         <div style="max-width:280px; margin:0 auto;">
           <div class="field">
             <label class="field__label">كلمة السر</label>
@@ -652,6 +698,7 @@
           </div>
           <button type="button" class="btn btn--primary btn--block" id="unlockBtn" style="margin-top:6px;" aria-label="دخول">دخول</button>
           <div style="color:var(--error); font-size:0.75rem; margin-top:10px; display:none; font-weight:700;" id="lockError">❌ كلمة السر غير صحيحة</div>
+          <div style="color:var(--text-faint); font-size:0.75rem; margin-top:6px; display:none; font-weight:600;" id="attemptsLeft"></div>
         </div>
         <div style="margin-top:24px; font-family:var(--mono); font-size:0.625rem; color:var(--text-faint);">الافتراضية: 1234</div>
         <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:16px;">
@@ -699,8 +746,8 @@
               </div>
             </div>
             <button type="button" class="btn btn--primary btn--block" id="saveProductBtn" style="margin-top:6px;" aria-label="حفظ المنتج">💾 حفظ المنتج</button>
-            <div style="font-family:var(--mono); font-size:0.625rem; color:var(--text-faint); text-align:center; margin-top:12px;">
-              ⚠️ تُحفظ البيانات في Firebase — السلة والسجل محليان فقط
+            <div style="font-family:var(--mono); font-size:0.625rem; color:var(--text-faint); text-align:center; margin-top:12px;" id="storageHint">
+              ⚠️ تُحفظ البيانات محلياً — اربط Firebase في الإعدادات للمزامنة السحابية
             </div>
           </div>
         </div>
@@ -758,6 +805,15 @@
           </div>
         </div>
 
+        <div class="section-label">🧾 سجل المبيعات</div>
+        <div class="data-list" id="salesList">
+          <div class="empty" style="padding:24px;">
+            <div class="empty__icon">🧾</div>
+            <div class="empty__title">لا توجد مبيعات بعد</div>
+            <div class="empty__body">ستظهر هنا الفواتير المؤكدة</div>
+          </div>
+        </div>
+
         <div class="section-label">💾 النسخ الاحتياطي</div>
         <div class="export-box">
           <div class="export-box__icon">📥</div>
@@ -768,6 +824,26 @@
             <div class="file-input-wrapper">
               <button type="button" class="btn btn--accent" aria-label="استيراد البيانات">📤 استيراد JSON</button>
               <input type="file" id="importBtn" accept=".json,application/json" aria-label="اختيار ملف JSON">
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel__header"><span class="panel__title">☁️ إعدادات Firebase</span></div>
+          <div class="panel__body">
+            <div class="field">
+              <label class="field__label">رابط قاعدة البيانات (Realtime Database URL)</label>
+              <input type="url" id="firebaseUrl" class="field__input mono" placeholder="https://your-project.firebaseio.com" dir="ltr" aria-label="رابط Firebase">
+              <div class="field__hint">اتركه فارغاً للوضع المحلي فقط</div>
+            </div>
+            <div class="field">
+              <label class="field__label">مسار البيانات (Path)</label>
+              <input type="text" id="firebasePath" class="field__input mono" placeholder="barcode-store.json" dir="ltr" value="barcode-store.json" aria-label="مسار البيانات">
+            </div>
+            <button type="button" class="btn btn--primary btn--block" id="saveFirebaseBtn" aria-label="حفظ إعدادات Firebase">☁️ حفظ الربط</button>
+            <button type="button" class="btn btn--ghost btn--block" id="testFirebaseBtn" style="margin-top:8px;" aria-label="اختبار الاتصال">🔄 اختبار الاتصال</button>
+            <div style="font-family:var(--mono); font-size:0.625rem; color:var(--text-faint); text-align:center; margin-top:12px;">
+              ⚠️ تأكد من تفعيل قواعد الأمان في Firebase قبل الربط
             </div>
           </div>
         </div>
@@ -824,7 +900,7 @@
       <div class="onboarding__step" data-step="2">
         <div class="onboarding__icon">💾</div>
         <div class="onboarding__title">النسخ الاحتياطي</div>
-        <div class="onboarding__body">لا تنسَ تصدير بياناتك بشكل دوري. البيانات تُحفظ في Firebase — السلة والسجل محليان فقط.</div>
+        <div class="onboarding__body">لا تنسَ تصدير بياناتك بشكل دوري. يمكنك ربط Firebase في الإعدادات للمزامنة السحابية.</div>
       </div>
       <div class="onboarding__dots" id="onboardingDots">
         <span class="onboarding__dot active"></span>
@@ -832,6 +908,7 @@
         <span class="onboarding__dot"></span>
       </div>
       <div style="display:flex; gap:10px; justify-content:center;">
+        <button type="button" class="btn btn--ghost" id="prevOnboarding" style="display:none;" aria-label="السابق">← السابق</button>
         <button type="button" class="btn btn--ghost" id="skipOnboarding" aria-label="تخطي">تخطي</button>
         <button type="button" class="btn btn--primary" id="nextOnboarding" aria-label="التالي">التالي →</button>
       </div>
@@ -857,24 +934,23 @@
 'use strict';
 
 /* ============================================================
-   نظام مسح الباركود المتكامل v3.0 — Firebase Edition
-   ربط بـ Firebase Realtime Database
+   نظام مسح الباركود المتكامل v4.0 — الإصدار المُصلح الكامل
    ============================================================ */
 
 (function() {
   // ─── Constants ─────────────────────────────────────────────
-  const DB_KEY = 'store-data-v3';
-  const HISTORY_KEY = 'scan-history-v3';
-  const CART_KEY = 'cart-v3';
-  const SETTINGS_KEY = 'settings-v3';
+  const DB_KEY = 'store-data-v4';
+  const HISTORY_KEY = 'scan-history-v4';
+  const CART_KEY = 'cart-v4';
+  const SETTINGS_KEY = 'settings-v4';
+  const SALES_KEY = 'sales-history-v4';
+  const RECEIPT_KEY = 'receipt-counter-v4';
+  const FAILED_ATTEMPTS_KEY = 'failed-attempts-v4';
+  const LOCKOUT_UNTIL_KEY = 'lockout-until-v4';
   const DEFAULT_PASSWORD = '1234';
-  const DB_VERSION = 3;
-
-  // ═══════════════════════════════════════════════════════════
-  //  🔥 Firebase Realtime Database — قاعدة بيانات سحابية مشتركة
-  //  ═══════════════════════════════════════════════════════════
-  const FIREBASE_DB_URL = 'https://datamarket-ba4d3-default-rtdb.firebaseio.com';
-  const FIREBASE_DB_PATH = 'barcode-store.json'; // مسار البيانات في Firebase
+  const DB_VERSION = 4;
+  const MAX_ATTEMPTS = 5;
+  const LOCKOUT_MINUTES = 15;
 
   const DEFAULT_DB = {
     version: DB_VERSION,
@@ -882,7 +958,12 @@
     products: {},
     adminPasswordHash: null,
     adminPasswordSalt: null,
-    settings: { firstRun: true, onboardingDone: false },
+    settings: { 
+      firstRun: true, 
+      onboardingDone: false,
+      firebaseUrl: '',
+      firebasePath: 'barcode-store.json'
+    },
     _lastUpdated: 0
   };
 
@@ -891,18 +972,20 @@
   let dbReady = false;
   let isUnlocked = false;
   let editingBarcode = null;
-  let receiptCounter = 1;
   let scannerActive = false;
   let html5QrcodeScanner = null;
   let miniScanner = null;
   let miniRunning = false;
   let cart = [];
   let scanHistory = [];
+  let salesHistory = [];
   let saveQueue = [];
   let saveProcessing = false;
   let onboardingStep = 0;
   const onboardingSteps = 3;
   let toastTimer = null;
+  let lastScannedProduct = null;
+  let lastScannedQty = 1;
 
   const $ = (id) => document.getElementById(id);
   const $$ = (sel) => document.querySelectorAll(sel);
@@ -933,7 +1016,11 @@
 
   async function sha256(message, salt) {
     if (hasCryptoSubtle()) {
-      return sha256_subtle(message, salt);
+      try {
+        return await sha256_subtle(message, salt);
+      } catch (e) {
+        return sha256_fallback(message, salt);
+      }
     }
     return sha256_fallback(message, salt);
   }
@@ -944,7 +1031,7 @@
       crypto.getRandomValues(arr);
       return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
     }
-    return Date.now().toString(36) + Math.random().toString(36).substr(2, 10);
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   }
 
   async function hashPassword(password, salt) {
@@ -956,8 +1043,10 @@
   async function verifyPassword(password, salt, hash) {
     if (!salt || !hash) return password === DEFAULT_PASSWORD;
     if (hasCryptoSubtle()) {
-      const computed = await sha256_subtle(password, salt);
-      if (computed === hash) return true;
+      try {
+        const computed = await sha256_subtle(password, salt);
+        if (computed === hash) return true;
+      } catch (e) {}
     }
     const computedFallback = sha256_fallback(password, salt);
     if (computedFallback === hash) return true;
@@ -973,7 +1062,7 @@
     const dot = $('statusDot');
     const label = $('statusText');
     if (!dot || !label) return;
-    dot.className = 'status-pip' + (state === 'error' ? ' error' : state === 'loading' ? ' loading' : '');
+    dot.className = 'status-pip' + (state === 'error' ? ' error' : state === 'loading' ? ' loading' : state === 'local' ? ' local' : '');
     label.textContent = text;
   }
 
@@ -1028,7 +1117,7 @@
   }
 
   function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
 
   function toast(msg, isErr, isSuccess, isWarn) {
@@ -1050,13 +1139,115 @@
     }, 300);
   }
 
-  // ═══════════════════════════════════════════════════════════
-  //  🔥 Firebase Realtime Database — Cloud Storage
-  // ═══════════════════════════════════════════════════════════
+  // ─── Receipt Counter ───────────────────────────────────────
+  function getReceiptCounter() {
+    try {
+      let c = parseInt(localStorage.getItem(RECEIPT_KEY) || '1');
+      localStorage.setItem(RECEIPT_KEY, String(c + 1));
+      return c;
+    } catch (e) {
+      return Math.floor(Math.random() * 9000) + 1000;
+    }
+  }
+
+  function getCurrentReceiptNumber() {
+    try {
+      return parseInt(localStorage.getItem(RECEIPT_KEY) || '1');
+    } catch (e) {
+      return 1;
+    }
+  }
+
+  // ─── Lockout System ────────────────────────────────────────
+  function isLockedOut() {
+    try {
+      const until = parseInt(localStorage.getItem(LOCKOUT_UNTIL_KEY) || '0');
+      return Date.now() < until;
+    } catch (e) { return false; }
+  }
+
+  function getLockoutRemaining() {
+    try {
+      const until = parseInt(localStorage.getItem(LOCKOUT_UNTIL_KEY) || '0');
+      return Math.max(0, Math.ceil((until - Date.now()) / 60000));
+    } catch (e) { return 0; }
+  }
+
+  function recordFailedAttempt() {
+    try {
+      let attempts = parseInt(localStorage.getItem(FAILED_ATTEMPTS_KEY) || '0') + 1;
+      localStorage.setItem(FAILED_ATTEMPTS_KEY, String(attempts));
+      if (attempts >= MAX_ATTEMPTS) {
+        localStorage.setItem(LOCKOUT_UNTIL_KEY, String(Date.now() + LOCKOUT_MINUTES * 60000));
+        localStorage.setItem(FAILED_ATTEMPTS_KEY, '0');
+        return true;
+      }
+      return false;
+    } catch (e) { return false; }
+  }
+
+  function clearFailedAttempts() {
+    try {
+      localStorage.removeItem(FAILED_ATTEMPTS_KEY);
+      localStorage.removeItem(LOCKOUT_UNTIL_KEY);
+    } catch (e) {}
+  }
+
+  function getRemainingAttempts() {
+    try {
+      return Math.max(0, MAX_ATTEMPTS - parseInt(localStorage.getItem(FAILED_ATTEMPTS_KEY) || '0'));
+    } catch (e) { return MAX_ATTEMPTS; }
+  }
+
+  function updateLockoutUI() {
+    const banner = $('lockoutBanner');
+    const timer = $('lockoutTimer');
+    const attemptsLeft = $('attemptsLeft');
+    if (!banner || !timer) return;
+
+    if (isLockedOut()) {
+      banner.classList.add('show');
+      timer.textContent = getLockoutRemaining();
+      if (attemptsLeft) attemptsLeft.style.display = 'none';
+      const unlockBtn = $('unlockBtn');
+      if (unlockBtn) unlockBtn.disabled = true;
+      const passInput = $('adminPassInput');
+      if (passInput) passInput.disabled = true;
+    } else {
+      banner.classList.remove('show');
+      const unlockBtn = $('unlockBtn');
+      if (unlockBtn) unlockBtn.disabled = false;
+      const passInput = $('adminPassInput');
+      if (passInput) passInput.disabled = false;
+      const remaining = getRemainingAttempts();
+      if (attemptsLeft && remaining < MAX_ATTEMPTS) {
+        attemptsLeft.style.display = 'block';
+        attemptsLeft.textContent = `محاولات متبقية: ${remaining}`;
+      } else if (attemptsLeft) {
+        attemptsLeft.style.display = 'none';
+      }
+    }
+  }
+
+  // ─── Storage System (Local + Optional Firebase) ────────────
+  function getFirebaseUrl() {
+    return (db.settings.firebaseUrl || '').trim().replace(/\/+$/, '');
+  }
+
+  function getFirebasePath() {
+    return (db.settings.firebasePath || 'barcode-store.json').trim().replace(/^\/+/, '');
+  }
+
+  function isFirebaseConfigured() {
+    return !!getFirebaseUrl();
+  }
+
   const cloudStorage = {
     async get() {
+      const url = getFirebaseUrl();
+      if (!url) return null;
       try {
-        const res = await fetch(`${FIREBASE_DB_URL}/${FIREBASE_DB_PATH}`, {
+        const res = await fetch(`${url}/${getFirebasePath()}`, {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
           cache: 'no-store'
@@ -1066,17 +1257,16 @@
         return data ? { value: JSON.stringify(data) } : null;
       } catch (e) {
         console.warn('Firebase read failed:', e);
-        try {
-          const v = localStorage.getItem(DB_KEY);
-          return v ? { value: v } : null;
-        } catch (e2) { return null; }
+        return null;
       }
     },
 
-    async set(key, value) {
+    async set(value) {
+      const url = getFirebaseUrl();
+      if (!url) return false;
       try {
         const data = JSON.parse(value);
-        const res = await fetch(`${FIREBASE_DB_URL}/${FIREBASE_DB_PATH}`, {
+        const res = await fetch(`${url}/${getFirebasePath()}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -1085,11 +1275,9 @@
           body: JSON.stringify(data)
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        try { localStorage.setItem(key, value); } catch(e) {}
         return true;
       } catch (e) {
         console.error('Firebase write failed:', e);
-        toast('⚠️ فشل الحفظ في Firebase — تحقق من الاتصال', true);
         return false;
       }
     }
@@ -1114,17 +1302,35 @@
     }
   };
 
-  // ─── Save Queue ────────────────────────────────────────────
+  // ─── Save Queue (Fixed) ────────────────────────────────────
   async function enqueueSave(type, data) {
-    saveQueue.push({ type, data });
-    if (saveProcessing) return;
+    return new Promise((resolve) => {
+      saveQueue.push({ type, data, resolve });
+      if (!saveProcessing) {
+        processSaveQueue();
+      }
+    });
+  }
+
+  async function processSaveQueue() {
     saveProcessing = true;
     while (saveQueue.length) {
       const job = saveQueue.shift();
-      if (job.type === 'db') await cloudStorage.set(DB_KEY, JSON.stringify(job.data));
-      else if (job.type === 'cart') await localStore.set(CART_KEY, JSON.stringify(job.data));
-      else if (job.type === 'history') await localStore.set(HISTORY_KEY, JSON.stringify(job.data.slice(-100)));
-      else if (job.type === 'settings') await localStore.set(SETTINGS_KEY, JSON.stringify(job.data));
+      let ok = false;
+      try {
+        if (job.type === 'db') {
+          const cloudOk = await cloudStorage.set(JSON.stringify(job.data));
+          const localOk = await localStore.set(DB_KEY, JSON.stringify(job.data));
+          ok = cloudOk || localOk;
+        }
+        else if (job.type === 'cart') ok = await localStore.set(CART_KEY, JSON.stringify(job.data));
+        else if (job.type === 'history') ok = await localStore.set(HISTORY_KEY, JSON.stringify(job.data.slice(-100)));
+        else if (job.type === 'settings') ok = await localStore.set(SETTINGS_KEY, JSON.stringify(job.data));
+        else if (job.type === 'sales') ok = await localStore.set(SALES_KEY, JSON.stringify(job.data.slice(-200)));
+      } catch (e) {
+        ok = false;
+      }
+      if (job.resolve) job.resolve(ok);
     }
     saveProcessing = false;
   }
@@ -1136,6 +1342,7 @@
   async function saveCart() { return enqueueSave('cart', cart); }
   async function saveHistory() { return enqueueSave('history', scanHistory); }
   async function saveSettings() { return enqueueSave('settings', db.settings); }
+  async function saveSales() { return enqueueSave('sales', salesHistory); }
 
   // ─── Schema Migration ──────────────────────────────────────
   function migrateDb(data) {
@@ -1160,7 +1367,9 @@
     if (data.settings && typeof data.settings === 'object') {
       migrated.settings = {
         firstRun: !!data.settings.firstRun,
-        onboardingDone: !!data.settings.onboardingDone
+        onboardingDone: !!data.settings.onboardingDone,
+        firebaseUrl: String(data.settings.firebaseUrl || '').trim(),
+        firebasePath: String(data.settings.firebasePath || 'barcode-store.json').trim()
       };
     }
     if (data._lastUpdated) migrated._lastUpdated = Number(data._lastUpdated) || 0;
@@ -1170,25 +1379,42 @@
 
   // ─── Load DB ───────────────────────────────────────────────
   async function loadDB() {
-    setStatus('loading', 'جاري الاتصال بـ Firebase...');
+    setStatus('loading', 'جاري التحميل...');
 
     try {
-      const res = await cloudStorage.get();
-      if (res && res.value) {
-        try {
-          const parsed = JSON.parse(res.value);
-          db = migrateDb(parsed);
-        } catch {
-          db = deepClone(DEFAULT_DB);
+      // 1. Try cloud first if configured
+      let loadedFromCloud = false;
+      if (isFirebaseConfigured()) {
+        const cloudRes = await cloudStorage.get();
+        if (cloudRes && cloudRes.value) {
+          try {
+            const parsed = JSON.parse(cloudRes.value);
+            db = migrateDb(parsed);
+            loadedFromCloud = true;
+          } catch {}
         }
-      } else {
-        db = deepClone(DEFAULT_DB);
-        const { hash, salt } = await hashPassword(DEFAULT_PASSWORD);
-        db.adminPasswordHash = hash;
-        db.adminPasswordSalt = salt;
-        await saveDB();
       }
 
+      // 2. Fallback to local
+      if (!loadedFromCloud) {
+        const localRes = await localStore.get(DB_KEY);
+        if (localRes && localRes.value) {
+          try {
+            const parsed = JSON.parse(localRes.value);
+            db = migrateDb(parsed);
+          } catch {
+            db = deepClone(DEFAULT_DB);
+          }
+        } else {
+          db = deepClone(DEFAULT_DB);
+          const { hash, salt } = await hashPassword(DEFAULT_PASSWORD);
+          db.adminPasswordHash = hash;
+          db.adminPasswordSalt = salt;
+          await saveDB();
+        }
+      }
+
+      // Load auxiliary data
       const cartRes = await localStore.get(CART_KEY);
       if (cartRes && cartRes.value) {
         try {
@@ -1205,6 +1431,14 @@
         } catch { scanHistory = []; }
       }
 
+      const salesRes = await localStore.get(SALES_KEY);
+      if (salesRes && salesRes.value) {
+        try {
+          const parsed = JSON.parse(salesRes.value);
+          if (Array.isArray(parsed)) salesHistory = parsed.filter(s => s && s.id);
+        } catch { salesHistory = []; }
+      }
+
       const settingsRes = await localStore.get(SETTINGS_KEY);
       if (settingsRes && settingsRes.value) {
         try {
@@ -1214,60 +1448,34 @@
       }
 
       dbReady = true;
-      setStatus('ok', 'متصل بـ Firebase');
+      
+      if (isFirebaseConfigured()) {
+        setStatus('ok', 'متصل بـ Firebase');
+      } else {
+        setStatus('local', 'وضع محلي');
+        const banner = $('firebaseBanner');
+        if (banner) banner.classList.add('show');
+      }
+      
       const tabAdmin = $('tabAdmin');
       if (tabAdmin) tabAdmin.disabled = false;
 
       renderAll();
       updateCartBadge();
-      startCloudSync();
+      updateLockoutUI();
 
       if (!db.settings.onboardingDone) {
         showOnboarding();
       }
     } catch (err) {
       console.error('loadDB error:', err);
-      setStatus('error', 'خطأ في الاتصال بـ Firebase');
-      toast('⚠️ حدث خطأ أثناء الاتصال بـ Firebase — يُستخدم الوضع المحلي', true);
+      setStatus('error', 'خطأ في التحميل');
+      toast('⚠️ حدث خطأ أثناء التحميل', true);
       dbReady = true;
       const tabAdmin = $('tabAdmin');
       if (tabAdmin) tabAdmin.disabled = false;
       renderAll();
     }
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  //  🔥 مزامنة دورية من Firebase
-  // ═══════════════════════════════════════════════════════════
-  let syncTimer = null;
-  function startCloudSync() {
-    if (syncTimer) clearInterval(syncTimer);
-    syncTimer = setInterval(async () => {
-      if (!dbReady) return;
-      try {
-        const res = await fetch(`${FIREBASE_DB_URL}/${FIREBASE_DB_PATH}`, {
-          method: 'GET',
-          headers: { 'Accept': 'application/json' },
-          cache: 'no-store'
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data || !data._lastUpdated) return;
-        const currentUpdated = db._lastUpdated || 0;
-        if (data._lastUpdated > currentUpdated + 2000) {
-          db = migrateDb(data);
-          renderAll();
-          setStatus('ok', 'تم التحديث من Firebase');
-          setTimeout(() => setStatus('ok', 'متصل بـ Firebase'), 2000);
-        }
-      } catch (e) {
-        // صامت
-      }
-    }, 30000);
-  }
-
-  function stopCloudSync() {
-    if (syncTimer) { clearInterval(syncTimer); syncTimer = null; }
   }
 
   // ─── Onboarding ────────────────────────────────────────────
@@ -1285,7 +1493,9 @@
       d.classList.toggle('active', i === onboardingStep);
     });
     const nextBtn = $('nextOnboarding');
+    const prevBtn = $('prevOnboarding');
     if (nextBtn) nextBtn.textContent = onboardingStep === onboardingSteps - 1 ? 'ابدأ الآن 🚀' : 'التالي →';
+    if (prevBtn) prevBtn.style.display = onboardingStep > 0 ? 'inline-flex' : 'none';
   }
 
   // ─── Navigation ────────────────────────────────────────────
@@ -1308,7 +1518,10 @@
 
     if (tabName === 'admin') {
       if (isUnlocked) showAdminContent();
-      else showLockScreen();
+      else {
+        showLockScreen();
+        updateLockoutUI();
+      }
     }
   }
 
@@ -1322,6 +1535,7 @@
     if (err) err.style.display = 'none';
     const inp = $('adminPassInput');
     if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 50); }
+    updateLockoutUI();
   }
 
   function showAdminContent() {
@@ -1332,6 +1546,12 @@
   }
 
   async function attemptUnlock() {
+    if (isLockedOut()) {
+      toast(`⛔ تم حظر الوصول — انتظر ${getLockoutRemaining()} دقيقة`, true);
+      updateLockoutUI();
+      return;
+    }
+
     const inp = $('adminPassInput');
     if (!inp) return;
     const entered = inp.value;
@@ -1339,6 +1559,7 @@
       const ok = await verifyPassword(entered, db.adminPasswordSalt, db.adminPasswordHash);
       if (ok) {
         isUnlocked = true;
+        clearFailedAttempts();
         const err = $('lockError');
         if (err) err.style.display = 'none';
         showAdminContent();
@@ -1348,7 +1569,14 @@
         if (err) err.style.display = 'block';
         inp.value = '';
         inp.focus();
-        toast('❌ كلمة السر غير صحيحة', true);
+        const locked = recordFailedAttempt();
+        if (locked) {
+          toast(`⛔ تم حظر الوصول لمدة ${LOCKOUT_MINUTES} دقيقة`, true);
+          updateLockoutUI();
+        } else {
+          toast(`❌ كلمة السر غير صحيحة — محاولات متبقية: ${getRemainingAttempts()}`, true);
+          updateLockoutUI();
+        }
       }
     } catch (e) {
       toast('⚠️ خطأ في التحقق من كلمة السر', true);
@@ -1680,6 +1908,30 @@
     if (el4) el4.textContent = fmt(avgPrice);
   }
 
+  // ─── Sales History ─────────────────────────────────────────
+  function renderSalesHistory() {
+    const w = $('salesList');
+    if (!w) return;
+    if (!salesHistory.length) {
+      w.innerHTML = `<div class="empty" style="padding:24px;">
+        <div class="empty__icon">🧾</div>
+        <div class="empty__title">لا توجد مبيعات بعد</div>
+        <div class="empty__body">ستظهر هنا الفواتير المؤكدة</div>
+      </div>`;
+      return;
+    }
+
+    const recent = [...salesHistory].reverse().slice(0, 50);
+    w.innerHTML = recent.map(s => `
+      <div class="sales-row">
+        <span class="sales-row__no">#${String(s.no || 0).padStart(4, '0')}</span>
+        <span class="sales-row__time">${fmtDate(s.time)}</span>
+        <span class="sales-row__items">${s.items ? s.items.length : 0} منتج</span>
+        <span class="sales-row__total mono">${fmt(s.total || 0)}</span>
+      </div>
+    `).join('');
+  }
+
   // ─── Scanner (main) ────────────────────────────────────────
   const readerEl = $('reader');
   const cameraPlaceholder = $('cameraPlaceholder');
@@ -1708,7 +1960,18 @@
     }
   }
 
+  function getBackCamera(cams) {
+    if (!cams || !cams.length) return null;
+    const back = cams.find(c => /back|rear|environment/i.test(c.label));
+    return back || cams[cams.length - 1];
+  }
+
   function initScanner() {
+    if (window.__qrLoadFailed) {
+      showCamErr('فشل تحميل مكتبة الماسح. تحقق من الاتصال بالإنترنت.');
+      return;
+    }
+
     if (html5QrcodeScanner) cleanupScanner();
 
     if (cameraPlaceholder) cameraPlaceholder.style.display = 'none';
@@ -1770,7 +2033,7 @@
 
     const tNo = $('ticketNo');
     const tTime = $('ticketTime');
-    if (tNo) tNo.textContent = String(receiptCounter++).padStart(4, '0');
+    if (tNo) tNo.textContent = String(getCurrentReceiptNumber()).padStart(4, '0');
     if (tTime) tTime.textContent = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
 
     const p = db.products[code];
@@ -1799,27 +2062,21 @@
       `;
 
       let qty = 1;
+      lastScannedProduct = { code, ...p };
+      lastScannedQty = qty;
+
       const updateQty = () => {
         const qEl = $('qtyVal');
         const pEl = $('ticketPrice');
         if (qEl) qEl.textContent = qty;
         if (pEl) pEl.textContent = fmt(p.price * qty);
+        lastScannedQty = qty;
       };
 
       const minusBtn = $('qtyMinus');
       const plusBtn = $('qtyPlus');
       if (minusBtn) minusBtn.addEventListener('click', () => { if (qty > 1) { qty--; updateQty(); } });
       if (plusBtn) plusBtn.addEventListener('click', () => { qty++; updateQty(); });
-
-      if (addBtn) {
-        const newAddBtn = addBtn.cloneNode(true);
-        addBtn.parentNode.replaceChild(newAddBtn, addBtn);
-        newAddBtn.style.display = 'block';
-        newAddBtn.addEventListener('click', () => {
-          addToCart(code, p, qty);
-          toast(`✓ أُضيف ${p.name} ×${qty} للسلة`, false, true);
-        }, { once: true });
-      }
 
       scanHistory.push({ id: generateId(), code, name: p.name, price: p.price, qty, time: Date.now() });
       saveHistory();
@@ -1831,6 +2088,7 @@
 
       const addBtnEl = $('addToCartBtn');
       if (addBtnEl) addBtnEl.style.display = 'none';
+      lastScannedProduct = null;
 
       const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent('سعر منتج باركود ' + code);
       const safeCode = esc(code);
@@ -1860,6 +2118,7 @@
   function rescan() {
     const ticket = $('ticket');
     if (ticket) ticket.classList.remove('show');
+    lastScannedProduct = null;
 
     if (!html5QrcodeScanner) {
       cleanupScanner();
@@ -1875,6 +2134,12 @@
   }
 
   // ─── Cart ──────────────────────────────────────────────────
+  function addToCartFromTicket() {
+    if (!lastScannedProduct) return;
+    addToCart(lastScannedProduct.code, lastScannedProduct, lastScannedQty);
+    toast(`✓ أُضيف ${lastScannedProduct.name} ×${lastScannedQty} للسلة`, false, true);
+  }
+
   function addToCart(code, product, qty) {
     const existing = cart.find(item => item.code === code);
     if (existing) {
@@ -1947,7 +2212,20 @@
   async function checkout() {
     if (!cart.length) return;
     const total = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-    toast(`✓ تم تأكيد الطلب بقيمة ${fmt(total)}`, false, true);
+    
+    const receipt = {
+      id: generateId(),
+      no: getReceiptCounter(),
+      items: deepClone(cart),
+      total,
+      time: Date.now()
+    };
+    
+    salesHistory.push(receipt);
+    await saveSales();
+    renderSalesHistory();
+    
+    toast(`✓ تم تأكيد الطلب #${String(receipt.no).padStart(4, '0')} بقيمة ${fmt(total)}`, false, true);
     cart = [];
     await saveCart();
     renderCart();
@@ -1980,6 +2258,11 @@
 
   // ─── Mini Scanner ──────────────────────────────────────────
   function openMini() {
+    if (window.__qrLoadFailed) {
+      toast('⚠️ مكتبة الماسح غير متوفرة', true);
+      return;
+    }
+
     if (scannerActive && html5QrcodeScanner) {
       try { html5QrcodeScanner.pause(true); } catch (e) {}
     }
@@ -1992,7 +2275,8 @@
       miniRunning = true;
       Html5Qrcode.getCameras().then(cams => {
         if (!cams || !cams.length) throw new Error('no cam');
-        return miniScanner.start(cams[cams.length - 1].id, {
+        const cam = getBackCamera(cams);
+        return miniScanner.start(cam.id, {
           fps: 12, qrbox: { width: 240, height: 150 }
         }, onMiniSuccess, () => {});
       }).catch(() => {
@@ -2036,7 +2320,8 @@
       exportedAt: new Date().toISOString(),
       db: db,
       cart: cart,
-      history: scanHistory
+      history: scanHistory,
+      sales: salesHistory
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -2062,14 +2347,26 @@
         }
         if (!confirm('⚠️ سيستبدل هذا الملف جميع بياناتك الحالية. هل أنت متأكد؟')) return;
 
+        const oldDb = deepClone(db);
+        const oldCart = cart.slice();
+        const oldHistory = scanHistory.slice();
+        const oldSales = salesHistory.slice();
+
         const importedDb = migrateDb(data.db);
         db = importedDb;
         if (Array.isArray(data.cart)) cart = data.cart.filter(item => item && item.code && item.name);
         if (Array.isArray(data.history)) scanHistory = data.history.filter(h => h && h.code);
+        if (Array.isArray(data.sales)) salesHistory = data.sales.filter(s => s && s.id);
 
         const ok = await saveDB();
-        if (!ok) { toast('⚠️ فشل الاستيراد', true); return; }
-        await saveCart(); await saveHistory();
+        if (!ok) { 
+          db = oldDb; cart = oldCart; scanHistory = oldHistory; salesHistory = oldSales;
+          toast('⚠️ فشل الاستيراد', true); 
+          return; 
+        }
+        await saveCart(); 
+        await saveHistory(); 
+        await saveSales();
 
         editingBarcode = null;
         isUnlocked = false;
@@ -2087,6 +2384,78 @@
     e.target.value = '';
   }
 
+  // ─── Firebase Settings ─────────────────────────────────────
+  function renderFirebaseSettings() {
+    const urlInp = $('firebaseUrl');
+    const pathInp = $('firebasePath');
+    const hint = $('storageHint');
+    
+    if (urlInp) urlInp.value = db.settings.firebaseUrl || '';
+    if (pathInp) pathInp.value = db.settings.firebasePath || 'barcode-store.json';
+    
+    if (hint) {
+      if (isFirebaseConfigured()) {
+        hint.textContent = '☁️ متصل بـ Firebase — البيانات تُحفظ محلياً وفي السحابة';
+      } else {
+        hint.textContent = '⚠️ تُحفظ البيانات محلياً — اربط Firebase في الإعدادات للمزامنة السحابية';
+      }
+    }
+  }
+
+  async function saveFirebaseSettings() {
+    const urlInp = $('firebaseUrl');
+    const pathInp = $('firebasePath');
+    if (!urlInp || !pathInp) return;
+    
+    const url = urlInp.value.trim().replace(/\/+$/, '');
+    const path = pathInp.value.trim().replace(/^\/+/, '');
+    
+    if (url && !/^https:\/\/.+\.firebaseio\.com$/i.test(url)) {
+      toast('⚠️ رابط Firebase غير صالح', true);
+      return;
+    }
+    
+    db.settings.firebaseUrl = url;
+    db.settings.firebasePath = path || 'barcode-store.json';
+    
+    const ok = await saveSettings();
+    if (!ok) return;
+    
+    if (url) {
+      toast('☁️ جارٍ اختبار الاتصال...', false, false, true);
+      const testOk = await testFirebaseConnection();
+      if (testOk) {
+        toast('✓ تم الربط بـ Firebase بنجاح', false, true);
+        setStatus('ok', 'متصل بـ Firebase');
+        const banner = $('firebaseBanner');
+        if (banner) banner.classList.remove('show');
+        await saveDB(); // Push local to cloud
+      } else {
+        toast('⚠️ فشل الاتصال بـ Firebase — تحقق من الرابط', true);
+      }
+    } else {
+      toast('✓ تم التبديل للوضع المحلي', false, true);
+      setStatus('local', 'وضع محلي');
+      const banner = $('firebaseBanner');
+      if (banner) banner.classList.add('show');
+    }
+    renderFirebaseSettings();
+  }
+
+  async function testFirebaseConnection() {
+    if (!isFirebaseConfigured()) return false;
+    try {
+      const res = await fetch(`${getFirebaseUrl()}/${getFirebasePath()}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store'
+      });
+      return res.ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
   // ─── Render All ────────────────────────────────────────────
   function renderAll() {
     renderCategorySelects();
@@ -2095,11 +2464,15 @@
     renderStats();
     renderCart();
     renderScanHistory();
+    renderSalesHistory();
+    renderFirebaseSettings();
   }
 
   // ─── Event Listeners ───────────────────────────────────────
   function attachEventListeners() {
+    // Onboarding
     const nextOnboarding = $('nextOnboarding');
+    const prevOnboarding = $('prevOnboarding');
     const skipOnboarding = $('skipOnboarding');
 
     if (nextOnboarding) {
@@ -2116,6 +2489,15 @@
       });
     }
 
+    if (prevOnboarding) {
+      prevOnboarding.addEventListener('click', () => {
+        if (onboardingStep > 0) {
+          onboardingStep--;
+          updateOnboardingUI();
+        }
+      });
+    }
+
     if (skipOnboarding) {
       skipOnboarding.addEventListener('click', () => {
         db.settings.onboardingDone = true;
@@ -2125,6 +2507,7 @@
       });
     }
 
+    // Tabs
     $$('.dock__item').forEach(tab => {
       tab.addEventListener('click', () => {
         if (tab.disabled) return;
@@ -2132,6 +2515,7 @@
       });
     });
 
+    // Lock screen
     const unlockBtn = $('unlockBtn');
     const adminPassInput = $('adminPassInput');
 
@@ -2145,17 +2529,19 @@
     const resetPassBtn = $('resetPassBtn');
     if (resetPassBtn) {
       resetPassBtn.addEventListener('click', async () => {
-        if (!confirm('⚠️ هل تريد إعادة تعيين كلمة السر إلى 1234؟ سيتم تحديث Firebase.')) return;
+        if (!confirm('⚠️ هل تريد إعادة تعيين كلمة السر إلى 1234؟')) return;
         try {
           const { hash, salt } = await hashPassword(DEFAULT_PASSWORD);
           db.adminPasswordHash = hash;
           db.adminPasswordSalt = salt;
           const ok = await saveDB();
           if (!ok) { toast('⚠️ فشل الحفظ', true); return; }
+          clearFailedAttempts();
           toast('✓ تم إعادة تعيين كلمة السر إلى 1234', false, true);
           const err = $('lockError');
           if (err) err.style.display = 'none';
           if (adminPassInput) { adminPassInput.value = ''; adminPassInput.focus(); }
+          updateLockoutUI();
         } catch (e) {
           toast('⚠️ خطأ في إعادة التعيين', true);
         }
@@ -2212,6 +2598,7 @@
       });
     }
 
+    // Categories
     const addCatBtn = $('addCatBtn');
     const catNameInput = $('cat-name');
 
@@ -2222,6 +2609,7 @@
       });
     }
 
+    // Products
     const saveProductBtn = $('saveProductBtn');
     if (saveProductBtn) saveProductBtn.addEventListener('click', saveProduct);
 
@@ -2244,6 +2632,7 @@
     if (filterCategory) filterCategory.addEventListener('change', renderProductList);
     if (searchProducts) searchProducts.addEventListener('input', debounce(renderProductList, 150));
 
+    // Scanner
     const startCameraBtn = $('startCameraBtn');
     if (startCameraBtn) {
       startCameraBtn.addEventListener('click', () => { initScanner(); });
@@ -2262,12 +2651,26 @@
     const rescanBtn = $('rescanBtn');
     if (rescanBtn) rescanBtn.addEventListener('click', rescan);
 
+    // Ticket actions (Event Delegation - Fixed)
+    const ticketEl = $('ticket');
+    if (ticketEl) {
+      ticketEl.addEventListener('click', (e) => {
+        const addBtn = e.target.closest('#addToCartBtn');
+        if (addBtn) {
+          e.preventDefault();
+          addToCartFromTicket();
+        }
+      });
+    }
+
+    // Cart
     const clearCartBtn = $('clearCartBtn');
     const checkoutBtn = $('checkoutBtn');
 
     if (clearCartBtn) clearCartBtn.addEventListener('click', clearCart);
     if (checkoutBtn) checkoutBtn.addEventListener('click', checkout);
 
+    // Mini Scanner
     const openMiniScanBtn = $('openMiniScanBtn');
     const closeMiniScanBtn = $('closeMiniScanBtn');
     const miniScanModal = $('miniScanModal');
@@ -2280,12 +2683,23 @@
       });
     }
 
+    // Export/Import
     const exportBtn = $('exportBtn');
     const importBtn = $('importBtn');
 
     if (exportBtn) exportBtn.addEventListener('click', exportData);
     if (importBtn) importBtn.addEventListener('change', importData);
 
+    // Firebase Settings
+    const saveFirebaseBtn = $('saveFirebaseBtn');
+    const testFirebaseBtn = $('testFirebaseBtn');
+    if (saveFirebaseBtn) saveFirebaseBtn.addEventListener('click', saveFirebaseSettings);
+    if (testFirebaseBtn) testFirebaseBtn.addEventListener('click', async () => {
+      const ok = await testFirebaseConnection();
+      toast(ok ? '✓ الاتصال ناجح' : '⚠️ فشل الاتصال', !ok);
+    });
+
+    // Global shortcuts
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && miniScanModal && miniScanModal.classList.contains('show')) {
         closeMini();
@@ -2299,27 +2713,67 @@
     });
   }
 
+  // ─── Service Worker & Manifest (Inline) ────────────────────
+  function setupPWA() {
+    try {
+      // Manifest
+      const manifest = {
+        name: "نظام مسح الباركود",
+        short_name: "باركود",
+        start_url: ".",
+        display: "standalone",
+        background_color: "#f8fafc",
+        theme_color: "#0f172a",
+        icons: [{
+          src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='192' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230f172a'/%3E%3Ctext x='50' y='65' font-size='50' text-anchor='middle' fill='white' font-family='monospace'%3EBC%3C/text%3E%3C/svg%3E",
+          sizes: "192x192",
+          type: "image/svg+xml"
+        }]
+      };
+      const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+      const manifestUrl = URL.createObjectURL(manifestBlob);
+      let manifestLink = document.querySelector('link[rel="manifest"]');
+      if (!manifestLink) {
+        manifestLink = document.createElement('link');
+        manifestLink.rel = 'manifest';
+        document.head.appendChild(manifestLink);
+      }
+      manifestLink.href = manifestUrl;
+
+      // Service Worker
+      if ('serviceWorker' in navigator) {
+        const swCode = `
+          self.addEventListener('install', e => {
+            e.waitUntil(self.skipWaiting());
+          });
+          self.addEventListener('activate', e => {
+            e.waitUntil(self.clients.claim());
+          });
+          self.addEventListener('fetch', e => {
+            e.respondWith(fetch(e.request).catch(() => new Response('Offline', {status: 503})));
+          });
+        `;
+        const swBlob = new Blob([swCode], {type: 'application/javascript'});
+        const swUrl = URL.createObjectURL(swBlob);
+        navigator.serviceWorker.register(swUrl).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('PWA setup failed:', e);
+    }
+  }
+
   // ─── Init ──────────────────────────────────────────────────
   window.addEventListener('DOMContentLoaded', () => {
+    setupPWA();
     attachEventListeners();
     loadDB();
   });
 
   window.__barcodeApp = {
-    version: '3.0-firebase',
-    getStatus: () => ({ dbReady, isUnlocked: !!isUnlocked, scannerActive, cartSize: cart.length })
+    version: '4.0-fixed',
+    getStatus: () => ({ dbReady, isUnlocked: !!isUnlocked, scannerActive, cartSize: cart.length, firebase: isFirebaseConfigured() })
   };
 })();
-</script>
-
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js')
-      .then(reg => console.log('SW registered'))
-      .catch(err => console.log('SW error', err));
-  });
-}
 </script>
 
 </body>

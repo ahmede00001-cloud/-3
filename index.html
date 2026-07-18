@@ -6,6 +6,11 @@
 <meta name="theme-color" content="#0f172a">
 <meta name="description" content="نظام مسح الباركود المتكامل - إدارة المنتجات والمخزون">
 <title>نظام مسح الباركود</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="باركود">
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
@@ -649,6 +654,9 @@
           <div style="color:var(--error); font-size:0.75rem; margin-top:10px; display:none; font-weight:700;" id="lockError">❌ كلمة السر غير صحيحة</div>
         </div>
         <div style="margin-top:24px; font-family:var(--mono); font-size:0.625rem; color:var(--text-faint);">الافتراضية: 1234</div>
+        <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:16px;">
+          <button type="button" class="btn btn--ghost btn--sm" id="resetPassBtn" style="color:var(--text-faint); font-size:0.75rem;" aria-label="إعادة تعيين كلمة السر">🔄 نسيت كلمة السر؟ إعادة تعيين</button>
+        </div>
       </div>
 
       <div id="adminContent" style="display:none;">
@@ -904,22 +912,30 @@
     return !!(window.crypto && crypto.subtle && typeof crypto.subtle.digest === 'function');
   }
 
-  async function sha256(message, salt) {
-    if (!hasCryptoSubtle()) {
-      let h = 0x811c9dc5;
-      const str = (salt || '') + message;
-      for (let i = 0; i < str.length; i++) {
-        h ^= str.charCodeAt(i);
-        h = Math.imul(h, 0x01000193);
-      }
-      const hash = (h >>> 0).toString(16).padStart(8, '0');
-      return hash.repeat(8).slice(0, 64);
-    }
+  async function sha256_subtle(message, salt) {
     const encoder = new TextEncoder();
     const data = encoder.encode(salt + message);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function sha256_fallback(message, salt) {
+    let h = 0x811c9dc5;
+    const str = (salt || '') + message;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    const hash = (h >>> 0).toString(16).padStart(8, '0');
+    return hash.repeat(8).slice(0, 64);
+  }
+
+  async function sha256(message, salt) {
+    if (hasCryptoSubtle()) {
+      return sha256_subtle(message, salt);
+    }
+    return sha256_fallback(message, salt);
   }
 
   function generateSalt() {
@@ -939,8 +955,13 @@
 
   async function verifyPassword(password, salt, hash) {
     if (!salt || !hash) return password === DEFAULT_PASSWORD;
-    const computed = await sha256(password, salt);
-    return computed === hash;
+    if (hasCryptoSubtle()) {
+      const computed = await sha256_subtle(password, salt);
+      if (computed === hash) return true;
+    }
+    const computedFallback = sha256_fallback(password, salt);
+    if (computedFallback === hash) return true;
+    return false;
   }
 
   // ─── Utilities ─────────────────────────────────────────────
@@ -2121,6 +2142,26 @@
       });
     }
 
+    const resetPassBtn = $('resetPassBtn');
+    if (resetPassBtn) {
+      resetPassBtn.addEventListener('click', async () => {
+        if (!confirm('⚠️ هل تريد إعادة تعيين كلمة السر إلى 1234؟ سيتم تحديث Firebase.')) return;
+        try {
+          const { hash, salt } = await hashPassword(DEFAULT_PASSWORD);
+          db.adminPasswordHash = hash;
+          db.adminPasswordSalt = salt;
+          const ok = await saveDB();
+          if (!ok) { toast('⚠️ فشل الحفظ', true); return; }
+          toast('✓ تم إعادة تعيين كلمة السر إلى 1234', false, true);
+          const err = $('lockError');
+          if (err) err.style.display = 'none';
+          if (adminPassInput) { adminPassInput.value = ''; adminPassInput.focus(); }
+        } catch (e) {
+          toast('⚠️ خطأ في إعادة التعيين', true);
+        }
+      });
+    }
+
     const lockNowBtn = $('lockNowBtn');
     if (lockNowBtn) {
       lockNowBtn.addEventListener('click', () => {
@@ -2269,6 +2310,16 @@
     getStatus: () => ({ dbReady, isUnlocked: !!isUnlocked, scannerActive, cartSize: cart.length })
   };
 })();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('SW registered'))
+      .catch(err => console.log('SW error', err));
+  });
+}
 </script>
 
 </body>

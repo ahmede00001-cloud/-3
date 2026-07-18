@@ -1,0 +1,2275 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="description" content="نظام مسح الباركود المتكامل - إدارة المنتجات والمخزون">
+<title>نظام مسح الباركود</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --surface-2: #f1f5f9;
+    --surface-3: #e2e8f0;
+    --border: #e2e8f0;
+    --border-dark: #cbd5e1;
+    --text: #0f172a;
+    --text-dim: #475569;
+    --text-faint: #94a3b8;
+    --primary: #0f172a;
+    --primary-text: #ffffff;
+    --accent: #2563eb;
+    --accent-dim: #1d4ed8;
+    --accent-glow: rgba(37, 99, 235, 0.1);
+    --accent-soft: rgba(37, 99, 235, 0.06);
+    --success: #059669;
+    --success-bg: rgba(5, 150, 105, 0.08);
+    --success-soft: rgba(5, 150, 105, 0.04);
+    --warning: #d97706;
+    --warning-bg: rgba(217, 119, 6, 0.08);
+    --error: #dc2626;
+    --error-bg: rgba(220, 38, 38, 0.08);
+    --error-soft: rgba(220, 38, 38, 0.04);
+    --mono: 'JetBrains Mono', 'SF Mono', monospace;
+    --font: 'Cairo', -apple-system, BlinkMacSystemFont, sans-serif;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.06), 0 4px 6px -4px rgba(0,0,0,0.04);
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 14px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    padding-bottom: calc(64px + var(--safe-bottom));
+    line-height: 1.6;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .mono { font-family: var(--mono); letter-spacing: -0.01em; }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-dark); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border-bottom: 1px solid var(--border);
+    padding: calc(10px + var(--safe-top)) 16px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .topbar__brand { display: flex; align-items: center; gap: 10px; }
+  .topbar__logo {
+    width: 34px; height: 34px;
+    background: var(--primary); color: var(--primary-text);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 0.625rem; font-weight: 700;
+    border-radius: var(--radius-sm); letter-spacing: 0.05em;
+    box-shadow: var(--shadow-sm);
+  }
+  .topbar__title { font-size: 0.9375rem; font-weight: 800; letter-spacing: 0.01em; }
+  .topbar__status {
+    display: flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 0.625rem;
+    color: var(--text-dim); letter-spacing: 0.06em;
+    background: var(--surface-2);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+  .status-pip {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--success);
+    animation: pipPulse 2.5s ease-in-out infinite;
+  }
+  .status-pip.error { background: var(--error); animation: none; }
+  .status-pip.loading { background: var(--warning); }
+  @keyframes pipPulse { 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:.35; transform:scale(0.85);} }
+
+  .dock {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-around; align-items: center;
+    padding: 0 0 var(--safe-bottom) 0;
+    height: calc(60px + var(--safe-bottom));
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.03);
+  }
+  .dock__item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; height: 56px; border: none; background: transparent;
+    color: var(--text-faint); cursor: pointer; position: relative;
+    font-family: inherit; transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .dock__item::after {
+    content: ''; position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%) scaleX(0);
+    width: 20px; height: 3px; background: var(--primary);
+    border-radius: 3px;
+    transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .dock__item--active { color: var(--primary); }
+  .dock__item--active::after { transform: translateX(-50%) scaleX(1); }
+  .dock__icon { font-size: 1.15rem; line-height: 1; transition: transform 200ms; position: relative; }
+  .dock__item--active .dock__icon { transform: translateY(-1px); }
+  .dock__label { font-size: 0.625rem; font-weight: 700; letter-spacing: 0.02em; }
+  .dock__badge {
+    position: absolute; top: -2px; right: -8px;
+    min-width: 16px; height: 16px; padding: 0 4px;
+    background: var(--error); color: #fff;
+    font-family: var(--mono); font-size: 0.625rem; font-weight: 700;
+    border-radius: 8px; display: none; align-items: center; justify-content: center;
+  }
+  .dock__badge.show { display: flex; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 12px 16px;
+    position: relative;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    transition: box-shadow 200ms, border-color 200ms;
+  }
+  .panel:hover { box-shadow: var(--shadow); }
+  .panel--accent { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow-sm); }
+  .panel--success { border-color: var(--success); box-shadow: 0 0 0 3px var(--success-soft), var(--shadow-sm); }
+  .panel--error { border-color: var(--error); box-shadow: 0 0 0 3px var(--error-soft), var(--shadow-sm); }
+  .panel__header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+  .panel__title {
+    font-size: 0.6875rem; font-weight: 800; letter-spacing: 0.04em;
+    color: var(--text-dim);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel__title::before { content: ''; width: 5px; height: 5px; background: var(--primary); border-radius: 2px; }
+  .panel__body { padding: 16px; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border: 1px solid var(--border-dark); border-radius: var(--radius-sm);
+    padding: 10px 20px; font-family: inherit; font-size: 0.8125rem; font-weight: 700;
+    cursor: pointer; background: var(--surface); color: var(--text);
+    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-sm);
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--primary); background: var(--surface-2); transform: translateY(-1px); box-shadow: var(--shadow); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn--primary { background: var(--primary); color: var(--primary-text); border-color: var(--primary); }
+  .btn--primary:hover { background: #1e293b; border-color: #1e293b; }
+  .btn--accent { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn--accent:hover { background: var(--accent-dim); border-color: var(--accent-dim); }
+  .btn--success { background: var(--success); color: #fff; border-color: var(--success); }
+  .btn--success:hover { background: #047857; border-color: #047857; }
+  .btn--error { border-color: var(--error); color: var(--error); background: var(--error-bg); }
+  .btn--error:hover { background: var(--error); color: #fff; }
+  .btn--ghost { background: transparent; border-color: transparent; color: var(--text-dim); box-shadow: none; }
+  .btn--ghost:hover { color: var(--text); background: var(--surface-2); border-color: var(--border); }
+  .btn--sm { padding: 6px 12px; font-size: 0.75rem; }
+  .btn--block { width: 100%; }
+  .btn--icon { padding: 8px; width: 38px; height: 38px; }
+
+  .field { position: relative; margin-bottom: 16px; }
+  .field:last-child { margin-bottom: 0; }
+  .field__input {
+    width: 100%; padding: 12px 14px;
+    background: var(--surface-2);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: inherit; font-size: 0.9375rem;
+    outline: none;
+    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .field__input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-glow); }
+  .field__input::placeholder { color: var(--text-faint); }
+  .field__input:disabled { opacity: 0.4; cursor: not-allowed; background: var(--surface-3); }
+  .field__label {
+    display: block; font-size: 0.6875rem; font-weight: 700;
+    color: var(--text-dim); margin-bottom: 6px;
+    letter-spacing: 0.03em;
+  }
+  .field__hint {
+    font-size: 0.6875rem; color: var(--text-faint); margin-top: 4px;
+  }
+  .field__error { display: none; color: var(--error); font-size: 0.6875rem; margin-top: 5px; font-weight: 700; }
+  .field--error .field__input { border-color: var(--error); box-shadow: 0 0 0 4px var(--error-soft); }
+  .field--error .field__error { display: block; }
+
+  .input-row { display: flex; gap: 10px; align-items: flex-start; }
+  .input-row .field { flex: 1; margin-bottom: 0; }
+
+  #reader {
+    width: 100% !important;
+    background: var(--surface-2) !important;
+    border: 1.5px solid var(--border) !important;
+    border-radius: var(--radius-sm) !important;
+    overflow: hidden !important;
+    min-height: 200px;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+  }
+  #reader.scanning { min-height: auto; }
+  #reader button {
+    background: var(--primary) !important; color: var(--primary-text) !important;
+    border: none !important; border-radius: var(--radius-sm) !important;
+    padding: 10px 24px !important;
+    font-family: var(--font) !important; font-size: 0.8125rem !important; font-weight: 700 !important;
+    margin: 10px auto !important; display: block !important; cursor: pointer !important;
+    transition: all 150ms !important;
+  }
+  #reader button:hover { background: #1e293b !important; }
+  #reader select {
+    background: var(--surface) !important; color: var(--text) !important;
+    border: 1.5px solid var(--border) !important; border-radius: var(--radius-sm) !important;
+    padding: 10px !important; font-family: inherit !important;
+    margin: 10px auto !important; display: block !important; width: 92% !important;
+    outline: none !important;
+  }
+
+  .ticket {
+    display: none;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    margin: 12px 16px;
+    position: relative;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .ticket.show { display: block; animation: scanIn 300ms cubic-bezier(0.4, 0, 0.2, 1); }
+  @keyframes scanIn { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .ticket--hit { border-color: var(--success); }
+  .ticket--miss { border-color: var(--error); }
+  .ticket__head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 16px; background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono); font-size: 0.625rem; color: var(--text-dim); letter-spacing: 0.04em;
+  }
+  .ticket__body { padding: 16px; }
+  .ticket__row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; gap: 12px; font-size: 0.875rem;
+  }
+  .ticket__row:not(:last-child) { border-bottom: 1px solid var(--border); }
+  .ticket__key { color: var(--text-dim); font-size: 0.75rem; font-weight: 700; }
+  .ticket__val { font-weight: 700; text-align: left; }
+  .ticket__price {
+    font-family: var(--mono); font-size: 1.875rem; font-weight: 700;
+    color: var(--success); text-align: center; padding: 14px 0 6px;
+    letter-spacing: -0.02em;
+  }
+  .ticket__price--miss { color: var(--error); font-size: 1.125rem; }
+  .ticket__actions { padding: 0 16px 16px; display: flex; gap: 8px; }
+
+  .qty-control {
+    display: inline-flex; align-items: center; gap: 2px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); overflow: hidden;
+  }
+  .qty-control__btn {
+    width: 32px; height: 32px; border: none; background: transparent;
+    color: var(--text-dim); font-size: 1rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 100ms;
+  }
+  .qty-control__btn:hover { background: var(--surface-3); color: var(--text); }
+  .qty-control__btn:active { background: var(--border-dark); }
+  .qty-control__val {
+    min-width: 36px; text-align: center;
+    font-family: var(--mono); font-size: 0.875rem; font-weight: 700;
+    color: var(--text);
+  }
+
+  .data-list {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 12px 16px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  .data-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; min-height: 56px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer; transition: all 100ms;
+  }
+  .data-row:last-child { border-bottom: none; }
+  .data-row:hover { background: var(--surface-2); }
+  .data-row__id {
+    width: 34px; height: 34px;
+    background: var(--surface-2); border: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 0.625rem; color: var(--text-dim);
+    flex-shrink: 0; border-radius: var(--radius-sm); font-weight: 600;
+  }
+  .data-row__info { flex: 1; min-width: 0; }
+  .data-row__title { font-size: 0.875rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .data-row__meta { font-family: var(--mono); font-size: 0.6875rem; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .data-row__price { font-family: var(--mono); font-size: 0.9375rem; font-weight: 700; color: var(--success); white-space: nowrap; }
+  .data-row__acts { display: flex; gap: 4px; flex-shrink: 0; }
+  .act-btn {
+    width: 34px; height: 34px; border-radius: var(--radius-sm);
+    border: 1.5px solid var(--border); background: var(--surface);
+    color: var(--text-dim); display: flex; align-items: center; justify-content: center;
+    font-size: 0.875rem; cursor: pointer; transition: all 100ms;
+  }
+  .act-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .act-btn--del:hover { border-color: var(--error); color: var(--error); background: var(--error-bg); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px; border: 1.5px solid var(--border);
+    background: var(--surface-2); color: var(--text-dim);
+    font-size: 0.75rem; font-weight: 700; cursor: default;
+    border-radius: 20px; transition: all 150ms;
+  }
+  .chip:hover { border-color: var(--border-dark); }
+  .chip--active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .chip__count {
+    font-family: var(--mono); font-size: 0.625rem; opacity: 0.7;
+    background: var(--surface); padding: 1px 5px; border-radius: 10px;
+  }
+  .chip__x {
+    width: 16px; height: 16px; border: none; background: var(--border);
+    color: var(--text-dim); font-size: 0.625rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; line-height: 1;
+    border-radius: 50%; transition: all 100ms;
+  }
+  .chip__x:hover { background: var(--error); color: #fff; }
+
+  .modal {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(4px);
+    align-items: flex-end; justify-content: center;
+    opacity: 0;
+    transition: opacity 200ms;
+  }
+  .modal.show { display: flex; opacity: 1; }
+  .modal__sheet {
+    background: var(--surface); border-top: 1px solid var(--border);
+    width: 100%; max-width: 560px;
+    padding: 20px 20px calc(24px + var(--safe-bottom));
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    transform: translateY(100%);
+    transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-lg);
+  }
+  .modal.show .modal__sheet { transform: translateY(0); }
+  .modal__head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
+  }
+  .modal__title { font-size: 0.9375rem; font-weight: 800; }
+
+  .toast {
+    position: fixed; bottom: calc(76px + var(--safe-bottom)); left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border-dark);
+    padding: 12px 20px; border-radius: var(--radius);
+    font-size: 0.8125rem; font-weight: 700;
+    z-index: 60; opacity: 0; pointer-events: none;
+    transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    max-width: 90vw; text-align: center;
+    font-family: var(--font);
+    box-shadow: var(--shadow-lg);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast--err { border-color: var(--error); color: var(--error); background: var(--error-bg); }
+  .toast--success { border-color: var(--success); color: var(--success); background: var(--success-bg); }
+  .toast--warn { border-color: var(--warning); color: var(--warning); background: var(--warning-bg); }
+
+  .empty { text-align: center; padding: 48px 24px; color: var(--text-faint); }
+  .empty__icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.4; }
+  .empty__title { font-size: 0.9375rem; font-weight: 800; color: var(--text-dim); margin-bottom: 6px; }
+  .empty__body { font-size: 0.8125rem; line-height: 1.7; }
+
+  .view { display: none; }
+  .view.active { display: block; animation: fadeIn 200ms cubic-bezier(0.4, 0, 0.2, 1); }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  .section-label { font-size: 0.625rem; font-weight: 800; color: var(--text-dim); letter-spacing: 0.04em; padding: 18px 16px 8px; }
+  .badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 20px; height: 20px; padding: 0 6px;
+    background: var(--surface-2); border: 1.5px solid var(--border);
+    font-family: var(--mono); font-size: 0.625rem; font-weight: 700; color: var(--text-dim);
+    border-radius: 10px;
+  }
+  .badge--accent { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .badge--success { background: var(--success-soft); border-color: var(--success); color: var(--success); }
+
+  .cam-err {
+    display: none; margin: 12px 16px;
+    padding: 12px 16px; border: 1.5px solid var(--error);
+    background: var(--error-bg); color: var(--error);
+    font-size: 0.8125rem; font-family: var(--font);
+    border-radius: var(--radius-sm);
+  }
+  .cam-err.show { display: block; animation: shake 400ms; }
+  @keyframes shake { 0%,100%{transform:translateX(0);} 20%{transform:translateX(-6px);} 40%{transform:translateX(6px);} 60%{transform:translateX(-3px);} 80%{transform:translateX(3px);} }
+
+  .search-box { position: relative; margin: 10px 16px 12px; }
+  .search-box__input {
+    width: 100%; padding: 11px 14px 11px 40px;
+    background: var(--surface-2); border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text); font-family: inherit; font-size: 0.875rem;
+    outline: none; transition: all 150ms;
+  }
+  .search-box__input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-glow); }
+  .search-box__icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-faint); font-size: 0.875rem; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 380px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+    margin: 12px 16px;
+  }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .stat-card__label { font-size: 0.625rem; font-weight: 700; color: var(--text-faint); letter-spacing: 0.04em; margin-bottom: 4px; }
+  .stat-card__value { font-family: var(--mono); font-size: 1.25rem; font-weight: 700; color: var(--text); }
+  .stat-card__value--accent { color: var(--accent); }
+  .stat-card__value--success { color: var(--success); }
+
+  .cart-summary {
+    background: var(--surface); border: 1.5px solid var(--border);
+    border-radius: var(--radius); margin: 12px 16px;
+    padding: 16px; box-shadow: var(--shadow-sm);
+  }
+  .cart-summary__row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; font-size: 0.875rem;
+  }
+  .cart-summary__row--total {
+    border-top: 2px solid var(--border); margin-top: 8px; padding-top: 12px;
+    font-size: 1.125rem; font-weight: 800;
+  }
+  .cart-summary__price { font-family: var(--mono); font-weight: 700; }
+
+  .history-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font-size: 0.8125rem;
+  }
+  .history-row:last-child { border-bottom: none; }
+  .history-row__time { font-family: var(--mono); font-size: 0.625rem; color: var(--text-faint); white-space: nowrap; }
+  .history-row__name { flex: 1; font-weight: 600; }
+  .history-row__qty { font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim); }
+  .history-row__price { font-family: var(--mono); font-weight: 700; color: var(--success); }
+
+  .export-box {
+    background: var(--surface-2); border: 1.5px dashed var(--border-dark);
+    border-radius: var(--radius); padding: 20px; text-align: center;
+    margin: 12px 16px;
+  }
+  .export-box__icon { font-size: 2rem; margin-bottom: 8px; opacity: 0.5; }
+  .export-box__title { font-size: 0.875rem; font-weight: 700; margin-bottom: 4px; }
+  .export-box__body { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 12px; }
+
+  .file-input-wrapper {
+    position: relative; overflow: hidden;
+    display: inline-block;
+  }
+  .file-input-wrapper input[type=file] {
+    position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer;
+  }
+
+  .onboarding {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(6px);
+    display: none; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .onboarding.show { display: flex; }
+  .onboarding__card {
+    background: var(--surface); border-radius: var(--radius-lg);
+    max-width: 420px; width: 100%;
+    padding: 28px 24px;
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+  }
+  .onboarding__step { display: none; }
+  .onboarding__step.active { display: block; animation: fadeIn 300ms; }
+  .onboarding__icon { font-size: 3rem; margin-bottom: 16px; }
+  .onboarding__title { font-size: 1.125rem; font-weight: 800; margin-bottom: 8px; }
+  .onboarding__body { font-size: 0.875rem; color: var(--text-dim); line-height: 1.7; margin-bottom: 20px; }
+  .onboarding__dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 20px; }
+  .onboarding__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-dark); transition: all 200ms; }
+  .onboarding__dot.active { background: var(--accent); width: 20px; border-radius: 4px; }
+
+  .camera-placeholder {
+    text-align: center; padding: 40px 20px;
+    color: var(--text-dim);
+  }
+  .camera-placeholder__icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.4; }
+  .camera-placeholder__title { font-size: 0.9375rem; font-weight: 700; margin-bottom: 6px; }
+  .camera-placeholder__body { font-size: 0.8125rem; color: var(--text-faint); margin-bottom: 16px; max-width: 280px; margin-left: auto; margin-right: auto; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar__brand">
+      <div class="topbar__logo">BC</div>
+      <div class="topbar__title">نظام مسح الباركود</div>
+    </div>
+    <div class="topbar__status">
+      <span class="status-pip loading" id="statusDot"></span>
+      <span id="statusText">جاري التحميل</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="view active" id="view-scan">
+      <div class="panel" style="margin-top:16px;">
+        <div class="panel__header">
+          <span class="panel__title">كاميرا الماسح</span>
+          <span class="mono" style="font-size:0.625rem; color:var(--text-faint);">CAM-01</span>
+        </div>
+        <div class="panel__body" style="padding:10px;">
+          <div id="reader">
+            <div class="camera-placeholder" id="cameraPlaceholder">
+              <div class="camera-placeholder__icon">📷</div>
+              <div class="camera-placeholder__title">الكاميرا متوقفة</div>
+              <div class="camera-placeholder__body">اضغط الزر أدناه لتشغيل الكاميرا ومسح الباركود مباشرة</div>
+              <button type="button" class="btn btn--primary" id="startCameraBtn">
+                ▶️ تشغيل الكاميرا
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cam-err" id="cameraError">
+        <strong>⚠️ خطأ في الكاميرا</strong><br>
+        <span id="cameraErrorMsg">تعذّر الوصول للكاميرا. استخدم الإدخال اليدوي أو تحقق من صلاحيات المتصفح.</span>
+      </div>
+
+      <div class="panel">
+        <div class="panel__header"><span class="panel__title">إدخال يدوي</span></div>
+        <div class="panel__body">
+          <div class="field">
+            <label class="field__label">رقم الباركود</label>
+            <input type="text" id="manualBarcode" class="field__input mono" placeholder="مثال: 1234567890123" inputmode="text" aria-label="إدخال الباركود يدوياً">
+          </div>
+          <button type="button" class="btn btn--primary btn--block" id="manualSearchBtn" aria-label="بحث في قاعدة البيانات">
+            🔍 بحث في القاعدة
+          </button>
+        </div>
+      </div>
+
+      <div id="ticket" class="ticket" role="status" aria-live="polite">
+        <div class="ticket__head">
+          <span>فاتورة رقم <span id="ticketNo" class="mono">0001</span></span>
+          <span id="ticketTime" class="mono">--:--</span>
+        </div>
+        <div class="ticket__body" id="ticketBody"></div>
+        <div class="ticket__actions">
+          <button type="button" class="btn btn--ghost" id="rescanBtn" style="flex:1;" aria-label="إعادة المسح">↻ إعادة المسح</button>
+          <button type="button" class="btn btn--primary" id="addToCartBtn" style="flex:1; display:none;" aria-label="إضافة للسلة">🛒 إضافة للسلة</button>
+        </div>
+      </div>
+
+      <div class="cart-summary" id="cartSummary" style="display:none;">
+        <div style="font-size:0.75rem; font-weight:800; color:var(--text-dim); margin-bottom:10px; letter-spacing:0.02em;">🛒 سلة المشتريات</div>
+        <div id="cartItems"></div>
+        <div class="cart-summary__row cart-summary__row--total">
+          <span>الإجمالي</span>
+          <span class="cart-summary__price mono" id="cartTotal">0.00 ج.م</span>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:12px;">
+          <button type="button" class="btn btn--error btn--block" id="clearCartBtn" style="flex:1;" aria-label="إفراغ السلة">🗑 إفراغ</button>
+          <button type="button" class="btn btn--success btn--block" id="checkoutBtn" style="flex:1;" aria-label="تأكيد الطلب">✓ تأكيد</button>
+        </div>
+      </div>
+
+      <div class="section-label">📜 سجل المسح</div>
+      <div class="data-list" id="scanHistory">
+        <div class="empty" style="padding:24px;">
+          <div class="empty__icon">📋</div>
+          <div class="empty__title">لا يوجد سجل بعد</div>
+          <div class="empty__body">ستظهر هنا نتائج المسح الأخيرة</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="view" id="view-admin">
+      <div class="panel" id="lockScreen" style="margin-top:24px; text-align:center; padding:48px 24px;">
+        <div style="font-size:3rem; margin-bottom:16px; opacity:.5;">🔐</div>
+        <div style="font-size:1.125rem; font-weight:800; margin-bottom:6px; letter-spacing:0.02em;">لوحة التحكم</div>
+        <div style="font-size:0.8125rem; color:var(--text-dim); margin-bottom:24px;">أدخل كلمة السر للمتابعة</div>
+        <div style="max-width:280px; margin:0 auto;">
+          <div class="field">
+            <label class="field__label">كلمة السر</label>
+            <input type="password" id="adminPassInput" class="field__input mono" placeholder="••••" inputmode="numeric" autocomplete="off" aria-label="كلمة السر">
+          </div>
+          <button type="button" class="btn btn--primary btn--block" id="unlockBtn" style="margin-top:6px;" aria-label="دخول">دخول</button>
+          <div style="color:var(--error); font-size:0.75rem; margin-top:10px; display:none; font-weight:700;" id="lockError">❌ كلمة السر غير صحيحة</div>
+        </div>
+        <div style="margin-top:24px; font-family:var(--mono); font-size:0.625rem; color:var(--text-faint);">الافتراضية: 1234</div>
+      </div>
+
+      <div id="adminContent" style="display:none;">
+        <div class="panel" id="editBanner" style="display:none; border-color:var(--warning); background:var(--warning-bg);">
+          <div class="panel__body" style="display:flex; justify-content:space-between; align-items:center; padding:10px 16px;">
+            <span style="font-size:0.8125rem; font-weight:700; color:var(--warning);">✏️ تعديل: <span id="editingName"></span></span>
+            <button type="button" class="btn btn--ghost btn--sm" id="cancelEditBtn" aria-label="إلغاء التعديل">إلغاء</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel__header"><span class="panel__title" id="formTitle">➕ منتج جديد</span></div>
+          <div class="panel__body">
+            <div class="field" id="field-barcode">
+              <label class="field__label">الباركود *</label>
+              <div class="input-row">
+                <div class="field" style="flex:1; margin-bottom:0;">
+                  <input type="text" id="p-barcode" class="field__input mono" placeholder="مثال: 1234567890123" inputmode="text" maxlength="30" aria-label="الباركود">
+                </div>
+                <button type="button" class="btn btn--icon" id="openMiniScanBtn" title="مسح بالكاميرا" aria-label="مسح الباركود بالكاميرا">📷</button>
+              </div>
+              <span class="field__error">أدخل باركود صحيح (3-30 رقم/حرف)</span>
+              <div class="field__hint">يمكنك استخدام الأحرف والأرقام فقط</div>
+            </div>
+            <div class="field" id="field-name">
+              <label class="field__label">اسم المنتج *</label>
+              <input type="text" id="p-name" class="field__input" placeholder="اسم المنتج الكامل" maxlength="120" aria-label="اسم المنتج">
+              <span class="field__error">اكتب اسم المنتج</span>
+            </div>
+            <div class="grid-2">
+              <div class="field" id="field-price">
+                <label class="field__label">السعر (ج.م) *</label>
+                <input type="number" step="0.01" min="0" id="p-price" class="field__input mono" placeholder="0.00" aria-label="السعر">
+                <span class="field__error">أدخل سعر صحيح أكبر من صفر</span>
+              </div>
+              <div class="field" id="field-category">
+                <label class="field__label">القسم *</label>
+                <select id="p-category" class="field__input" style="padding-top:12px;" aria-label="القسم"></select>
+                <span class="field__error">أضف قسماً أولاً</span>
+              </div>
+            </div>
+            <button type="button" class="btn btn--primary btn--block" id="saveProductBtn" style="margin-top:6px;" aria-label="حفظ المنتج">💾 حفظ المنتج</button>
+            <div style="font-family:var(--mono); font-size:0.625rem; color:var(--text-faint); text-align:center; margin-top:12px;">
+              ⚠️ تُحفظ البيانات في Firebase — السلة والسجل محليان فقط
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel__header">
+            <span class="panel__title">📂 الأقسام</span>
+            <span class="badge" id="catCountBadge">0</span>
+          </div>
+          <div class="panel__body">
+            <div class="input-row" style="margin-bottom:14px;">
+              <div class="field" style="flex:1; margin-bottom:0;">
+                <input type="text" id="cat-name" class="field__input" placeholder="اسم قسم جديد" maxlength="40" aria-label="اسم قسم جديد">
+              </div>
+              <button type="button" class="btn btn--icon" id="addCatBtn" style="height:46px; width:46px; font-size:1.1rem;" aria-label="إضافة قسم">+</button>
+            </div>
+            <div class="chips" id="catList"></div>
+          </div>
+        </div>
+
+        <div class="data-list">
+          <div class="panel__header" style="border-bottom:1px solid var(--border);">
+            <span class="panel__title">📦 قائمة المنتجات</span>
+            <span class="badge" id="productCountBadge">0</span>
+          </div>
+          <div class="search-box">
+            <span class="search-box__icon">🔍</span>
+            <input type="text" id="searchProducts" class="search-box__input" placeholder="بحث بالاسم أو الباركود..." aria-label="بحث في المنتجات">
+          </div>
+          <div style="padding:0 16px 12px;">
+            <select id="filterCategory" class="field__input" style="margin-bottom:0;" aria-label="فلترة حسب القسم">
+              <option value="">📂 كل الأقسام</option>
+            </select>
+          </div>
+          <div id="productList"></div>
+        </div>
+
+        <div class="section-label">📊 إحصائيات سريعة</div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-card__label">إجمالي المنتجات</div>
+            <div class="stat-card__value" id="statTotalProducts">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__label">عدد الأقسام</div>
+            <div class="stat-card__value stat-card__value--accent" id="statTotalCats">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__label">أعلى سعر</div>
+            <div class="stat-card__value mono" id="statMaxPrice">0.00</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__label">متوسط السعر</div>
+            <div class="stat-card__value stat-card__value--success mono" id="statAvgPrice">0.00</div>
+          </div>
+        </div>
+
+        <div class="section-label">💾 النسخ الاحتياطي</div>
+        <div class="export-box">
+          <div class="export-box__icon">📥</div>
+          <div class="export-box__title">تصدير واستيراد البيانات</div>
+          <div class="export-box__body">احفظ نسخة احتياطية من بياناتك أو استعدها في أي وقت</div>
+          <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+            <button type="button" class="btn btn--primary" id="exportBtn" aria-label="تصدير البيانات">📥 تصدير JSON</button>
+            <div class="file-input-wrapper">
+              <button type="button" class="btn btn--accent" aria-label="استيراد البيانات">📤 استيراد JSON</button>
+              <input type="file" id="importBtn" accept=".json,application/json" aria-label="اختيار ملف JSON">
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel__header"><span class="panel__title">🔒 الأمان</span></div>
+          <div class="panel__body">
+            <button type="button" class="btn btn--ghost btn--block" id="showChangePassBtn" style="justify-content:flex-start; margin-bottom:10px;" aria-label="تغيير كلمة السر">
+              🔑 تغيير كلمة السر
+            </button>
+            <div id="changePassBox" style="display:none; padding-top:14px; border-top:1px solid var(--border);">
+              <div class="field">
+                <label class="field__label">كلمة السر الجديدة</label>
+                <input type="password" id="newPass1" class="field__input" placeholder="الحد الأدنى 4 أحرف" autocomplete="off" aria-label="كلمة السر الجديدة">
+              </div>
+              <div class="field">
+                <label class="field__label">تأكيد كلمة السر</label>
+                <input type="password" id="newPass2" class="field__input" placeholder="أعد كتابة كلمة السر" autocomplete="off" aria-label="تأكيد كلمة السر">
+              </div>
+              <button type="button" class="btn btn--primary btn--block" id="savePassBtn" aria-label="حفظ كلمة السر">حفظ كلمة السر</button>
+            </div>
+            <button type="button" class="btn btn--error btn--block" id="lockNowBtn" style="margin-top:10px;" aria-label="قفل الوصول الآن">🔒 قفل الوصول الآن</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal" id="miniScanModal">
+    <div class="modal__sheet">
+      <div class="modal__head">
+        <span class="modal__title">📷 مسح الباركود</span>
+        <button type="button" class="btn btn--ghost btn--sm" id="closeMiniScanBtn" aria-label="إغلاق">إغلاق ✕</button>
+      </div>
+      <div id="miniReader"></div>
+      <p style="text-align:center; color:var(--text-dim); font-size:0.75rem; margin-top:10px; font-family:var(--font);">
+        وجّه الكاميرا نحو الباركود
+      </p>
+    </div>
+  </div>
+
+  <div class="onboarding" id="onboarding">
+    <div class="onboarding__card">
+      <div class="onboarding__step active" data-step="0">
+        <div class="onboarding__icon">📦</div>
+        <div class="onboarding__title">مرحباً بك!</div>
+        <div class="onboarding__body">نظام مسح الباركود يتيح لك إدارة منتجاتك بسهولة. ابدأ بمسح الباركود أو إدخاله يدوياً.</div>
+      </div>
+      <div class="onboarding__step" data-step="1">
+        <div class="onboarding__icon">🔐</div>
+        <div class="onboarding__title">لوحة التحكم</div>
+        <div class="onboarding__body">انتقل إلى تبويب "التحكم" لإضافة منتجاتك وأقسامك. كلمة السر الافتراضية هي 1234.</div>
+      </div>
+      <div class="onboarding__step" data-step="2">
+        <div class="onboarding__icon">💾</div>
+        <div class="onboarding__title">النسخ الاحتياطي</div>
+        <div class="onboarding__body">لا تنسَ تصدير بياناتك بشكل دوري. البيانات تُحفظ في Firebase — السلة والسجل محليان فقط.</div>
+      </div>
+      <div class="onboarding__dots" id="onboardingDots">
+        <span class="onboarding__dot active"></span>
+        <span class="onboarding__dot"></span>
+        <span class="onboarding__dot"></span>
+      </div>
+      <div style="display:flex; gap:10px; justify-content:center;">
+        <button type="button" class="btn btn--ghost" id="skipOnboarding" aria-label="تخطي">تخطي</button>
+        <button type="button" class="btn btn--primary" id="nextOnboarding" aria-label="التالي">التالي →</button>
+      </div>
+    </div>
+  </div>
+
+  <nav class="dock">
+    <button type="button" class="dock__item dock__item--active" data-tab="scan" id="tabScan" aria-label="الماسح">
+      <span class="dock__icon">📷</span>
+      <span class="dock__label">الماسح</span>
+    </button>
+    <button type="button" class="dock__item" data-tab="admin" id="tabAdmin" disabled aria-label="التحكم">
+      <span class="dock__icon">🔐</span>
+      <span class="dock__label">التحكم</span>
+    </button>
+  </nav>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <span id="toastText"></span>
+  </div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   نظام مسح الباركود المتكامل v3.0 — Firebase Edition
+   ربط بـ Firebase Realtime Database
+   ============================================================ */
+
+(function() {
+  // ─── Constants ─────────────────────────────────────────────
+  const DB_KEY = 'store-data-v3';
+  const HISTORY_KEY = 'scan-history-v3';
+  const CART_KEY = 'cart-v3';
+  const SETTINGS_KEY = 'settings-v3';
+  const DEFAULT_PASSWORD = '1234';
+  const DB_VERSION = 3;
+
+  // ═══════════════════════════════════════════════════════════
+  //  🔥 Firebase Realtime Database — قاعدة بيانات سحابية مشتركة
+  //  ═══════════════════════════════════════════════════════════
+  const FIREBASE_DB_URL = 'https://datamarket-ba4d3-default-rtdb.firebaseio.com';
+  const FIREBASE_DB_PATH = 'barcode-store.json'; // مسار البيانات في Firebase
+
+  const DEFAULT_DB = {
+    version: DB_VERSION,
+    categories: ['عام'],
+    products: {},
+    adminPasswordHash: null,
+    adminPasswordSalt: null,
+    settings: { firstRun: true, onboardingDone: false },
+    _lastUpdated: 0
+  };
+
+  // ─── Private State ─────────────────────────────────────────
+  let db = deepClone(DEFAULT_DB);
+  let dbReady = false;
+  let isUnlocked = false;
+  let editingBarcode = null;
+  let receiptCounter = 1;
+  let scannerActive = false;
+  let html5QrcodeScanner = null;
+  let miniScanner = null;
+  let miniRunning = false;
+  let cart = [];
+  let scanHistory = [];
+  let saveQueue = [];
+  let saveProcessing = false;
+  let onboardingStep = 0;
+  const onboardingSteps = 3;
+  let toastTimer = null;
+
+  const $ = (id) => document.getElementById(id);
+  const $$ = (sel) => document.querySelectorAll(sel);
+
+  // ─── Crypto helpers ────────────────────────────────────────
+  function hasCryptoSubtle() {
+    return !!(window.crypto && crypto.subtle && typeof crypto.subtle.digest === 'function');
+  }
+
+  async function sha256(message, salt) {
+    if (!hasCryptoSubtle()) {
+      let h = 0x811c9dc5;
+      const str = (salt || '') + message;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+      }
+      const hash = (h >>> 0).toString(16).padStart(8, '0');
+      return hash.repeat(8).slice(0, 64);
+    }
+    const encoder = new TextEncoder();
+    const data = encoder.encode(salt + message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function generateSalt() {
+    if (crypto.getRandomValues) {
+      const arr = new Uint8Array(16);
+      crypto.getRandomValues(arr);
+      return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+    }
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 10);
+  }
+
+  async function hashPassword(password, salt) {
+    if (!salt) salt = generateSalt();
+    const hash = await sha256(password, salt);
+    return { hash, salt };
+  }
+
+  async function verifyPassword(password, salt, hash) {
+    if (!salt || !hash) return password === DEFAULT_PASSWORD;
+    const computed = await sha256(password, salt);
+    return computed === hash;
+  }
+
+  // ─── Utilities ─────────────────────────────────────────────
+  function deepClone(obj) {
+    return structuredClone ? structuredClone(obj) : JSON.parse(JSON.stringify(obj));
+  }
+
+  function setStatus(state, text) {
+    const dot = $('statusDot');
+    const label = $('statusText');
+    if (!dot || !label) return;
+    dot.className = 'status-pip' + (state === 'error' ? ' error' : state === 'loading' ? ' loading' : '');
+    label.textContent = text;
+  }
+
+  function isValidDbShape(o) {
+    return o && typeof o === 'object' && Array.isArray(o.categories)
+      && o.products && typeof o.products === 'object' && !Array.isArray(o.products);
+  }
+
+  function sanitizeProduct(p) {
+    if (!p || typeof p !== 'object') return null;
+    const name = String(p.name || '').trim();
+    const price = Number(p.price);
+    const category = String(p.category || '').trim();
+    if (!name || !Number.isFinite(price) || price < 0 || !category) return null;
+    return {
+      name: name.slice(0, 120),
+      price: price,
+      category: category.slice(0, 40),
+      createdAt: Number(p.createdAt) || Date.now(),
+      updatedAt: Number(p.updatedAt) || Date.now()
+    };
+  }
+
+  function esc(s) {
+    if (s == null) return '';
+    const div = document.createElement('div');
+    div.textContent = String(s);
+    return div.innerHTML;
+  }
+
+  function escAttr(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&"'<>]/g, m => ({'&':'&amp;','"':'&quot;',"'":'&#39;','<':'&lt;','>':'&gt;'}[m]));
+  }
+
+  function fmt(price) {
+    const n = Number(price);
+    return (Number.isFinite(n) ? n : 0).toFixed(2) + ' ج.م';
+  }
+
+  function fmtDate(d) {
+    try {
+      return new Date(d).toLocaleString('ar-SA', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+    } catch {
+      return '--/--/--';
+    }
+  }
+
+  function debounce(fn, wait) {
+    let t;
+    return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), wait); };
+  }
+
+  function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+  }
+
+  function toast(msg, isErr, isSuccess, isWarn) {
+    const t = $('toast');
+    const txt = $('toastText');
+    if (!t || !txt) return;
+    txt.textContent = msg;
+    t.className = 'toast' + (isErr ? ' toast--err' : isSuccess ? ' toast--success' : isWarn ? ' toast--warn' : '');
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+  }
+
+  function scrollToField(el) {
+    setTimeout(() => {
+      const rect = el.getBoundingClientRect();
+      const visible = rect.top >= 80 && rect.bottom <= window.innerHeight - 100;
+      if (!visible) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  🔥 Firebase Realtime Database — Cloud Storage
+  // ═══════════════════════════════════════════════════════════
+  const cloudStorage = {
+    async get() {
+      try {
+        const res = await fetch(`${FIREBASE_DB_URL}/${FIREBASE_DB_PATH}`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          cache: 'no-store'
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        return data ? { value: JSON.stringify(data) } : null;
+      } catch (e) {
+        console.warn('Firebase read failed:', e);
+        try {
+          const v = localStorage.getItem(DB_KEY);
+          return v ? { value: v } : null;
+        } catch (e2) { return null; }
+      }
+    },
+
+    async set(key, value) {
+      try {
+        const data = JSON.parse(value);
+        const res = await fetch(`${FIREBASE_DB_URL}/${FIREBASE_DB_PATH}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        try { localStorage.setItem(key, value); } catch(e) {}
+        return true;
+      } catch (e) {
+        console.error('Firebase write failed:', e);
+        toast('⚠️ فشل الحفظ في Firebase — تحقق من الاتصال', true);
+        return false;
+      }
+    }
+  };
+
+  const localStore = {
+    async get(key) {
+      try { const v = localStorage.getItem(key); return v ? { value: v } : null; }
+      catch (e) { return null; }
+    },
+    async set(key, value) {
+      try {
+        const testKey = '__storage_test__';
+        localStorage.setItem(testKey, '1');
+        localStorage.removeItem(testKey);
+        localStorage.setItem(key, value);
+        return true;
+      } catch (e) {
+        toast('⚠️ فشل الحفظ — مساحة التخزين ممتلئة؟ احذف بعض البيانات أو صدّرها', true);
+        return false;
+      }
+    }
+  };
+
+  // ─── Save Queue ────────────────────────────────────────────
+  async function enqueueSave(type, data) {
+    saveQueue.push({ type, data });
+    if (saveProcessing) return;
+    saveProcessing = true;
+    while (saveQueue.length) {
+      const job = saveQueue.shift();
+      if (job.type === 'db') await cloudStorage.set(DB_KEY, JSON.stringify(job.data));
+      else if (job.type === 'cart') await localStore.set(CART_KEY, JSON.stringify(job.data));
+      else if (job.type === 'history') await localStore.set(HISTORY_KEY, JSON.stringify(job.data.slice(-100)));
+      else if (job.type === 'settings') await localStore.set(SETTINGS_KEY, JSON.stringify(job.data));
+    }
+    saveProcessing = false;
+  }
+
+  async function saveDB() {
+    db._lastUpdated = Date.now();
+    return enqueueSave('db', db);
+  }
+  async function saveCart() { return enqueueSave('cart', cart); }
+  async function saveHistory() { return enqueueSave('history', scanHistory); }
+  async function saveSettings() { return enqueueSave('settings', db.settings); }
+
+  // ─── Schema Migration ──────────────────────────────────────
+  function migrateDb(data) {
+    if (!data) return deepClone(DEFAULT_DB);
+    if (!data.version) data.version = 1;
+    const migrated = deepClone(DEFAULT_DB);
+    if (Array.isArray(data.categories)) {
+      migrated.categories = data.categories.filter(c => typeof c === 'string' && c.trim()).map(c => c.trim());
+    }
+    if (data.products && typeof data.products === 'object') {
+      for (const [code, p] of Object.entries(data.products)) {
+        const sanitized = sanitizeProduct(p);
+        if (sanitized && /^[A-Za-z0-9]{1,30}$/.test(code)) {
+          migrated.products[code] = sanitized;
+        }
+      }
+    }
+    if (data.adminPasswordHash && data.adminPasswordSalt) {
+      migrated.adminPasswordHash = String(data.adminPasswordHash);
+      migrated.adminPasswordSalt = String(data.adminPasswordSalt);
+    }
+    if (data.settings && typeof data.settings === 'object') {
+      migrated.settings = {
+        firstRun: !!data.settings.firstRun,
+        onboardingDone: !!data.settings.onboardingDone
+      };
+    }
+    if (data._lastUpdated) migrated._lastUpdated = Number(data._lastUpdated) || 0;
+    migrated.version = DB_VERSION;
+    return migrated;
+  }
+
+  // ─── Load DB ───────────────────────────────────────────────
+  async function loadDB() {
+    setStatus('loading', 'جاري الاتصال بـ Firebase...');
+
+    try {
+      const res = await cloudStorage.get();
+      if (res && res.value) {
+        try {
+          const parsed = JSON.parse(res.value);
+          db = migrateDb(parsed);
+        } catch {
+          db = deepClone(DEFAULT_DB);
+        }
+      } else {
+        db = deepClone(DEFAULT_DB);
+        const { hash, salt } = await hashPassword(DEFAULT_PASSWORD);
+        db.adminPasswordHash = hash;
+        db.adminPasswordSalt = salt;
+        await saveDB();
+      }
+
+      const cartRes = await localStore.get(CART_KEY);
+      if (cartRes && cartRes.value) {
+        try {
+          const parsed = JSON.parse(cartRes.value);
+          if (Array.isArray(parsed)) cart = parsed.filter(item => item && item.code && item.name);
+        } catch { cart = []; }
+      }
+
+      const histRes = await localStore.get(HISTORY_KEY);
+      if (histRes && histRes.value) {
+        try {
+          const parsed = JSON.parse(histRes.value);
+          if (Array.isArray(parsed)) scanHistory = parsed.filter(h => h && h.code);
+        } catch { scanHistory = []; }
+      }
+
+      const settingsRes = await localStore.get(SETTINGS_KEY);
+      if (settingsRes && settingsRes.value) {
+        try {
+          const s = JSON.parse(settingsRes.value);
+          if (s && typeof s === 'object') Object.assign(db.settings, s);
+        } catch {}
+      }
+
+      dbReady = true;
+      setStatus('ok', 'متصل بـ Firebase');
+      const tabAdmin = $('tabAdmin');
+      if (tabAdmin) tabAdmin.disabled = false;
+
+      renderAll();
+      updateCartBadge();
+      startCloudSync();
+
+      if (!db.settings.onboardingDone) {
+        showOnboarding();
+      }
+    } catch (err) {
+      console.error('loadDB error:', err);
+      setStatus('error', 'خطأ في الاتصال بـ Firebase');
+      toast('⚠️ حدث خطأ أثناء الاتصال بـ Firebase — يُستخدم الوضع المحلي', true);
+      dbReady = true;
+      const tabAdmin = $('tabAdmin');
+      if (tabAdmin) tabAdmin.disabled = false;
+      renderAll();
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  🔥 مزامنة دورية من Firebase
+  // ═══════════════════════════════════════════════════════════
+  let syncTimer = null;
+  function startCloudSync() {
+    if (syncTimer) clearInterval(syncTimer);
+    syncTimer = setInterval(async () => {
+      if (!dbReady) return;
+      try {
+        const res = await fetch(`${FIREBASE_DB_URL}/${FIREBASE_DB_PATH}`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          cache: 'no-store'
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || !data._lastUpdated) return;
+        const currentUpdated = db._lastUpdated || 0;
+        if (data._lastUpdated > currentUpdated + 2000) {
+          db = migrateDb(data);
+          renderAll();
+          setStatus('ok', 'تم التحديث من Firebase');
+          setTimeout(() => setStatus('ok', 'متصل بـ Firebase'), 2000);
+        }
+      } catch (e) {
+        // صامت
+      }
+    }, 30000);
+  }
+
+  function stopCloudSync() {
+    if (syncTimer) { clearInterval(syncTimer); syncTimer = null; }
+  }
+
+  // ─── Onboarding ────────────────────────────────────────────
+  function showOnboarding() {
+    const ob = $('onboarding');
+    if (ob) ob.classList.add('show');
+    updateOnboardingUI();
+  }
+
+  function updateOnboardingUI() {
+    $$('.onboarding__step').forEach((s, i) => {
+      s.classList.toggle('active', i === onboardingStep);
+    });
+    $$('.onboarding__dot').forEach((d, i) => {
+      d.classList.toggle('active', i === onboardingStep);
+    });
+    const nextBtn = $('nextOnboarding');
+    if (nextBtn) nextBtn.textContent = onboardingStep === onboardingSteps - 1 ? 'ابدأ الآن 🚀' : 'التالي →';
+  }
+
+  // ─── Navigation ────────────────────────────────────────────
+  function switchTab(tabName) {
+    if (tabName !== 'scan' && scannerActive && html5QrcodeScanner) {
+      try { html5QrcodeScanner.pause(true); scannerActive = false; } catch (e) {}
+    }
+    if (tabName === 'scan' && html5QrcodeScanner && !scannerActive) {
+      try { html5QrcodeScanner.resume(); scannerActive = true; } catch (e) {}
+    }
+
+    $$('.dock__item').forEach(x => x.classList.remove('dock__item--active'));
+    $$('.view').forEach(v => v.classList.remove('active'));
+
+    const tab = document.querySelector(`.dock__item[data-tab="${tabName}"]`);
+    if (tab) tab.classList.add('dock__item--active');
+
+    const view = $('view-' + tabName);
+    if (view) view.classList.add('active');
+
+    if (tabName === 'admin') {
+      if (isUnlocked) showAdminContent();
+      else showLockScreen();
+    }
+  }
+
+  // ─── Lock Screen ───────────────────────────────────────────
+  function showLockScreen() {
+    const ls = $('lockScreen');
+    const ac = $('adminContent');
+    const err = $('lockError');
+    if (ls) ls.style.display = 'block';
+    if (ac) ac.style.display = 'none';
+    if (err) err.style.display = 'none';
+    const inp = $('adminPassInput');
+    if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 50); }
+  }
+
+  function showAdminContent() {
+    const ls = $('lockScreen');
+    const ac = $('adminContent');
+    if (ls) ls.style.display = 'none';
+    if (ac) ac.style.display = 'block';
+  }
+
+  async function attemptUnlock() {
+    const inp = $('adminPassInput');
+    if (!inp) return;
+    const entered = inp.value;
+    try {
+      const ok = await verifyPassword(entered, db.adminPasswordSalt, db.adminPasswordHash);
+      if (ok) {
+        isUnlocked = true;
+        const err = $('lockError');
+        if (err) err.style.display = 'none';
+        showAdminContent();
+        toast('✓ تم الدخول بنجاح', false, true);
+      } else {
+        const err = $('lockError');
+        if (err) err.style.display = 'block';
+        inp.value = '';
+        inp.focus();
+        toast('❌ كلمة السر غير صحيحة', true);
+      }
+    } catch (e) {
+      toast('⚠️ خطأ في التحقق من كلمة السر', true);
+    }
+  }
+
+  // ─── Validation helpers ────────────────────────────────────
+  function setErr(id, on) {
+    const el = $(id);
+    if (el) el.classList.toggle('field--error', on);
+  }
+  function clearErrs() {
+    ['field-barcode','field-name','field-price','field-category'].forEach(id => setErr(id, false));
+  }
+
+  // ─── Categories ────────────────────────────────────────────
+  function renderCategorySelects() {
+    const p = $('p-category');
+    const f = $('filterCategory');
+    if (!p || !f) return;
+    const pv = p.value, fv = f.value;
+
+    p.innerHTML = db.categories.length
+      ? db.categories.map(c => `<option value="${escAttr(c)}">${esc(c)}</option>`).join('')
+      : '<option value="">لا توجد أقسام</option>';
+
+    f.innerHTML = '<option value="">📂 كل الأقسام</option>'
+      + db.categories.map(c => `<option value="${escAttr(c)}">${esc(c)}</option>`).join('');
+
+    if (db.categories.includes(pv)) p.value = pv;
+    if (fv === '' || db.categories.includes(fv)) f.value = fv;
+    p.disabled = db.categories.length === 0;
+  }
+
+  function catCount(cat) {
+    return Object.values(db.products).filter(p => p.category === cat).length;
+  }
+
+  function renderCatList() {
+    const w = $('catList');
+    const badge = $('catCountBadge');
+    if (!w || !badge) return;
+    badge.textContent = db.categories.length;
+    if (!db.categories.length) {
+      w.innerHTML = '<span style="color:var(--text-faint); font-size:0.75rem;">لا توجد أقسام بعد</span>';
+      return;
+    }
+    w.innerHTML = db.categories.map(c => {
+      const n = catCount(c);
+      return `<span class="chip${n > 0 ? ' chip--active' : ''}">${esc(c)} <span class="chip__count">${n}</span>
+        <button type="button" data-cat="${escAttr(c)}" class="chip__x" aria-label="حذف القسم ${escAttr(c)}">×</button></span>`;
+    }).join('');
+
+    w.querySelectorAll('.chip__x').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const cat = btn.dataset.cat;
+        const n = catCount(cat);
+        if (n > 0) { toast(`⚠️ لا يمكن الحذف — القسم يحتوي على ${n} منتج`, true); return; }
+        if (!confirm(`حذف القسم "${cat}"؟`)) return;
+        const prev = db.categories.slice();
+        db.categories = db.categories.filter(c => c !== cat);
+        const ok = await saveDB();
+        if (!ok) { db.categories = prev; return; }
+        renderCategorySelects(); renderCatList(); renderProductList(); renderStats();
+        toast('✓ تم حذف القسم', false, true);
+      });
+    });
+  }
+
+  async function addCat() {
+    if (!dbReady) { toast('⏳ لم يتم التحميل بعد', true); return; }
+    const inp = $('cat-name');
+    if (!inp) return;
+    const name = inp.value.trim();
+    if (!name) { toast('⚠️ اكتب اسم القسم', true); inp.focus(); return; }
+    if (name.length > 40) { toast('⚠️ اسم القسم طويل جداً (الحد 40 حرف)', true); return; }
+    if (db.categories.some(c => c.toLowerCase() === name.toLowerCase())) {
+      toast('⚠️ القسم موجود بالفعل', true); return;
+    }
+    const btn = $('addCatBtn');
+    if (btn) btn.disabled = true;
+    db.categories.push(name);
+    const ok = await saveDB();
+    if (btn) btn.disabled = false;
+    if (!ok) { db.categories.pop(); return; }
+    inp.value = '';
+    renderCategorySelects(); renderCatList(); renderStats();
+    toast('✓ تمت إضافة القسم', false, true);
+  }
+
+  // ─── Products ──────────────────────────────────────────────
+  function renderProductList() {
+    const w = $('productList');
+    const filter = $('filterCategory');
+    const search = $('searchProducts');
+    if (!w || !filter || !search) return;
+
+    let entries = Object.entries(db.products);
+    if (filter.value) entries = entries.filter(([, p]) => p.category === filter.value);
+    if (search.value.trim()) {
+      const q = search.value.trim().toLowerCase();
+      entries = entries.filter(([code, p]) =>
+        p.name.toLowerCase().includes(q) || code.includes(q)
+      );
+    }
+    entries.sort((a, b) => a[1].name.localeCompare(b[1].name, 'ar'));
+
+    const badge = $('productCountBadge');
+    if (badge) badge.textContent = Object.keys(db.products).length;
+
+    if (!entries.length) {
+      w.innerHTML = Object.keys(db.products).length === 0
+        ? '<div class="empty"><div class="empty__icon">📦</div><div class="empty__title">لا توجد منتجات</div><div class="empty__body">أضف منتجك الأول أعلاه</div></div>'
+        : '<div class="empty"><div class="empty__icon">🔍</div><div class="empty__title">لا توجد نتائج</div><div class="empty__body">جرب كلمة بحث مختلفة</div></div>';
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    entries.forEach(([code, p], i) => {
+      const row = document.createElement('div');
+      row.className = 'data-row';
+      row.setAttribute('data-code', code);
+      row.setAttribute('role', 'button');
+      row.setAttribute('tabindex', '0');
+      row.setAttribute('aria-label', 'تعديل ' + p.name);
+      row.innerHTML = `
+        <div class="data-row__id mono">${String(i + 1).padStart(2, '0')}</div>
+        <div class="data-row__info">
+          <div class="data-row__title">${esc(p.name)}</div>
+          <div class="data-row__meta">${esc(code)} · ${esc(p.category)} · ${fmtDate(p.updatedAt || p.createdAt || Date.now())}</div>
+        </div>
+        <div class="data-row__price mono">${fmt(p.price)}</div>
+        <div class="data-row__acts">
+          <button type="button" class="act-btn edit" data-code="${escAttr(code)}" title="تعديل" aria-label="تعديل ${escAttr(p.name)}">✎</button>
+          <button type="button" class="act-btn act-btn--del del" data-code="${escAttr(code)}" title="حذف" aria-label="حذف ${escAttr(p.name)}">🗑</button>
+        </div>
+      `;
+
+      const handleEdit = (e) => {
+        if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.type === 'keydown') e.preventDefault();
+        startEdit(code);
+      };
+
+      row.addEventListener('click', handleEdit);
+      row.addEventListener('keydown', handleEdit);
+
+      const editBtn = row.querySelector('.edit');
+      const delBtn = row.querySelector('.del');
+
+      if (editBtn) editBtn.addEventListener('click', e => { e.stopPropagation(); startEdit(code); });
+      if (delBtn) {
+        delBtn.addEventListener('click', async e => {
+          e.stopPropagation();
+          const prod = db.products[code];
+          if (!prod) return;
+          if (!confirm(`حذف المنتج "${prod.name}"؟`)) return;
+          const backup = db.products[code];
+          delete db.products[code];
+          const ok = await saveDB();
+          if (!ok) { db.products[code] = backup; return; }
+          if (editingBarcode === code) cancelEdit();
+          renderProductList(); renderCatList(); renderStats();
+          toast('✓ تم حذف المنتج', false, true);
+        });
+      }
+
+      frag.appendChild(row);
+    });
+    w.innerHTML = '';
+    w.appendChild(frag);
+  }
+
+  function startEdit(code) {
+    const p = db.products[code]; if (!p) return;
+    editingBarcode = code;
+    const bInp = $('p-barcode');
+    const nInp = $('p-name');
+    const prInp = $('p-price');
+    const cSel = $('p-category');
+
+    if (bInp) { bInp.value = code; bInp.disabled = true; }
+    if (nInp) nInp.value = p.name;
+    if (prInp) prInp.value = p.price;
+    if (cSel) cSel.value = p.category;
+
+    const editBanner = $('editBanner');
+    const editingName = $('editingName');
+    const saveBtn = $('saveProductBtn');
+
+    if (editBanner) editBanner.style.display = 'block';
+    if (editingName) editingName.textContent = p.name;
+    if (saveBtn) saveBtn.textContent = '💾 حفظ التعديلات';
+
+    clearErrs();
+    switchTab('admin');
+    if (nInp) nInp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function cancelEdit() {
+    editingBarcode = null;
+    const bInp = $('p-barcode');
+    if (bInp) { bInp.disabled = false; bInp.value = ''; }
+    const nInp = $('p-name');
+    if (nInp) nInp.value = '';
+    const prInp = $('p-price');
+    if (prInp) prInp.value = '';
+    const cSel = $('p-category');
+    if (cSel) cSel.selectedIndex = 0;
+
+    const editBanner = $('editBanner');
+    const saveBtn = $('saveProductBtn');
+
+    if (editBanner) editBanner.style.display = 'none';
+    if (saveBtn) saveBtn.textContent = '💾 حفظ المنتج';
+    clearErrs();
+  }
+
+  async function saveProduct() {
+    if (!dbReady) { toast('⏳ لم يتم التحميل بعد', true); return; }
+    const bInp = $('p-barcode');
+    const nInp = $('p-name');
+    const prInp = $('p-price');
+    const cSel = $('p-category');
+
+    if (!bInp || !nInp || !prInp || !cSel) return;
+
+    const barcode = bInp.value.trim();
+    const name = nInp.value.trim();
+    const prRaw = prInp.value.trim();
+    const price = parseFloat(prRaw);
+    const category = cSel.value;
+
+    clearErrs();
+    let err = false;
+
+    const bValid = /^[A-Za-z0-9]{3,30}$/.test(barcode);
+    if (!bValid) { setErr('field-barcode', true); err = true; }
+    if (!name) { setErr('field-name', true); err = true; }
+    if (prRaw === '' || !Number.isFinite(price) || price <= 0) { setErr('field-price', true); err = true; }
+    if (!db.categories.length || !category) { setErr('field-category', true); err = true; }
+    if (bValid && db.products[barcode] && editingBarcode !== barcode) {
+      setErr('field-barcode', true); err = true;
+      toast('⚠️ الباركود مستخدم مسبقاً', true);
+    }
+    if (err) {
+      if (!document.querySelector('.field--error')) toast('⚠️ تحقق من الحقول المطلوبة', true);
+      return;
+    }
+
+    const btn = $('saveProductBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ جارٍ الحفظ...';
+    }
+
+    const now = Date.now();
+    const backup = editingBarcode ? { ...db.products[editingBarcode] } : null;
+    const oldBarcode = editingBarcode;
+
+    if (editingBarcode && editingBarcode !== barcode) delete db.products[editingBarcode];
+
+    db.products[barcode] = {
+      name, price, category,
+      createdAt: (editingBarcode && backup) ? backup.createdAt : now,
+      updatedAt: now
+    };
+
+    const ok = await saveDB();
+    if (!ok) {
+      delete db.products[barcode];
+      if (editingBarcode && backup) db.products[editingBarcode] = backup;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = editingBarcode ? '💾 حفظ التعديلات' : '💾 حفظ المنتج';
+      }
+      return;
+    }
+
+    if (editingBarcode) {
+      const searchCode = (oldBarcode && oldBarcode !== barcode) ? oldBarcode : barcode;
+      const cartItem = cart.find(item => item.code === searchCode);
+      if (cartItem) {
+        let cartUpdated = false;
+        if (cartItem.price !== price) {
+          cartItem.price = price;
+          cartUpdated = true;
+        }
+        if (oldBarcode && oldBarcode !== barcode) {
+          cartItem.code = barcode;
+          cartUpdated = true;
+        }
+        if (cartUpdated) {
+          cartItem.updatedAt = now;
+          await saveCart();
+          renderCart();
+          toast('🔄 تم تحديث المنتج في السلة', false, false, true);
+        }
+      }
+    }
+
+    const was = !!editingBarcode;
+    cancelEdit();
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '💾 حفظ المنتج';
+    }
+    renderProductList(); renderCatList(); renderStats();
+    toast(was ? '✓ تم تحديث المنتج' : '✓ تم حفظ المنتج', false, true);
+  }
+
+  // ─── Stats ─────────────────────────────────────────────────
+  function renderStats() {
+    const products = Object.values(db.products);
+    const total = products.length;
+    const cats = db.categories.length;
+    const prices = products.map(p => Number(p.price)).filter(Number.isFinite);
+    const maxPrice = prices.length ? Math.max(...prices) : 0;
+    const avgPrice = prices.length ? (prices.reduce((a, b) => a + b, 0) / prices.length) : 0;
+
+    const el1 = $('statTotalProducts');
+    const el2 = $('statTotalCats');
+    const el3 = $('statMaxPrice');
+    const el4 = $('statAvgPrice');
+
+    if (el1) el1.textContent = total;
+    if (el2) el2.textContent = cats;
+    if (el3) el3.textContent = fmt(maxPrice);
+    if (el4) el4.textContent = fmt(avgPrice);
+  }
+
+  // ─── Scanner (main) ────────────────────────────────────────
+  const readerEl = $('reader');
+  const cameraPlaceholder = $('cameraPlaceholder');
+
+  function onScanSuccess(decodedText) {
+    if (!scannerActive) return;
+    try { html5QrcodeScanner.pause(true); } catch (e) {}
+    scannerActive = false;
+    showResult(decodedText.trim());
+  }
+  function onScanFailure() {}
+
+  function cleanupScanner() {
+    if (html5QrcodeScanner) {
+      try { html5QrcodeScanner.clear(); } catch (e) {}
+      html5QrcodeScanner = null;
+    }
+    scannerActive = false;
+    if (readerEl) {
+      readerEl.classList.remove('scanning');
+      readerEl.innerHTML = '';
+      if (cameraPlaceholder) {
+        readerEl.appendChild(cameraPlaceholder);
+        cameraPlaceholder.style.display = '';
+      }
+    }
+  }
+
+  function initScanner() {
+    if (html5QrcodeScanner) cleanupScanner();
+
+    if (cameraPlaceholder) cameraPlaceholder.style.display = 'none';
+    if (readerEl) readerEl.classList.add('scanning');
+
+    try {
+      if (typeof Html5QrcodeScanner === 'undefined') throw new Error('lib missing');
+      html5QrcodeScanner = new Html5QrcodeScanner("reader", {
+        fps: 12,
+        qrbox: { width: 260, height: 160 },
+        rememberLastUsedCamera: true,
+        aspectRatio: 1.4
+      }, false);
+      html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+      scannerActive = true;
+
+      const errEl = $('cameraError');
+      if (errEl) errEl.classList.remove('show');
+
+      setTimeout(() => {
+        const el = $('reader');
+        if (el && el.children.length <= 1) {
+          showCamErr('تعذّر الوصول للكاميرا. تحقق من صلاحيات المتصفح.');
+        }
+      }, 5000);
+    } catch (e) {
+      showCamErr('تعذّر تحميل مكتبة الماسح. تحقق من الاتصال بالإنترنت.');
+      cleanupScanner();
+    }
+  }
+
+  function showCamErr(msg) {
+    const errEl = $('cameraError');
+    const msgEl = $('cameraErrorMsg');
+    if (msgEl) msgEl.textContent = msg;
+    if (errEl) errEl.classList.add('show');
+  }
+
+  // ─── Manual entry ──────────────────────────────────────────
+  function submitManual() {
+    const inp = $('manualBarcode');
+    if (!inp) return;
+    const code = inp.value.trim();
+    if (!code) { toast('⚠️ أدخل رقم الباركود أولاً', true); inp.focus(); return; }
+    inp.value = '';
+    showResult(code);
+  }
+
+  // ─── Result ticket ─────────────────────────────────────────
+  function showResult(code) {
+    if (!dbReady) { toast('⏳ لم يتم التحميل بعد', true); return; }
+
+    const ticket = $('ticket');
+    const body = $('ticketBody');
+    const addBtn = $('addToCartBtn');
+    const now = new Date();
+
+    if (!ticket || !body) return;
+
+    const tNo = $('ticketNo');
+    const tTime = $('ticketTime');
+    if (tNo) tNo.textContent = String(receiptCounter++).padStart(4, '0');
+    if (tTime) tTime.textContent = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+
+    const p = db.products[code];
+    if (p) {
+      ticket.classList.remove('ticket--miss');
+      ticket.classList.add('ticket--hit');
+      if (addBtn) addBtn.style.display = 'block';
+
+      const safeCode = esc(code);
+      const safeName = esc(p.name);
+      const safeCategory = esc(p.category);
+      const safePrice = fmt(p.price);
+
+      body.innerHTML = `
+        <div class="ticket__row"><span class="ticket__key">الباركود</span><span class="ticket__val mono">${safeCode}</span></div>
+        <div class="ticket__row"><span class="ticket__key">المنتج</span><span class="ticket__val">${safeName}</span></div>
+        <div class="ticket__row"><span class="ticket__key">القسم</span><span class="ticket__val"><span class="tag">${safeCategory}</span></span></div>
+        <div class="ticket__row"><span class="ticket__key">الكمية</span>
+          <div class="qty-control">
+            <button type="button" class="qty-control__btn" id="qtyMinus" aria-label="تقليل الكمية">−</button>
+            <span class="qty-control__val" id="qtyVal">1</span>
+            <button type="button" class="qty-control__btn" id="qtyPlus" aria-label="زيادة الكمية">+</button>
+          </div>
+        </div>
+        <div class="ticket__price" id="ticketPrice">${safePrice}</div>
+      `;
+
+      let qty = 1;
+      const updateQty = () => {
+        const qEl = $('qtyVal');
+        const pEl = $('ticketPrice');
+        if (qEl) qEl.textContent = qty;
+        if (pEl) pEl.textContent = fmt(p.price * qty);
+      };
+
+      const minusBtn = $('qtyMinus');
+      const plusBtn = $('qtyPlus');
+      if (minusBtn) minusBtn.addEventListener('click', () => { if (qty > 1) { qty--; updateQty(); } });
+      if (plusBtn) plusBtn.addEventListener('click', () => { qty++; updateQty(); });
+
+      if (addBtn) {
+        const newAddBtn = addBtn.cloneNode(true);
+        addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+        newAddBtn.style.display = 'block';
+        newAddBtn.addEventListener('click', () => {
+          addToCart(code, p, qty);
+          toast(`✓ أُضيف ${p.name} ×${qty} للسلة`, false, true);
+        }, { once: true });
+      }
+
+      scanHistory.push({ id: generateId(), code, name: p.name, price: p.price, qty, time: Date.now() });
+      saveHistory();
+      renderScanHistory();
+
+    } else {
+      ticket.classList.remove('ticket--hit');
+      ticket.classList.add('ticket--miss');
+
+      const addBtnEl = $('addToCartBtn');
+      if (addBtnEl) addBtnEl.style.display = 'none';
+
+      const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent('سعر منتج باركود ' + code);
+      const safeCode = esc(code);
+      const safeUrl = escAttr(searchUrl);
+
+      body.innerHTML = `
+        <div class="ticket__row"><span class="ticket__key">الباركود</span><span class="ticket__val mono">${safeCode}</span></div>
+        <div class="ticket__price ticket__price--miss">❌ غير موجود في القاعدة</div>
+        <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="btn btn--block" style="margin-top:10px; background:var(--surface-2);" aria-label="البحث في جوجل">🔍 البحث في جوجل</a>
+        <button type="button" class="btn btn--primary btn--block" id="addMissingBtn" style="margin-top:8px;" aria-label="إضافة المنتج للقائمة">➕ إضافة للقائمة</button>
+      `;
+      const btn = $('addMissingBtn');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          cancelEdit();
+          const bInp = $('p-barcode');
+          if (bInp) bInp.value = code;
+          switchTab('admin');
+          const nInp = $('p-name');
+          if (nInp) nInp.focus();
+        }, { once: true });
+      }
+    }
+    ticket.classList.add('show');
+  }
+
+  function rescan() {
+    const ticket = $('ticket');
+    if (ticket) ticket.classList.remove('show');
+
+    if (!html5QrcodeScanner) {
+      cleanupScanner();
+      if (cameraPlaceholder) cameraPlaceholder.style.display = '';
+    } else {
+      try {
+        html5QrcodeScanner.resume();
+        scannerActive = true;
+      } catch (e) {
+        cleanupScanner();
+      }
+    }
+  }
+
+  // ─── Cart ──────────────────────────────────────────────────
+  function addToCart(code, product, qty) {
+    const existing = cart.find(item => item.code === code);
+    if (existing) {
+      existing.qty += qty;
+      existing.updatedAt = Date.now();
+    } else {
+      cart.push({ id: generateId(), code, name: product.name, price: product.price, qty, createdAt: Date.now() });
+    }
+    saveCart();
+    renderCart();
+    updateCartBadge();
+  }
+
+  function renderCart() {
+    const summary = $('cartSummary');
+    const itemsDiv = $('cartItems');
+    const totalEl = $('cartTotal');
+
+    if (!summary || !itemsDiv || !totalEl) return;
+
+    if (!cart.length) {
+      summary.style.display = 'none';
+      return;
+    }
+
+    summary.style.display = 'block';
+    let total = 0;
+    itemsDiv.innerHTML = cart.map(item => {
+      const subtotal = item.price * item.qty;
+      total += subtotal;
+      return `<div class="cart-summary__row">
+        <span>${esc(item.name)} <span style="color:var(--text-faint); font-size:0.75rem;">×${item.qty}</span></span>
+        <span class="cart-summary__price mono">${fmt(subtotal)}</span>
+      </div>`;
+    }).join('');
+
+    totalEl.textContent = fmt(total);
+  }
+
+  function updateCartBadge() {
+    let badge = document.querySelector('.dock__badge');
+    if (!badge) {
+      const icon = document.querySelector('#tabScan .dock__icon');
+      if (icon) {
+        badge = document.createElement('span');
+        badge.className = 'dock__badge';
+        icon.appendChild(badge);
+      }
+    }
+    if (!badge) return;
+    const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
+    if (totalQty > 0) {
+      badge.textContent = totalQty > 99 ? '99+' : totalQty;
+      badge.classList.add('show');
+    } else {
+      badge.classList.remove('show');
+    }
+  }
+
+  async function clearCart() {
+    if (!cart.length) return;
+    if (!confirm('إفراغ سلة المشتريات؟')) return;
+    cart = [];
+    await saveCart();
+    renderCart();
+    updateCartBadge();
+    toast('🗑 تم إفراغ السلة');
+  }
+
+  async function checkout() {
+    if (!cart.length) return;
+    const total = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    toast(`✓ تم تأكيد الطلب بقيمة ${fmt(total)}`, false, true);
+    cart = [];
+    await saveCart();
+    renderCart();
+    updateCartBadge();
+  }
+
+  // ─── Scan History ──────────────────────────────────────────
+  function renderScanHistory() {
+    const w = $('scanHistory');
+    if (!w) return;
+    if (!scanHistory.length) {
+      w.innerHTML = `<div class="empty" style="padding:24px;">
+        <div class="empty__icon">📋</div>
+        <div class="empty__title">لا يوجد سجل بعد</div>
+        <div class="empty__body">ستظهر هنا نتائج المسح الأخيرة</div>
+      </div>`;
+      return;
+    }
+
+    const recent = [...scanHistory].reverse().slice(0, 20);
+    w.innerHTML = recent.map(h => `
+      <div class="history-row">
+        <span class="history-row__time">${new Date(h.time).toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})}</span>
+        <span class="history-row__name">${esc(h.name || 'غير معروف')}</span>
+        <span class="history-row__qty">×${h.qty || 1}</span>
+        <span class="history-row__price mono">${fmt((h.price || 0) * (h.qty || 1))}</span>
+      </div>
+    `).join('');
+  }
+
+  // ─── Mini Scanner ──────────────────────────────────────────
+  function openMini() {
+    if (scannerActive && html5QrcodeScanner) {
+      try { html5QrcodeScanner.pause(true); } catch (e) {}
+    }
+    const modal = $('miniScanModal');
+    if (modal) modal.classList.add('show');
+    if (miniRunning) return;
+    try {
+      if (typeof Html5Qrcode === 'undefined') throw new Error('lib missing');
+      miniScanner = new Html5Qrcode('miniReader');
+      miniRunning = true;
+      Html5Qrcode.getCameras().then(cams => {
+        if (!cams || !cams.length) throw new Error('no cam');
+        return miniScanner.start(cams[cams.length - 1].id, {
+          fps: 12, qrbox: { width: 240, height: 150 }
+        }, onMiniSuccess, () => {});
+      }).catch(() => {
+        closeMini();
+        toast('⚠️ تعذّر تشغيل الكاميرا', true);
+      });
+    } catch (e) {
+      closeMini();
+      toast('⚠️ تعذّر تحميل الماسح', true);
+    }
+  }
+
+  function onMiniSuccess(txt) {
+    const bInp = $('p-barcode');
+    if (bInp) bInp.value = txt.trim();
+    setErr('field-barcode', false);
+    closeMini();
+    toast('✓ تم قراءة الباركود', false, true);
+    const nInp = $('p-name');
+    if (nInp) nInp.focus();
+  }
+
+  function closeMini() {
+    const modal = $('miniScanModal');
+    if (modal) modal.classList.remove('show');
+    if (miniScanner && miniRunning) {
+      miniScanner.stop().then(() => { miniScanner.clear(); miniRunning = false; })
+        .catch(() => { miniRunning = false; });
+    } else {
+      miniRunning = false;
+    }
+    if (scannerActive && html5QrcodeScanner) {
+      try { html5QrcodeScanner.resume(); } catch (e) {}
+    }
+  }
+
+  // ─── Export / Import ───────────────────────────────────────
+  function exportData() {
+    const data = {
+      version: DB_VERSION,
+      exportedAt: new Date().toISOString(),
+      db: db,
+      cart: cart,
+      history: scanHistory
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `barcode-backup-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('✓ تم تصدير البيانات', false, true);
+  }
+
+  async function importData(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.db || !isValidDbShape(data.db)) {
+          toast('⚠️ ملف غير صالح', true); return;
+        }
+        if (!confirm('⚠️ سيستبدل هذا الملف جميع بياناتك الحالية. هل أنت متأكد؟')) return;
+
+        const importedDb = migrateDb(data.db);
+        db = importedDb;
+        if (Array.isArray(data.cart)) cart = data.cart.filter(item => item && item.code && item.name);
+        if (Array.isArray(data.history)) scanHistory = data.history.filter(h => h && h.code);
+
+        const ok = await saveDB();
+        if (!ok) { toast('⚠️ فشل الاستيراد', true); return; }
+        await saveCart(); await saveHistory();
+
+        editingBarcode = null;
+        isUnlocked = false;
+
+        renderAll();
+        updateCartBadge();
+        showLockScreen();
+        toast('✓ تم استيراد البيانات بنجاح', false, true);
+      } catch (err) {
+        console.error('Import error:', err);
+        toast('⚠️ خطأ في قراءة الملف', true);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  // ─── Render All ────────────────────────────────────────────
+  function renderAll() {
+    renderCategorySelects();
+    renderCatList();
+    renderProductList();
+    renderStats();
+    renderCart();
+    renderScanHistory();
+  }
+
+  // ─── Event Listeners ───────────────────────────────────────
+  function attachEventListeners() {
+    const nextOnboarding = $('nextOnboarding');
+    const skipOnboarding = $('skipOnboarding');
+
+    if (nextOnboarding) {
+      nextOnboarding.addEventListener('click', () => {
+        if (onboardingStep < onboardingSteps - 1) {
+          onboardingStep++;
+          updateOnboardingUI();
+        } else {
+          db.settings.onboardingDone = true;
+          saveSettings();
+          const ob = $('onboarding');
+          if (ob) ob.classList.remove('show');
+        }
+      });
+    }
+
+    if (skipOnboarding) {
+      skipOnboarding.addEventListener('click', () => {
+        db.settings.onboardingDone = true;
+        saveSettings();
+        const ob = $('onboarding');
+        if (ob) ob.classList.remove('show');
+      });
+    }
+
+    $$('.dock__item').forEach(tab => {
+      tab.addEventListener('click', () => {
+        if (tab.disabled) return;
+        switchTab(tab.dataset.tab);
+      });
+    });
+
+    const unlockBtn = $('unlockBtn');
+    const adminPassInput = $('adminPassInput');
+
+    if (unlockBtn) unlockBtn.addEventListener('click', attemptUnlock);
+    if (adminPassInput) {
+      adminPassInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); attemptUnlock(); }
+      });
+    }
+
+    const lockNowBtn = $('lockNowBtn');
+    if (lockNowBtn) {
+      lockNowBtn.addEventListener('click', () => {
+        isUnlocked = false;
+        const changePassBox = $('changePassBox');
+        if (changePassBox) changePassBox.style.display = 'none';
+        showLockScreen();
+        toast('🔒 تم القفل');
+      });
+    }
+
+    const showChangePassBtn = $('showChangePassBtn');
+    if (showChangePassBtn) {
+      showChangePassBtn.addEventListener('click', () => {
+        const b = $('changePassBox');
+        if (b) b.style.display = b.style.display === 'none' ? 'block' : 'none';
+      });
+    }
+
+    const savePassBtn = $('savePassBtn');
+    if (savePassBtn) {
+      savePassBtn.addEventListener('click', async () => {
+        const p1Inp = $('newPass1');
+        const p2Inp = $('newPass2');
+        const p1 = p1Inp ? p1Inp.value : '';
+        const p2 = p2Inp ? p2Inp.value : '';
+        if (p1.length < 4) { toast('⚠️ كلمة السر يجب أن تكون 4 أحرف على الأقل', true); return; }
+        if (p1 !== p2) { toast('⚠️ كلمتا السر غير متطابقتين', true); return; }
+        savePassBtn.disabled = true;
+        try {
+          const { hash, salt } = await hashPassword(p1);
+          const prevHash = db.adminPasswordHash;
+          const prevSalt = db.adminPasswordSalt;
+          db.adminPasswordHash = hash;
+          db.adminPasswordSalt = salt;
+          const ok = await saveDB();
+          savePassBtn.disabled = false;
+          if (!ok) { db.adminPasswordHash = prevHash; db.adminPasswordSalt = prevSalt; return; }
+          if (p1Inp) p1Inp.value = '';
+          if (p2Inp) p2Inp.value = '';
+          const cpb = $('changePassBox');
+          if (cpb) cpb.style.display = 'none';
+          toast('✓ تم تغيير كلمة السر بنجاح', false, true);
+        } catch (e) {
+          savePassBtn.disabled = false;
+          toast('⚠️ خطأ في تغيير كلمة السر', true);
+        }
+      });
+    }
+
+    const addCatBtn = $('addCatBtn');
+    const catNameInput = $('cat-name');
+
+    if (addCatBtn) addCatBtn.addEventListener('click', addCat);
+    if (catNameInput) {
+      catNameInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); addCat(); }
+      });
+    }
+
+    const saveProductBtn = $('saveProductBtn');
+    if (saveProductBtn) saveProductBtn.addEventListener('click', saveProduct);
+
+    ['p-barcode','p-name','p-price','p-category'].forEach(id => {
+      const el = $(id);
+      if (el) {
+        el.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); saveProduct(); }
+        });
+        el.addEventListener('focus', () => scrollToField(el));
+      }
+    });
+
+    const cancelEditBtn = $('cancelEditBtn');
+    if (cancelEditBtn) cancelEditBtn.addEventListener('click', cancelEdit);
+
+    const filterCategory = $('filterCategory');
+    const searchProducts = $('searchProducts');
+
+    if (filterCategory) filterCategory.addEventListener('change', renderProductList);
+    if (searchProducts) searchProducts.addEventListener('input', debounce(renderProductList, 150));
+
+    const startCameraBtn = $('startCameraBtn');
+    if (startCameraBtn) {
+      startCameraBtn.addEventListener('click', () => { initScanner(); });
+    }
+
+    const manualSearchBtn = $('manualSearchBtn');
+    const manualBarcode = $('manualBarcode');
+
+    if (manualSearchBtn) manualSearchBtn.addEventListener('click', submitManual);
+    if (manualBarcode) {
+      manualBarcode.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); submitManual(); }
+      });
+    }
+
+    const rescanBtn = $('rescanBtn');
+    if (rescanBtn) rescanBtn.addEventListener('click', rescan);
+
+    const clearCartBtn = $('clearCartBtn');
+    const checkoutBtn = $('checkoutBtn');
+
+    if (clearCartBtn) clearCartBtn.addEventListener('click', clearCart);
+    if (checkoutBtn) checkoutBtn.addEventListener('click', checkout);
+
+    const openMiniScanBtn = $('openMiniScanBtn');
+    const closeMiniScanBtn = $('closeMiniScanBtn');
+    const miniScanModal = $('miniScanModal');
+
+    if (openMiniScanBtn) openMiniScanBtn.addEventListener('click', openMini);
+    if (closeMiniScanBtn) closeMiniScanBtn.addEventListener('click', closeMini);
+    if (miniScanModal) {
+      miniScanModal.addEventListener('click', e => {
+        if (e.target.id === 'miniScanModal') closeMini();
+      });
+    }
+
+    const exportBtn = $('exportBtn');
+    const importBtn = $('importBtn');
+
+    if (exportBtn) exportBtn.addEventListener('click', exportData);
+    if (importBtn) importBtn.addEventListener('change', importData);
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && miniScanModal && miniScanModal.classList.contains('show')) {
+        closeMini();
+      }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && scannerActive && html5QrcodeScanner) {
+        try { html5QrcodeScanner.pause(true); scannerActive = false; } catch(e) {}
+      }
+    });
+  }
+
+  // ─── Init ──────────────────────────────────────────────────
+  window.addEventListener('DOMContentLoaded', () => {
+    attachEventListeners();
+    loadDB();
+  });
+
+  window.__barcodeApp = {
+    version: '3.0-firebase',
+    getStatus: () => ({ dbReady, isUnlocked: !!isUnlocked, scannerActive, cartSize: cart.length })
+  };
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>لوحة التحكم — طريق العفة</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Reem+Kufi:wght@500;700&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a1810;--surface:#142c1e;--surface2:#1a3826;--gold:#e8c87a;--gold2:#c9a94f;--ink:#f5efe0;--mute:#8fa89a;--line:rgba(232,200,122,.15);--ok:#8fd3b0;--red:#e05555;--blue:#8fc7e8;--warn:#f08a7a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans Arabic',sans-serif;background:linear-gradient(180deg,#0a1810,#0f2418);color:var(--ink);min-height:100vh;padding:14px;line-height:1.6}
+.container{max-width:1100px;margin:0 auto}
+.header{text-align:center;padding:14px;margin-bottom:14px;background:linear-gradient(135deg,rgba(232,200,122,.15),rgba(184,168,224,.05));border:1px solid rgba(232,200,122,.3);border-radius:14px}
+.header h1{font-family:'Reem Kufi';color:var(--gold);font-size:1.15rem;margin-bottom:2px}
+.header p{color:var(--mute);font-size:.75rem}
+.stats-bar{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:10px 0}
+.stat{padding:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px;text-align:center}
+.stat .num{font-family:'Reem Kufi';font-size:1.2rem;color:var(--gold);font-weight:700;line-height:1}
+.stat .lbl{font-size:.6rem;color:var(--mute);margin-top:3px}
+.tabs{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;justify-content:center}
+.tab{padding:8px 13px;border-radius:10px;background:var(--surface);border:1px solid var(--line);color:var(--mute);cursor:pointer;font-family:'Reem Kufi';font-size:.74rem;transition:.15s}
+.tab.active{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#2a1c05;border-color:var(--gold);font-weight:700}
+.panel{display:none}
+.panel.active{display:block}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+.card h2{font-family:'Reem Kufi';color:var(--gold);font-size:.88rem;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.card.cloud{border-color:rgba(232,200,122,.4);background:linear-gradient(135deg,rgba(232,200,122,.08),transparent)}
+.btn{padding:9px 14px;border-radius:10px;font-family:'Reem Kufi';font-weight:600;font-size:.76rem;cursor:pointer;border:1px solid var(--line);background:var(--surface2);color:var(--ink);transition:.15s;display:inline-flex;align-items:center;gap:5px;justify-content:center}
+.btn:hover{border-color:var(--gold)}
+.btn.main{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#2a1c05;border-color:var(--gold)}
+.btn.danger{background:rgba(224,85,85,.15);color:var(--red);border-color:rgba(224,85,85,.3)}
+.btn.ok{background:rgba(143,211,176,.15);color:var(--ok);border-color:rgba(143,211,176,.4)}
+.btn.full{width:100%}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+label{display:block;font-size:.72rem;color:var(--gold);margin:8px 0 3px;font-weight:600;font-family:'Reem Kufi'}
+input,textarea,select{width:100%;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:9px;color:var(--ink);padding:8px 11px;outline:none;font-family:inherit;font-size:.82rem}
+input:focus,textarea:focus,select:focus{border-color:var(--gold);background:rgba(0,0,0,.5)}
+textarea{min-height:70px;resize:vertical;line-height:1.5}
+textarea.arabic{font-family:'Amiri',serif;font-size:.95rem;line-height:1.8}
+input.color{height:36px;padding:3px;cursor:pointer}
+.row-item{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:9px;margin-bottom:6px;display:flex;gap:8px;align-items:flex-start}
+.row-item .body{flex:1;min-width:0}
+.row-item .body b{display:block;font-size:.82rem;font-family:'Reem Kufi';margin-bottom:2px}
+.row-item .body small{display:block;font-size:.68rem;color:var(--mute);line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.row-item .btns{display:flex;flex-direction:column;gap:3px;flex-shrink:0}
+.row-item .btns button{width:28px;height:28px;border-radius:7px;background:var(--surface);border:1px solid var(--line);cursor:pointer;font-size:.8rem}
+.empty{text-align:center;padding:22px 14px;color:var(--mute);font-size:.8rem;line-height:1.5}
+.empty .ic{font-size:2rem;display:block;margin-bottom:6px;opacity:.5}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--gold);color:#2a1c05;padding:10px 18px;border-radius:30px;font-weight:700;font-size:.78rem;opacity:0;transition:.3s;z-index:200;pointer-events:none;max-width:90vw;text-align:center}
+.toast.on{transform:translateX(-50%) translateY(0);opacity:1}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;display:none;align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(6px)}
+.modal.on{display:flex}
+.modal-inner{background:var(--bg);border:1px solid var(--gold);border-radius:16px;padding:14px;max-width:600px;width:100%;max-height:90vh;overflow-y:auto}
+.modal-inner h3{font-family:'Reem Kufi';color:var(--gold);font-size:.95rem;margin-bottom:10px}
+.hint{font-size:.68rem;color:var(--mute);margin-top:3px;line-height:1.4}
+.cloud-status{margin-top:8px;padding:8px;border-radius:9px;background:var(--surface2);font-size:.72rem;text-align:center;color:var(--mute)}
+.cloud-status.ok{background:rgba(143,211,176,.12);color:var(--ok);border:1px solid rgba(143,211,176,.3)}
+.cloud-status.err{background:rgba(224,85,85,.12);color:var(--red);border:1px solid rgba(224,85,85,.3)}
+.cloud-status.loading{background:rgba(232,200,122,.12);color:var(--gold);border:1px solid rgba(232,200,122,.3)}
+.chip-sel{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px}
+.chip-sel button{padding:5px 11px;border-radius:16px;background:var(--surface2);border:1px solid var(--line);color:var(--ink);font-size:.7rem;cursor:pointer}
+.chip-sel button.on{background:var(--gold);color:#2a1c05;border-color:var(--gold);font-weight:700}
+.info-banner{padding:8px;background:rgba(143,199,232,.08);border:1px solid rgba(143,199,232,.25);border-radius:9px;font-size:.7rem;color:var(--mute);line-height:1.5;margin:8px 0}
+.info-banner b{color:var(--blue)}
+.info-banner.gold{background:rgba(232,200,122,.08);border-color:rgba(232,200,122,.3)}
+.info-banner.gold b{color:var(--gold)}
+.preview-box{background:#000;border-radius:9px;padding:10px;max-height:250px;overflow-y:auto}
+.preview-box pre{white-space:pre-wrap;word-wrap:break-word;font-family:monospace;font-size:.66rem;color:#8fd3b0;line-height:1.4}
+@media(max-width:700px){.stats-bar{grid-template-columns:repeat(3,1fr)}.grid2,.grid3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+<h1>🎛️ لوحة التحكم</h1>
+<p>تحكم كامل بمحتوى تطبيق "طريق العفة"</p>
+<div class="stats-bar">
+<div class="stat"><div class="num" id="stSections">0</div><div class="lbl">قسم</div></div>
+<div class="stat"><div class="num" id="stItems">0</div><div class="lbl">محتوى</div></div>
+<div class="stat"><div class="num" id="stVideos">0</div><div class="lbl">فيديو</div></div>
+<div class="stat"><div class="num" id="stRadios">0</div><div class="lbl">إذاعة</div></div>
+<div class="stat"><div class="num" id="stRecovery">0</div><div class="lbl">خطوات</div></div>
+</div>
+</div>
+
+<div class="tabs">
+<button class="tab active" data-tab="cloud">☁️ السحابة</button>
+<button class="tab" data-tab="general">⚙️ عام</button>
+<button class="tab" data-tab="sections">📂 المحتوى</button>
+<button class="tab" data-tab="tips">💡 النصائح</button>
+<button class="tab" data-tab="verses">📖 الآيات</button>
+<button class="tab" data-tab="prayer">🕌 الصلاة</button>
+<button class="tab" data-tab="recovery">💚 التعافي</button>
+<button class="tab" data-tab="cbt">🧠 CBT</button>
+<button class="tab" data-tab="videos">🎬 الفيديو</button>
+<button class="tab" data-tab="radios">📻 الإذاعة</button>
+<button class="tab" data-tab="backup">💾 النسخ</button>
+<button class="tab" data-tab="help">❓ مساعدة</button>
+</div>
+
+<!-- ☁️ السحابة -->
+<div class="panel active" id="panel-cloud">
+<div class="card cloud">
+<h2>☁️ الحفظ السحابي (JSONBin)</h2>
+<div class="info-banner gold"><b>📌 كيف يعمل؟</b><br>1. عدّل أي شيء في اللوحة<br>2. اضغط "حفظ سحابي"<br>3. يظهر لكل المستخدمين فوراً<br>4. لا حاجة لرفع أي ملف</div>
+<div class="row">
+<button class="btn main" id="btnCloudSave" style="flex:1">☁️ حفظ سحابي</button>
+<button class="btn" id="btnCloudLoad" style="flex:1">🔄 تحميل من السحابة</button>
+</div>
+<div class="cloud-status" id="cloudStatus">— لم يتم الحفظ بعد —</div>
+<div class="info-banner" style="margin-top:14px"><b>⚙️ إعداد أول مرة:</b><br>1. اذهب إلى jsonbin.io<br>2. أنشئ حساب مجاني<br>3. Create Bin → الصق: {"version":1}<br>4. انسخ Bin ID<br>5. Settings → API Keys → Create Master Key<br>6. الصق القيمتين بالأسفل</div>
+<label>Bin ID</label>
+<input id="jsonbinBinId" placeholder="65f8a2..." dir="ltr" style="font-family:monospace;font-size:.72rem">
+<label>Master Key</label>
+<input id="jsonbinApiKey" type="password" placeholder="$2a$10$..." dir="ltr" style="font-family:monospace;font-size:.72rem">
+<button class="btn ok full" id="btnSaveCloudConfig" style="margin-top:10px">💾 حفظ إعدادات السحابة</button>
+</div>
+</div>
+
+<!-- ⚙️ عام -->
+<div class="panel" id="panel-general">
+<div class="card">
+<h2>📱 معلومات التطبيق</h2>
+<div class="grid2">
+<div><label>اسم التطبيق</label><input id="cfgName"></div>
+<div><label>الاسم المختصر</label><input id="cfgShort"></div>
+<div><label>الأيقونة (emoji)</label><input id="cfgIcon" maxlength="4"></div>
+<div><label>الوصف</label><input id="cfgDesc"></div>
+</div>
+</div>
+<div class="card">
+<h2>🎨 الألوان</h2>
+<div class="grid3">
+<div><label>الخلفية</label><input type="color" class="color" id="cfgBg" value="#0a1810"></div>
+<div><label>الذهبي</label><input type="color" class="color" id="cfgGold" value="#e8c87a"></div>
+<div><label>النص</label><input type="color" class="color" id="cfgInk" value="#f5efe0"></div>
+</div>
+</div>
+<div class="card">
+<h2>📝 نصوص الأزرار</h2>
+<div class="grid3">
+<div><label>زر الطوارئ</label><input id="uiSos"></div>
+<div><label>تحت زر الطوارئ</label><input id="uiSosSub"></div>
+<div><label>الرئيسية</label><input id="uiHome"></div>
+<div><label>الصلاة</label><input id="uiPrayer"></div>
+<div><label>المواقيت</label><input id="uiPrayerTimes"></div>
+<div><label>المصحف</label><input id="uiQuran"></div>
+<div><label>الفيديو</label><input id="uiVideos"></div>
+<div><label>الإحصاءات</label><input id="uiStats"></div>
+<div><label>الأذكار</label><input id="uiAdhkar"></div>
+</div>
+<button class="btn main full" id="saveGeneral" style="margin-top:10px">💾 حفظ الإعدادات العامة</button>
+</div>
+</div>
+
+<!-- 📂 المحتوى -->
+<div class="panel" id="panel-sections">
+<div class="card"><h2>📂 إدارة الأقسام</h2><button class="btn main full" id="btnAddSection">➕ إضافة قسم جديد</button></div>
+<div id="sectionsList"></div>
+</div>
+
+<!-- 💡 النصائح -->
+<div class="panel" id="panel-tips">
+<div class="card">
+<h2>💡 نصائح الساعة</h2>
+<p class="hint">تظهر عشوائياً كل 5 دقائق في الصفحة الرئيسية</p>
+<div id="tipsList" style="margin-top:10px"></div>
+<button class="btn main full" id="btnAddTip" style="margin-top:8px">➕ إضافة نصيحة</button>
+</div>
+</div>
+
+<!-- 📖 الآيات -->
+<div class="panel" id="panel-verses">
+<div class="card">
+<h2>📖 الآيات والأحاديث</h2>
+<p class="hint">تظهر عشوائياً عند الضغط على زر الطوارئ</p>
+<div id="versesList" style="margin-top:10px"></div>
+<button class="btn main full" id="btnAddVerse" style="margin-top:8px">➕ إضافة آية</button>
+</div>
+</div>
+
+<!-- 🕌 الصلاة -->
+<div class="panel" id="panel-prayer">
+<div class="card">
+<h2>🕌 إعدادات الصلاة</h2>
+<label>المدينة الافتراضية</label>
+<select id="prayerDefaultCity">
+<option value="Makkah,Saudi Arabia">مكة المكرمة</option>
+<option value="Madinah,Saudi Arabia">المدينة المنورة</option>
+<option value="Riyadh,Saudi Arabia">الرياض</option>
+<option value="Cairo,Egypt">القاهرة</option>
+<option value="Alexandria,Egypt">الإسكندرية</option>
+<option value="Dubai,UAE">دبي</option>
+<option value="Doha,Qatar">الدوحة</option>
+<option value="Kuwait City,Kuwait">الكويت</option>
+<option value="Amman,Jordan">عمّان</option>
+<option value="Beirut,Lebanon">بيروت</option>
+<option value="Baghdad,Iraq">بغداد</option>
+<option value="Khartoum,Sudan">الخرطوم</option>
+<option value="Casablanca,Morocco">الدار البيضاء</option>
+<option value="Algiers,Algeria">الجزائر</option>
+<option value="Tunis,Tunisia">تونس</option>
+<option value="Istanbul,Turkey">إسطنبول</option>
+<option value="London,UK">لندن</option>
+<option value="Paris,France">باريس</option>
+<option value="New York,USA">نيويورك</option>
+</select>
+<label>طريقة الحساب</label>
+<select id="prayerMethod">
+<option value="4">أم القرى - مكة</option>
+<option value="5">الهيئة المصرية</option>
+<option value="3">رابطة العالم الإسلامي</option>
+<option value="2">ISNA - أمريكا</option>
+<option value="1">كراتشي</option>
+</select>
+<button class="btn main full" id="savePrayer" style="margin-top:10px">💾 حفظ</button>
+</div>
+</div>
+
+<!-- 💚 التعافي -->
+<div class="panel" id="panel-recovery">
+<div class="card">
+<h2>🎯 خطوات التعافي (12)</h2>
+<div id="recoveryList"></div>
+<button class="btn main full" id="btnAddRecovery" style="margin-top:8px">➕ إضافة خطوة</button>
+</div>
+<div class="card">
+<h2>🧠 أعراض الانسحاب</h2>
+<div id="symptomsList"></div>
+<button class="btn main full" id="btnAddSymptom" style="margin-top:8px">➕ إضافة عرض</button>
+</div>
+<div class="card">
+<h2>🛠️ الاستراتيجيات</h2>
+<div id="strategiesList"></div>
+<button class="btn main full" id="btnAddStrategy" style="margin-top:8px">➕ إضافة استراتيجية</button>
+</div>
+<div class="card">
+<h2>📅 الأيام الحرجة</h2>
+<div id="criticalDaysList"></div>
+<button class="btn main full" id="btnAddCritical" style="margin-top:8px">➕ إضافة يوم</button>
+</div>
+</div>
+
+<!-- 🧠 CBT -->
+<div class="panel" id="panel-cbt">
+<div class="card">
+<h2>⚔️ التشوهات المعرفية</h2>
+<div id="distortionsList"></div>
+<button class="btn main full" id="btnAddDistortion" style="margin-top:8px">➕ إضافة تشويه</button>
+</div>
+<div class="card">
+<h2>✅ حقائق ضد الأكاذيب</h2>
+<div id="truthsList"></div>
+<button class="btn main full" id="btnAddTruth" style="margin-top:8px">➕ إضافة حقيقة</button>
+</div>
+</div>
+
+<!-- 🎬 الفيديو -->
+<div class="panel" id="panel-videos">
+<div class="card">
+<h2>🎬 سلاسل الفيديو</h2>
+<div id="videoSeriesList"></div>
+<button class="btn main full" id="btnAddVideoSeries" style="margin-top:8px">➕ إضافة سلسلة</button>
+</div>
+</div>
+
+<!-- 📻 الإذاعة -->
+<div class="panel" id="panel-radios">
+<div class="card">
+<h2>📻 إذاعات القرآن</h2>
+<div id="radiosList"></div>
+<button class="btn main full" id="btnAddRadio" style="margin-top:8px">➕ إضافة إذاعة</button>
+</div>
+</div>
+
+<!-- 💾 النسخ -->
+<div class="panel" id="panel-backup">
+<div class="card">
+<h2>💾 تصدير واستيراد</h2>
+<div class="row">
+<button class="btn main" id="btnExport" style="flex:1">📤 تصدير config.json</button>
+<button class="btn" id="btnImport" style="flex:1">📥 استيراد</button>
+</div>
+<input type="file" id="fileImport" accept=".json" hidden>
+<button class="btn danger full" id="btnReset" style="margin-top:8px">↺ استعادة الافتراضي</button>
+</div>
+<div class="card"><h2>👁️ معاينة JSON</h2><div class="preview-box"><pre id="jsonPreview"></pre></div></div>
+</div>
+
+<!-- ❓ مساعدة -->
+<div class="panel" id="panel-help">
+<div class="card"><h2>❓ كيف تستخدم اللوحة</h2>
+<div style="font-size:.78rem;line-height:1.9;color:var(--mute)">
+<p><b style="color:var(--gold)">1. اضبط السحابة أولاً:</b> تبويب ☁️ → ضع Bin ID و Master Key</p>
+<p><b style="color:var(--gold)">2. عدّل ما تريد:</b> كل تبويب له خصائصه</p>
+<p><b style="color:var(--gold)">3. احفظ سحابياً:</b> سيظهر فوراً لكل المستخدمين</p>
+<p><b style="color:var(--gold)">4. النسخ الاحتياطي:</b> تبويب 💾</p>
+</div></div>
+<div class="card"><h2>📋 الأنواع</h2>
+<div style="font-size:.76rem;line-height:1.9;color:var(--mute)">
+<p>📖 نص — قصص، مقالات</p>
+<p>🎬 فيديو — YouTube ID</p>
+<p>🎧 صوت — رابط mp3 أو بث</p>
+<p>🔗 رابط — موقع خارجي</p>
+<p>📋 قائمة — أذكار، أدعية</p>
+<p>💬 اقتباس — آية أو حديث</p>
+</div></div>
+</div>
+
+</div>
+
+<div class="modal" id="modal"><div class="modal-inner" id="modalInner"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+/* ══════════ الافتراضي ══════════ */
+function defaultConfig(){
+return{
+version:1,updatedAt:Date.now(),
+app:{name:'طريق العفة',shortName:'العفة',icon:'🕌',desc:'رفيقك في رحلة التعافي والعفة',bg:'#0a1810',gold:'#e8c87a',ink:'#f5efe0'},
+ui:{home:'الرئيسية',prayer:'الصلاة',prayerTimes:'المواقيت',quran:'المصحف',videos:'الفيديو',stats:'إحصاءات',adhkar:'الأذكار',sos:'أستعين بالله الآن',sosSub:'لا تفعل، الله يراك'},
+hero:{greeting:'مرحباً بك في رحلتك',stages:[
+  {icon:'🌱',name:'بذرة العفة',min:0,next:7},
+  {icon:'🌿',name:'برعم النور',min:7,next:30},
+  {icon:'🌳',name:'شتلة الصبر',min:30,next:90},
+  {icon:'🌲',name:'شجرة الثبات',min:90,next:180},
+  {icon:'🌳',name:'شجرة القوة',min:180,next:365},
+  {icon:'🌳',name:'شجرة مثمرة',min:365,next:730}
+]},
+tips:['لا تفعل، الله يراك الآن.','المُجَاهِدُ مَنْ جَاهَدَ نَفْسَهُ.','من ترك شيئاً لله عوّضه الله خيراً منه.','الله يسترك، فلا تهتك سترك بيدك.','الرغبة موجة، اصبر 10 دقائق فقط.','اكسر الرغبة بالوضوء والصلاة.','النظرة الأولى لك، والثانية عليك.','الشيطان يبدأ بخطوة صغيرة.'],
+verses:[
+  {text:'وَالَّذِينَ جَاهَدُوا فِينَا لَنَهْدِيَنَّهُمْ سُبُلَنَا',ref:'العنكبوت: 69'},
+  {text:'قُل لِّلْمُؤْمِنِينَ يَغُضُّوا مِنْ أَبْصَارِهِمْ وَيَحْفَظُوا فُرُوجَهُمْ',ref:'النور: 30'},
+  {text:'أَلَمْ يَعْلَم بِأَنَّ اللَّهَ يَرَىٰ',ref:'العلق: 14'},
+  {text:'إِنَّ النَّفْسَ لَأَمَّارَةٌ بِالسُّوءِ إِلَّا مَا رَحِمَ رَبِّي',ref:'يوسف: 53'},
+  {text:'قَدْ أَفْلَحَ مَن زَكَّاهَا وَقَدْ خَابَ مَن دَسَّاهَا',ref:'الشمس: 9-10'},
+  {text:'إِنَّ اللَّهَ يُحِبُّ التَّوَّابِينَ وَيُحِبُّ الْمُتَطَهِّرِينَ',ref:'البقرة: 222'},
+  {text:'وَمَن يَتَّقِ اللَّهَ يَجْعَل لَّهُ مَخْرَجًا',ref:'الطلاق: 2'}
+],
+prayer:{defaultCity:'Makkah,Saudi Arabia',method:4,sound:0},
+recovery:{
+  steps:[
+    {id:'r1',ic:'🎯',t:'الخطوة 1: الإقرار',d:'أقرّ بأنني أعاني من مشكلة حقيقية.'},
+    {id:'r2',ic:'🙏',t:'الخطوة 2: التسليم لله',d:'الاعتراف بأنني لا أستطيع وحدي.'},
+    {id:'r3',ic:'🔍',t:'الخطوة 3: الفحص العميق',d:'ما الذي جعلني أقع؟'},
+    {id:'r4',ic:'🗣️',t:'الخطوة 4: الإفصاح',d:'الإفصاح لشخص صالح أمين.'},
+    {id:'r5',ic:'🛡️',t:'الخطوة 5: تغيير البيئة',d:'تنظيف شامل: احذف، امسح، غيّر.'},
+    {id:'r6',ic:'🕐',t:'الخطوة 6: بناء روتين',d:'الفراغ عدوّك. 5 صلوات، رياضة.'},
+    {id:'r7',ic:'🌬️',t:'الخطوة 7: إدارة الموجات',d:'الرغبة موجة. تقنية الـ 10 دقائق.'},
+    {id:'r8',ic:'📖',t:'الخطوة 8: العلم الشرعي',d:'تعلّم فقه العفة.'},
+    {id:'r9',ic:'💪',t:'الخطوة 9: رفيق المسؤولية',d:'شخص تثق به.'},
+    {id:'r10',ic:'🧠',t:'الخطوة 10: العلاج المعرفي',d:'اكتشاف التشوهات.'},
+    {id:'r11',ic:'🌟',t:'الخطوة 11: نموذج حياة',d:'هدف، رسالة، عطاء.'},
+    {id:'r12',ic:'👥',t:'الخطوة 12: العطاء',d:'ساعد غيرك.'}
+  ],
+  symptoms:[
+    {ic:'😰',t:'رغبات قوية',d:'تصل بعد 3-5 أيام، تخفّ تدريجياً.'},
+    {ic:'😔',t:'حزن واكتئاب',d:'المخ اعتاد الإثارة.'},
+    {ic:'😡',t:'غضب وتوتر',d:'افrg الطاقة بمشي.'},
+    {ic:'😴',t:'أرق',d:'المخ يعيد ضبط الساعة.'},
+    {ic:'🧠',t:'ضعف التركيز',d:'بعد 2-4 أسابيع يعود.'},
+    {ic:'😶',t:'شعور بالفراغ',d:'فرصة لملئه بالمعنى.'},
+    {ic:'💭',t:'أحلام مزعجة',d:'طبيعي.'},
+    {ic:'🔥',t:'رغبة الانتقام',d:'انظر للأمام.'}
+  ],
+  strategies:[
+    {t:'🧊 صدمة باردة',d:'اغمر وجهك في ماء بارد 30 ثانية.'},
+    {t:'🏃 الحركة الفورية',d:'قم، امشِ 5 دقائق.'},
+    {t:'🌬️ تنفّس 4-7-8',d:'شهيق 4، حبس 7، زفير 8.'},
+    {t:'📝 كتابة فورية',d:'اكتب 3 أسطر.'},
+    {t:'📞 اتصل بشخص',d:'لا تعتمد على إرادتك وحدها.'},
+    {t:'🚪 اخرج من المكان',d:'يقطع 70% من الرابط.'},
+    {t:'🕋 وضوء وصلاة',d:'ركعتين بخشوع.'},
+    {t:'⏰ 10 دقائق',d:'اضبط مؤقت.'},
+    {t:'📖 القرآن بصوت',d:'اقرأ بصوت مسموع.'},
+    {t:'📵 أخرج الهاتف',d:'أطفئه.'}
+  ],
+  criticalDays:[
+    {d:1,t:'اليوم 1 — القرار',desc:'تقلبات.'},
+    {d:3,t:'اليوم 3 — اختبار',desc:'الرغبات ذروتها.'},
+    {d:7,t:'الأسبوع 1',desc:'تجاوزت.'},
+    {d:14,t:'أسبوعان',desc:'المخ يتكيّف.'},
+    {d:30,t:'شهر — تحوّل',desc:'بدأ التعافي.'},
+    {d:66,t:'66 يوماً — عادة',desc:'شخص جديد.'},
+    {d:90,t:'90 يوماً — ثبات',desc:'80% تعافٍ.'},
+    {d:180,t:'6 أشهر — نور',desc:'القلب يشعر.'},
+    {d:365,t:'سنة — ميلاد',desc:'أنت من جديد.'}
+  ]
+},
+cbt:{
+  distortions:[
+    {ic:'🔮',t:'قراءة الأفكار',d:'تظن أنك تعرف ما يفكر به الآخرون.'},
+    {ic:'🎱',t:'التنبؤ بالمستقبل',d:'تتوقع الأسوأ دائماً.'},
+    {ic:'⚫',t:'أبيض أو أسود',d:'نجاح كامل أو فشل تام.'},
+    {ic:'🔍',t:'التعميم',d:'فشلت مرة = سأفشل دائماً.'},
+    {ic:'🔬',t:'تكبير السلبيات',d:'تعظّم أي خطأ صغير.'},
+    {ic:'🕶️',t:'تصغير الإيجابيات',d:'تتجاهل إنجازاتك.'},
+    {ic:'❤️‍🩹',t:'الشخصنة',d:'تلوم نفسك على كل شيء.'},
+    {ic:'📏',t:'المعايير الصارمة',d:'كمال مستحيل.'},
+    {ic:'💭',t:'"يجب" و"ينبغي"',d:'لغة الإلزام.'},
+    {ic:'🏷️',t:'التسميات',d:'"أنا فاشل".'},
+    {ic:'🎭',t:'الاستدلال العاطفي',d:'أشعر بالذنب = أنا مذنب.'},
+    {ic:'🌪️',t:'العجز عن التخلص',d:'موجة أفكار.'}
+  ],
+  truths:[
+    {q:'"لا أستطيع التوقف"',a:'كذب. أنت توقفت الآن.'},
+    {q:'"مرة واحدة فقط"',a:'كذب. المرة الواحدة تعيد الدائرة.'},
+    {q:'"لن يعلم أحد"',a:'كذب. الله يعلم.'},
+    {q:'"أنا ضعيف"',a:'كذب. القوي من يملك نفسه.'},
+    {q:'"لن أتوب"',a:'كذب. ﴿إِنَّ اللَّهَ يُحِبُّ التَّوَّابِينَ﴾.'},
+    {q:'"الحياة بلا لذة"',a:'كذب. اللذة في الحرية.'},
+    {q:'"أنا وحدي"',a:'كذب. الله معك.'}
+  ]
+},
+videos:[
+  {id:'omar',cat:'مسلسل عمر',ic:'🎬',title:'مسلسل عمر بن الخطاب',desc:'الملحمة التاريخية — 31 حلقة',cover:'🎬',episodes:[
+    {n:1,t:'الحلقة 1',yt:'cu68afTJVlk'},
+    {n:2,t:'الحلقة 2',yt:'UO-mGxqGhUc'},
+    {n:8,t:'الحلقة 8',yt:'gjoUHLAvmx8'}
+  ]},
+  {id:'prophets',cat:'قصص الأنبياء',ic:'📖',title:'قصص الأنبياء',desc:'قصص كاملة',cover:'📖',episodes:[
+    {n:1,t:'آدم',yt:'UfnY-7HsHbY'},
+    {n:3,t:'نوح',yt:'NCpN1qZ0TBo'}
+  ]}
+],
+radios:[
+  {id:'r1',ic:'📻',title:'إذاعة القرآن الكريم',url:'https://qurango.net/radio/quran',description:'بث مباشر 24/7'},
+  {id:'r2',ic:'🎙️',title:'الشيخ ماهر المعيقلي',url:'https://qurango.net/radio/maher_almuaiqly',description:'تلاوات مختارة'},
+  {id:'r3',ic:'🎙️',title:'الشيخ عبد الباسط',url:'https://qurango.net/radio/abdulbasit_abdulsamad',description:'تراث صوتي'},
+  {id:'r4',ic:'🎙️',title:'الشيخ المنشاوي',url:'https://qurango.net/radio/mohammad_siddiq_alminshawi',description:'القارئ الخاشع'},
+  {id:'r5',ic:'🎙️',title:'الشيخ الحصري',url:'https://qurango.net/radio/mahmoud_khalil_alhussary',description:'تراث تلاوات'},
+  {id:'r6',ic:'🎙️',title:'الشيخ مشاري العفاسي',url:'https://qurango.net/radio/mishary_alafasy',description:'تلاوات عذبة'}
+],
+sections:[
+  {id:'sec_stories',ic:'📚',title:'القصص الإسلامية',desc:'قصص كاملة',type:'text',items:[
+    {id:'it1',title:'الفضيل بن عياض',body:'قاطع طريق أصبح شيخ الحرم...\n\nالعبرة: آية واحدة قد تحوّل الإنسان.',createdAt:Date.now()}
+  ]}
+]
+}}
+
+/* ══════════ المخزن ══════════ */
+var LS_CONFIG='afaf_admin_config_v1';
+var LS_CLOUD='afaf_cloud_config_v1';
+var CONFIG=loadConfig();
+
+function loadConfig(){
+  try{
+    var r=localStorage.getItem(LS_CONFIG);
+    if(r){var d=JSON.parse(r);var def=defaultConfig();return deepMerge(def,d)}
+  }catch(e){}
+  var def=defaultConfig();
+  try{localStorage.setItem(LS_CONFIG,JSON.stringify(def))}catch(e){}
+  return def;
+}
+
+function deepMerge(target,source){
+  if(!source||typeof source!=='object')return target;
+  Object.keys(source).forEach(function(k){
+    if(source[k]&&typeof source[k]==='object'&&!Array.isArray(source[k])&&target[k]&&typeof target[k]==='object'&&!Array.isArray(target[k])){
+      deepMerge(target[k],source[k]);
+    }else{target[k]=source[k]}
+  });
+  return target;
+}
+
+function saveConfig(){
+  CONFIG.updatedAt=Date.now();
+  try{
+    localStorage.setItem(LS_CONFIG,JSON.stringify(CONFIG));
+    localStorage.setItem('afaf_content_shared_v1',JSON.stringify(CONFIG.sections));
+    return true;
+  }catch(e){showToast('⚠️ فشل الحفظ');return false}
+}
+
+var CLOUD={binId:'',apiKey:''};
+try{var c=localStorage.getItem(LS_CLOUD);if(c)CLOUD=JSON.parse(c)}catch(e){}
+
+/* ══════════ أدوات ══════════ */
+function $(id){return document.getElementById(id)}
+function uid(p){return (p||'id')+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function showToast(msg){var t=$('toast');t.textContent=msg;t.classList.add('on');clearTimeout(showToast.t);showToast.t=setTimeout(function(){t.classList.remove('on')},2200)}
+
+/* ══════════ السحابة ══════════ */
+function saveCloud(){
+  if(!CLOUD.binId||!CLOUD.apiKey)return Promise.reject(new Error('لم يتم إعداد السحابة'));
+  CONFIG.updatedAt=Date.now();
+  return fetch('https://api.jsonbin.io/v3/b/'+CLOUD.binId,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json','X-Master-Key':CLOUD.apiKey},
+    body:JSON.stringify(CONFIG)
+  }).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()});
+}
+
+function loadCloud(){
+  if(!CLOUD.binId||!CLOUD.apiKey)return Promise.reject(new Error('لم يتم إعداد السحابة'));
+  return fetch('https://api.jsonbin.io/v3/b/'+CLOUD.binId+'/latest',{headers:{'X-Master-Key':CLOUD.apiKey}})
+  .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()})
+  .then(function(d){
+    if(d.record){CONFIG=deepMerge(defaultConfig(),d.record);saveConfig();renderAll();return d.record}
+    throw new Error('ملف فارغ');
+  });
+}
+
+function updateCloudStatus(state,extra){
+  var el=$('cloudStatus');
+  if(state==='ok'){el.className='cloud-status ok';el.innerHTML='✅ محفوظ — '+extra}
+  else if(state==='err'){el.className='cloud-status err';el.innerHTML='❌ '+extra}
+  else if(state==='loading'){el.className='cloud-status loading';el.innerHTML='☁️ جارٍ الحفظ...'}
+  else{el.className='cloud-status';el.innerHTML='— لم يتم الحفظ بعد —'}
+}
+
+var autoSaveT=null;
+function autoCloudSave(){
+  if(!CLOUD.binId||!CLOUD.apiKey)return;
+  if(autoSaveT)clearTimeout(autoSaveT);
+  updateCloudStatus('loading');
+  autoSaveT=setTimeout(function(){
+    saveCloud().then(function(){updateCloudStatus('ok',new Date().toLocaleTimeString('ar'))})
+              .catch(function(e){updateCloudStatus('err',e.message)});
+  },1500);
+}
+
+/* ══════════ Modal ══════════ */
+function openModal(html){$('modalInner').innerHTML=html;$('modal').classList.add('on')}
+function closeModal(){$('modal').classList.remove('on')}
+$('modal').onclick=function(e){if(e.target.id==='modal')closeModal()};
+
+/* ══════════ التبويبات ══════════ */
+document.querySelectorAll('.tab').forEach(function(tab){
+  tab.onclick=function(){
+    document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
+    document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active')});
+    tab.classList.add('active');
+    $('panel-'+tab.dataset.tab).classList.add('active');
+    if(tab.dataset.tab==='cloud'){
+      $('jsonbinBinId').value=CLOUD.binId||'';
+      $('jsonbinApiKey').value=CLOUD.apiKey||'';
+      updateCloudStatus('idle');
+    }
+    if(tab.dataset.tab==='backup')renderPreview();
+  };
+});
+
+/* ══════════ الإحصائيات ══════════ */
+function updateStats(){
+  var ti=0,tv=0;
+  (CONFIG.sections||[]).forEach(function(s){ti+=(s.items||[]).length});
+  (CONFIG.videos||[]).forEach(function(v){tv+=(v.episodes||[]).length});
+  $('stSections').textContent=(CONFIG.sections||[]).length;
+  $('stItems').textContent=ti;
+  $('stVideos').textContent=tv;
+  $('stRadios').textContent=(CONFIG.radios||[]).length;
+  $('stRecovery').textContent=(CONFIG.recovery.steps||[]).length;
+}
+
+/* ══════════ عام ══════════ */
+function renderGeneral(){
+  $('cfgName').value=CONFIG.app.name||'';
+  $('cfgShort').value=CONFIG.app.shortName||'';
+  $('cfgIcon').value=CONFIG.app.icon||'';
+  $('cfgDesc').value=CONFIG.app.desc||'';
+  $('cfgBg').value=CONFIG.app.bg||'#0a1810';
+  $('cfgGold').value=CONFIG.app.gold||'#e8c87a';
+  $('cfgInk').value=CONFIG.app.ink||'#f5efe0';
+  $('uiSos').value=CONFIG.ui.sos||'';
+  $('uiSosSub').value=CONFIG.ui.sosSub||'';
+  $('uiHome').value=CONFIG.ui.home||'';
+  $('uiPrayer').value=CONFIG.ui.prayer||'';
+  $('uiPrayerTimes').value=CONFIG.ui.prayerTimes||'';
+  $('uiQuran').value=CONFIG.ui.quran||'';
+  $('uiVideos').value=CONFIG.ui.videos||'';
+  $('uiStats').value=CONFIG.ui.stats||'';
+  $('uiAdhkar').value=CONFIG.ui.adhkar||'';
+}
+
+$('saveGeneral').onclick=function(){
+  CONFIG.app.name=$('cfgName').value.trim()||CONFIG.app.name;
+  CONFIG.app.shortName=$('cfgShort').value.trim();
+  CONFIG.app.icon=$('cfgIcon').value.trim()||'🕌';
+  CONFIG.app.desc=$('cfgDesc').value.trim();
+  CONFIG.app.bg=$('cfgBg').value;
+  CONFIG.app.gold=$('cfgGold').value;
+  CONFIG.app.ink=$('cfgInk').value;
+  CONFIG.ui.sos=$('uiSos').value.trim();
+  CONFIG.ui.sosSub=$('uiSosSub').value.trim();
+  CONFIG.ui.home=$('uiHome').value.trim();
+  CONFIG.ui.prayer=$('uiPrayer').value.trim();
+  CONFIG.ui.prayerTimes=$('uiPrayerTimes').value.trim();
+  CONFIG.ui.quran=$('uiQuran').value.trim();
+  CONFIG.ui.videos=$('uiVideos').value.trim();
+  CONFIG.ui.stats=$('uiStats').value.trim();
+  CONFIG.ui.adhkar=$('uiAdhkar').value.trim();
+  saveConfig();showToast('✅ حُفظت الإعدادات');autoCloudSave();
+};
+
+/* ══════════ الأقسام ══════════ */
+var CS_TYPES=[
+  {id:'text',ic:'📖',name:'نص'},
+  {id:'video',ic:'🎬',name:'فيديو'},
+  {id:'audio',ic:'🎧',name:'صوت'},
+  {id:'link',ic:'🔗',name:'رابط'},
+  {id:'list',ic:'📋',name:'قائمة'},
+  {id:'quote',ic:'💬',name:'اقتباس'}
+];
+
+function renderSections(){
+  var box=$('sectionsList');
+  if(!(CONFIG.sections||[]).length){box.innerHTML='<div class="empty"><span class="ic">📭</span>لا توجد أقسام</div>';return}
+  var html='';
+  CONFIG.sections.forEach(function(sec){
+    var t=CS_TYPES.find(function(x){return x.id===sec.type})||CS_TYPES[0];
+    html+='<div class="row-item"><div class="body"><b>'+(sec.ic||t.ic)+' '+esc(sec.title)+'</b><small>'+esc(sec.desc||'')+' — '+(sec.items||[]).length+' عنصر</small></div><div class="btns"><button data-act="open" data-id="'+sec.id+'">📂</button><button data-act="edit" data-id="'+sec.id+'">✏️</button><button data-act="del" data-id="'+sec.id+'">🗑️</button></div></div>';
+  });
+  box.innerHTML=html;
+  box.querySelectorAll('[data-act]').forEach(function(b){
+    b.onclick=function(){
+      var a=b.dataset.act,i=b.dataset.id;
+      if(a==='open')openSection(i);else if(a==='edit')editSection(i);else if(a==='del')delSection(i);
+    };
+  });
+}
+
+$('btnAddSection').onclick=function(){
+  var types=CS_TYPES.map(function(t){return '<button type="button" data-type="'+t.id+'">'+t.ic+' '+t.name+'</button>'}).join('');
+  openModal(
+    '<h3>➕ قسم جديد</h3>'
+    +'<label>النوع</label><div class="chip-sel" id="typeSel">'+types+'</div>'
+    +'<label>الأيقونة</label><input id="fIc" value="📁" maxlength="4">'
+    +'<label>العنوان</label><input id="fTitle" placeholder="مثال: قصص الصحابة">'
+    +'<label>الوصف</label><input id="fDesc" placeholder="وصف مختصر">'
+    +'<div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">حفظ</button></div>'
+  );
+  var selType='text';
+  document.querySelectorAll('#typeSel button').forEach(function(b){
+    b.onclick=function(){
+      document.querySelectorAll('#typeSel button').forEach(function(x){x.classList.remove('on')});
+      b.classList.add('on');selType=b.dataset.type;
+      var t=CS_TYPES.find(function(x){return x.id===selType});
+      if(t&&$('fIc').value==='📁')$('fIc').value=t.ic;
+    };
+  });
+  document.querySelector('#typeSel button').classList.add('on');
+  $('bCancel').onclick=closeModal;
+  $('bSave').onclick=function(){
+    var ti=$('fTitle').value.trim();
+    if(!ti){showToast('اكتب العنوان');return}
+    CONFIG.sections.push({id:uid('sec'),ic:$('fIc').value.trim()||'📁',title:ti,desc:$('fDesc').value.trim(),type:selType,items:[],createdAt:Date.now()});
+    saveConfig();renderSections();updateStats();closeModal();showToast('✅ أُضيف');autoCloudSave();
+  };
+};
+
+function editSection(id){
+  var sec=CONFIG.sections.find(function(s){return s.id===id});if(!sec)return;
+  openModal('<h3>✏️ تعديل قسم</h3><label>الأيقونة</label><input id="fIc" value="'+esc(sec.ic)+'" maxlength="4"><label>العنوان</label><input id="fTitle" value="'+esc(sec.title)+'"><label>الوصف</label><input id="fDesc" value="'+esc(sec.desc||'')+'"><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">حفظ</button></div>');
+  $('bCancel').onclick=closeModal;
+  $('bSave').onclick=function(){
+    sec.ic=$('fIc').value.trim()||'📁';
+    sec.title=$('fTitle').value.trim()||sec.title;
+    sec.desc=$('fDesc').value.trim();
+    saveConfig();renderSections();closeModal();showToast('✅ حُفظ');autoCloudSave();
+  };
+}
+
+function delSection(id){
+  var sec=CONFIG.sections.find(function(s){return s.id===id});
+  if(!confirm('حذف "'+sec.title+'"؟'))return;
+  CONFIG.sections=CONFIG.sections.filter(function(s){return s.id!==id});
+  saveConfig();renderSections();updateStats();showToast('🗑️ حُذف');autoCloudSave();
+}
+
+function openSection(id){
+  var sec=CONFIG.sections.find(function(s){return s.id===id});if(!sec)return;
+  var t=CS_TYPES.find(function(x){return x.id===sec.type})||CS_TYPES[0];
+  var html='<h3>'+sec.ic+' '+esc(sec.title)+' ('+(sec.items||[]).length+')</h3>';
+  html+='<button class="btn main full" id="bAddItem" style="margin-bottom:10px">➕ إضافة '+t.name+'</button>';
+  (sec.items||[]).forEach(function(it,i){
+    var prev=it.body?it.body.substring(0,80):it.description||it.url||it.youtubeId||(it.items||[]).join(' · ');
+    html+='<div class="row-item"><div class="body"><b>'+esc(it.title||('عنصر '+(i+1)))+'</b><small>'+esc(prev)+'</small></div><div class="btns"><button data-act="edit" data-id="'+it.id+'">✏️</button><button data-act="del" data-id="'+it.id+'">🗑️</button></div></div>';
+  });
+  html+='<button class="btn full" id="bClose" style="margin-top:10px">إغلاق</button>';
+  openModal(html);
+  $('bClose').onclick=closeModal;
+  $('bAddItem').onclick=function(){itemForm(sec,t,null)};
+  document.querySelectorAll('#modalInner [data-act]').forEach(function(b){
+    b.onclick=function(){
+      var a=b.dataset.act,i=b.dataset.id;
+      if(a==='edit'){var it=sec.items.find(function(x){return x.id===i});if(it)itemForm(sec,t,it)}
+      else if(a==='del'){if(!confirm('حذف؟'))return;sec.items=sec.items.filter(function(x){return x.id!==i});saveConfig();openSection(sec.id);showToast('🗑️');autoCloudSave()}
+    };
+  });
+}
+
+function itemForm(sec,t,existing){
+  var isEdit=!!existing,v=existing||{};
+  var f='';
+  if(t.id==='text'){f='<label>العنوان</label><input id="fTitle" value="'+esc(v.title||'')+'"><label>المحتوى</label><textarea id="fBody" class="arabic" style="min-height:180px">'+esc(v.body||'')+'</textarea>'}
+  else if(t.id==='video'){f='<label>العنوان</label><input id="fTitle" value="'+esc(v.title||'')+'"><label>YouTube ID</label><input id="fYT" value="'+esc(v.youtubeId||'')+'" dir="ltr" placeholder="cu68afTJVlk"><label>الوصف</label><input id="fDesc" value="'+esc(v.description||'')+'">'}
+  else if(t.id==='audio'){f='<label>العنوان</label><input id="fTitle" value="'+esc(v.title||'')+'"><label>الرابط</label><input id="fUrl" value="'+esc(v.url||'')+'" dir="ltr"><label>الوصف</label><input id="fDesc" value="'+esc(v.description||'')+'">'}
+  else if(t.id==='link'){f='<label>العنوان</label><input id="fTitle" value="'+esc(v.title||'')+'"><label>الرابط</label><input id="fUrl" value="'+esc(v.url||'')+'" dir="ltr"><label>الوصف</label><textarea id="fDesc">'+esc(v.description||'')+'</textarea>'}
+  else if(t.id==='list'){f='<label>العنوان</label><input id="fTitle" value="'+esc(v.title||'')+'"><label>البنود (سطر لكل بند)</label><textarea id="fItems" class="arabic" style="min-height:150px">'+esc((v.items||[]).join('\n'))+'</textarea>'}
+  else if(t.id==='quote'){f='<label>العنوان</label><input id="fTitle" value="'+esc(v.title||'')+'"><label>النص</label><textarea id="fBody" class="arabic">'+esc(v.body||'')+'</textarea><label>المصدر</label><input id="fSrc" value="'+esc(v.source||'')+'">'}
+  openModal('<h3>'+(isEdit?'✏️ تعديل':'➕ إضافة')+' '+t.name+'</h3>'+f+'<div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">'+(isEdit?'حفظ':'إضافة')+'</button></div>');
+  $('bCancel').onclick=function(){openSection(sec.id)};
+  $('bSave').onclick=function(){
+    var item=existing?Object.assign({},existing):{id:uid('it'),createdAt:Date.now()};
+    try{
+      if(t.id==='text'){var ti=$('fTitle').value.trim(),b=$('fBody').value.trim();if(!ti||!b){showToast('املأ الحقول');return}item.title=ti;item.body=b}
+      else if(t.id==='video'){var ti=$('fTitle').value.trim(),y=$('fYT').value.trim();if(!ti||!y){showToast('املأ الحقول');return}var m=y.match(/[?&]v=([^&\s]+)/);if(m)y=m[1];item.title=ti;item.youtubeId=y;item.description=$('fDesc').value.trim()}
+      else if(t.id==='audio'||t.id==='link'){var ti=$('fTitle').value.trim(),u=$('fUrl').value.trim();if(!ti||!u){showToast('املأ الحقول');return}item.title=ti;item.url=u;if($('fDesc'))item.description=$('fDesc').value.trim()}
+      else if(t.id==='list'){var ti=$('fTitle').value.trim(),its=$('fItems').value.split('\n').map(function(x){return x.trim()}).filter(Boolean);if(!ti||!its.length){showToast('املأ الحقول');return}item.title=ti;item.items=its}
+      else if(t.id==='quote'){var ti=$('fTitle').value.trim(),b=$('fBody').value.trim();if(!ti||!b){showToast('املأ الحقول');return}item.title=ti;item.body=b;item.source=$('fSrc').value.trim()}
+    }catch(e){showToast('⚠️ خطأ');return}
+    if(isEdit){var idx=sec.items.findIndex(function(x){return x.id===item.id});if(idx>-1)sec.items[idx]=item}
+    else{if(!sec.items)sec.items=[];sec.items.unshift(item)}
+    saveConfig();renderSections();openSection(sec.id);showToast('✅');updateStats();autoCloudSave();
+  };
+}
+
+/* ══════════ النصائح ══════════ */
+function renderTips(){
+  var box=$('tipsList');box.innerHTML='';
+  (CONFIG.tips||[]).forEach(function(t,i){
+    var el=document.createElement('div');el.className='row-item';
+    el.innerHTML='<div class="body"><small class="arabic" style="font-size:.85rem;line-height:1.6">'+esc(t)+'</small></div><div class="btns"><button data-act="edit" data-i="'+i+'">✏️</button><button data-act="del" data-i="'+i+'">🗑️</button></div>';
+    box.appendChild(el);
+  });
+  box.querySelectorAll('[data-act]').forEach(function(b){
+    b.onclick=function(){
+      var i=+b.dataset.i,a=b.dataset.act;
+      if(a==='edit'){
+        openModal('<h3>✏️ نصيحة</h3><textarea id="tText" class="arabic" style="min-height:100px">'+esc(CONFIG.tips[i])+'</textarea><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">حفظ</button></div>');
+        $('bCancel').onclick=closeModal;
+        $('bSave').onclick=function(){CONFIG.tips[i]=$('tText').value.trim();saveConfig();renderTips();closeModal();showToast('✅');autoCloudSave()};
+      }else if(a==='del'){if(!confirm('حذف؟'))return;CONFIG.tips.splice(i,1);saveConfig();renderTips();showToast('🗑️');autoCloudSave()}
+    };
+  });
+}
+$('btnAddTip').onclick=function(){
+  openModal('<h3>➕ نصيحة</h3><textarea id="tText" class="arabic" style="min-height:100px" placeholder="النصيحة..."></textarea><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">إضافة</button></div>');
+  $('bCancel').onclick=closeModal;
+  $('bSave').onclick=function(){var t=$('tText').value.trim();if(!t)return;CONFIG.tips.push(t);saveConfig();renderTips();closeModal();showToast('✅');autoCloudSave()};
+};
+
+/* ══════════ الآيات ══════════ */
+function renderVerses(){
+  var box=$('versesList');box.innerHTML='';
+  (CONFIG.verses||[]).forEach(function(v,i){
+    var el=document.createElement('div');el.className='row-item';
+    el.innerHTML='<div class="body"><b class="arabic" style="font-weight:400;font-size:.85rem">'+esc(v.text)+'</b><small>'+esc(v.ref)+'</small></div><div class="btns"><button data-act="edit" data-i="'+i+'">✏️</button><button data-act="del" data-i="'+i+'">🗑️</button></div>';
+    box.appendChild(el);
+  });
+  box.querySelectorAll('[data-act]').forEach(function(b){
+    b.onclick=function(){
+      var i=+b.dataset.i,a=b.dataset.act;
+      if(a==='edit'){
+        var v=CONFIG.verses[i];
+        openModal('<h3>✏️ آية</h3><label>النص</label><textarea id="vText" class="arabic" style="min-height:80px">'+esc(v.text)+'</textarea><label>المرجع</label><input id="vRef" value="'+esc(v.ref)+'"><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">حفظ</button></div>');
+        $('bCancel').onclick=closeModal;
+        $('bSave').onclick=function(){v.text=$('vText').value.trim();v.ref=$('vRef').value.trim();saveConfig();renderVerses();closeModal();showToast('✅');autoCloudSave()};
+      }else if(a==='del'){if(!confirm('حذف؟'))return;CONFIG.verses.splice(i,1);saveConfig();renderVerses();showToast('🗑️');autoCloudSave()}
+    };
+  });
+}
+$('btnAddVerse').onclick=function(){
+  openModal('<h3>➕ آية</h3><label>النص</label><textarea id="vText" class="arabic" style="min-height:80px"></textarea><label>المرجع</label><input id="vRef" placeholder="سورة البقرة: ٢٨٦"><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">إضافة</button></div>');
+  $('bCancel').onclick=closeModal;
+  $('bSave').onclick=function(){var t=$('vText').value.trim();if(!t)return;CONFIG.verses.push({text:t,ref:$('vRef').value.trim()});saveConfig();renderVerses();closeModal();showToast('✅');autoCloudSave()};
+};
+
+/* ══════════ الصلاة ══════════ */
+function renderPrayer(){
+  $('prayerDefaultCity').value=CONFIG.prayer.defaultCity||'Makkah,Saudi Arabia';
+  $('prayerMethod').value=String(CONFIG.prayer.method||4);
+}
+$('savePrayer').onclick=function(){
+  CONFIG.prayer.defaultCity=$('prayerDefaultCity').value;
+  CONFIG.prayer.method=parseInt($('prayerMethod').value,10)||4;
+  saveConfig();showToast('✅');autoCloudSave();
+};
+
+/* ══════════ التعافي ══════════ */
+function renderRecovery(){
+  var b1=$('recoveryList');b1.innerHTML='';
+  (CONFIG.recovery.steps||[]).forEach(function(s,i){
+    var el=document.createElement('div');el.className='row-item';
+    el.innerHTML='<div class="body"><b>'+s.ic+' '+esc(s.t)+'</b><small>'+esc(s.d)+'</small></div><div class="btns"><button data-act="edit" data-i="'+i+'">✏️</button><button data-act="del" data-i="'+i+'">🗑️</button></div>';
+    b1.appendChild(el);
+  });
+  b1.querySelectorAll('[data-act]').forEach(function(b){
+    b.onclick=function(){
+      var i=+b.dataset.i,a=b.dataset.act;
+      if(a==='edit'){var s=CONFIG.recovery.steps[i];openModal('<h3>✏️ خطوة</h3><label>الأيقونة</label><input id="fIc" value="'+esc(s.ic)+'" maxlength="4"><label>العنوان</label><input id="fT" value="'+esc(s.t)+'"><label>الوصف</label><input id="fD" value="'+esc(s.d)+'"><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">حفظ</button></div>');$('bCancel').onclick=closeModal;$('bSave').onclick=function(){s.ic=$('fIc').value.trim()||'🎯';s.t=$('fT').value.trim()||s.t;s.d=$('fD').value.trim();saveConfig();renderRecovery();closeModal();showToast('✅');autoCloudSave()}}
+      else if(a==='del'){if(!confirm('حذف؟'))return;CONFIG.recovery.steps.splice(i,1);saveConfig();renderRecovery();showToast('🗑️');autoCloudSave()}
+    };
+  });
+
+  var b2=$('symptomsList');b2.innerHTML='';
+  (CONFIG.recovery.symptoms||[]).forEach(function(s,i){
+    var el=document.createElement('div');el.className='row-item';
+    el.innerHTML='<div class="body"><b>'+s.ic+' '+esc(s.t)+'</b><small>'+esc(s.d)+'</small></div><div class="btns"><button data-act="edit" data-i="'+i+'">✏️</button><button data-act="del" data-i="'+i+'">🗑️</button></div>';
+    b2.appendChild(el);
+  });
+  b2.querySelectorAll('[data-act]').forEach(function(b){
+    b.onclick=function(){
+      var i=+b.dataset.i,a=b.dataset.act;
+      if(a==='edit'){var s=CONFIG.recovery.symptoms[i];openModal('<h3>✏️ عرض</h3><label>الأيقونة</label><input id="fIc" value="'+esc(s.ic)+'" maxlength="4"><label>العنوان</label><input id="fT" value="'+esc(s.t)+'"><label>الوصف</label><input id="fD" value="'+esc(s.d)+'"><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">حفظ</button></div>');$('bCancel').onclick=closeModal;$('bSave').onclick=function(){s.ic=$('fIc').value.trim();s.t=$('fT').value.trim();s.d=$('fD').value.trim();saveConfig();renderRecovery();closeModal();showToast('✅');autoCloudSave()}}
+      else if(a==='del'){if(!confirm('حذف؟'))return;CONFIG.recovery.symptoms.splice(i,1);saveConfig();renderRecovery();showToast('🗑️');autoCloudSave()}
+    };
+  });
+
+  var b3=$('strategiesList');b3.innerHTML='';
+  (CONFIG.recovery.strategies||[]).forEach(function(s,i){
+    var el=document.createElement('div');el.className='row-item';
+    el.innerHTML='<div class="body"><b>'+esc(s.t)+'</b><small>'+esc(s.d)+'</small></div><div class="btns"><button data-act="edit" data-i="'+i+'">✏️</button><button data-act="del" data-i="'+i+'">🗑️</button></div>';
+    b3.appendChild(el);
+  });
+  b3.querySelectorAll('[data-act]').forEach(function(b){
+    b.onclick=function(){
+      var i=+b.dataset.i,a=b.dataset.act;
+      if(a==='edit'){var s=CONFIG.recovery.strategies[i];openModal('<h3>✏️ استراتيجية</h3><label>العنوان</label><input id="fT" value="'+esc(s.t)+'"><label>الوصف</label><input id="fD" value="'+esc(s.d)+'"><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">حفظ</button></div>');$('bCancel').onclick=closeModal;$('bSave').onclick=function(){s.t=$('fT').value.trim();s.d=$('fD').value.trim();saveConfig();renderRecovery();closeModal();showToast('✅');autoCloudSave()}}
+      else if(a==='del'){if(!confirm('حذف؟'))return;CONFIG.recovery.strategies.splice(i,1);saveConfig();renderRecovery();showToast('🗑️');autoCloudSave()}
+    };
+  });
+
+  var b4=$('criticalDaysList');b4.innerHTML='';
+  (CONFIG.recovery.criticalDays||[]).forEach(function(s,i){
+    var el=document.createElement('div');el.className='row-item';
+    el.innerHTML='<div class="body"><b>'+esc(s.t)+' (يوم '+s.d+')</b><small>'+esc(s.desc)+'</small></div><div class="btns"><button data-act="edit" data-i="'+i+'">✏️</button><button data-act="del" data-i="'+i+'">🗑️</button></div>';
+    b4.appendChild(el);
+  });
+  b4.querySelectorAll('[data-act]').forEach(function(b){
+    b.onclick=function(){
+      var i=+b.dataset.i,a=b.dataset.act;
+      if(a==='edit'){var s=CONFIG.recovery.criticalDays[i];openModal('<h3>✏️ يوم حرج</h3><label>اليوم</label><input id="fD" type="number" value="'+s.d+'"><label>العنوان</label><input id="fT" value="'+esc(s.t)+'"><label>الوصف</label><input id="fDesc" value="'+esc(s.desc)+'"><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">حفظ</button></div>');$('bCancel').onclick=closeModal;$('bSave').onclick=function(){s.d=parseInt($('fD').value,10)||1;s.t=$('fT').value.trim();s.desc=$('fDesc').value.trim();saveConfig();renderRecovery();closeModal();showToast('✅');autoCloudSave()}}
+      else if(a==='del'){if(!confirm('حذف؟'))return;CONFIG.recovery.criticalDays.splice(i,1);saveConfig();renderRecovery();showToast('🗑️');autoCloudSave()}
+    };
+  });
+}
+$('btnAddRecovery').onclick=function(){CONFIG.recovery.steps.push({id:uid('r'),ic:'🎯',t:'خطوة جديدة',d:'الوصف'});saveConfig();renderRecovery();showToast('✅');autoCloudSave()};
+$('btnAddSymptom').onclick=function(){CONFIG.recovery.symptoms.push({ic:'😰',t:'عرض جديد',d:'الوصف'});saveConfig();renderRecovery();showToast('✅');autoCloudSave()};
+$('btnAddStrategy').onclick=function(){CONFIG.recovery.strategies.push({t:'استراتيجية',d:'الوصف'});saveConfig();renderRecovery();showToast('✅');autoCloudSave()};
+$('btnAddCritical').onclick=function(){CONFIG.recovery.criticalDays.push({d:1,t:'يوم حرج',desc:'الوصف'});saveConfig();renderRecovery();showToast('✅');autoCloudSave()};
+
+/* ══════════ CBT ══════════ */
+function renderCBT(){
+  var b1=$('distortionsList');b1.innerHTML='';
+  (CONFIG.cbt.distortions||[]).forEach(function(d,i){
+    var el=document.createElement('div');el.className='row-item';
+    el.innerHTML='<div class="body"><b>'+d.ic+' '+esc(d.t)+'</b><small>'+esc(d.d)+'</small></div><div class="btns"><button data-act="edit" data-i="'+i+'">✏️</button><button data-act="del" data-i="'+i+'">🗑️</button></div>';
+    b1.appendChild(el);
+  });
+  b1.querySelectorAll('[data-act]').forEach(function(b){
+    b.onclick=function(){
+      var i=+b.dataset.i,a=b.dataset.act;
+      if(a==='edit'){var d=CONFIG.cbt.distortions[i];openModal('<h3>✏️ تشويه</h3><label>الأيقونة</label><input id="fIc" value="'+esc(d.ic)+'" maxlength="4"><label>العنوان</label><input id="fT" value="'+esc(d.t)+'"><label>الوصف</label><input id="fD" value="'+esc(d.d)+'"><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">حفظ</button></div>');$('bCancel').onclick=closeModal;$('bSave').onclick=function(){d.ic=$('fIc').value.trim();d.t=$('fT').value.trim();d.d=$('fD').value.trim();saveConfig();renderCBT();closeModal();showToast('✅');autoCloudSave()}}
+      else if(a==='del'){if(!confirm('حذف؟'))return;CONFIG.cbt.distortions.splice(i,1);saveConfig();renderCBT();showToast('🗑️');autoCloudSave()}
+    };
+  });
+
+  var b2=$('truthsList');b2.innerHTML='';
+  (CONFIG.cbt.truths||[]).forEach(function(d,i){
+    var el=document.createElement('div');el.className='row-item';
+    el.innerHTML='<div class="body"><b>'+esc(d.q)+'</b><small>'+esc(d.a)+'</small></div><div class="btns"><button data-act="edit" data-i="'+i+'">✏️</button><button data-act="del" data-i="'+i+'">🗑️</button></div>';
+    b2.appendChild(el);
+  });
+  b2.querySelectorAll('[data-act]').forEach(function(b){
+    b.onclick=function(){
+      var i=+b.dataset.i,a=b.dataset.act;
+      if(a==='edit'){var d=CONFIG.cbt.truths[i];openModal('<h3>✏️ حقيقة</h3><label>الكذبة</label><input id="fQ" value="'+esc(d.q)+'"><label>الحقيقة</label><input id="fA" value="'+esc(d.a)+'"><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">حفظ</button></div>');$('bCancel').onclick=closeModal;$('bSave').onclick=function(){d.q=$('fQ').value.trim();d.a=$('fA').value.trim();saveConfig();renderCBT();closeModal();showToast('✅');autoCloudSave()}}
+      else if(a==='del'){if(!confirm('حذف؟'))return;CONFIG.cbt.truths.splice(i,1);saveConfig();renderCBT();showToast('🗑️');autoCloudSave()}
+    };
+  });
+}
+$('btnAddDistortion').onclick=function(){CONFIG.cbt.distortions.push({ic:'💭',t:'تشويه جديد',d:'الوصف'});saveConfig();renderCBT();showToast('✅');autoCloudSave()};
+$('btnAddTruth').onclick=function(){CONFIG.cbt.truths.push({q:'"كذبة"',a:'الحقيقة'});saveConfig();renderCBT();showToast('✅');autoCloudSave()};
+
+/* ══════════ الفيديو ══════════ */
+function renderVideos(){
+  var box=$('videoSeriesList');box.innerHTML='';
+  (CONFIG.videos||[]).forEach(function(v,i){
+    var el=document.createElement('div');el.className='row-item';
+    el.innerHTML='<div class="body"><b>'+v.cover+' '+esc(v.title)+'</b><small>'+esc(v.desc)+' — '+(v.episodes||[]).length+' حلقة</small></div><div class="btns"><button data-act="eps" data-i="'+i+'">📺</button><button data-act="edit" data-i="'+i+'">✏️</button><button data-act="del" data-i="'+i+'">🗑️</button></div>';
+    box.appendChild(el);
+  });
+  box.querySelectorAll('[data-act]').forEach(function(b){
+    b.onclick=function(){
+      var i=+b.dataset.i,a=b.dataset.act;
+      if(a==='edit'){var v=CONFIG.videos[i];openModal('<h3>✏️ سلسلة</h3><label>الأيقونة</label><input id="fC" value="'+esc(v.cover)+'" maxlength="4"><label>العنوان</label><input id="fT" value="'+esc(v.title)+'"><label>الوصف</label><input id="fD" value="'+esc(v.desc)+'"><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">حفظ</button></div>');$('bCancel').onclick=closeModal;$('bSave').onclick=function(){v.cover=$('fC').value.trim()||'🎬';v.title=$('fT').value.trim();v.desc=$('fD').value.trim();saveConfig();renderVideos();closeModal();showToast('✅');autoCloudSave()}}
+      else if(a==='del'){if(!confirm('حذف؟'))return;CONFIG.videos.splice(i,1);saveConfig();renderVideos();showToast('🗑️');autoCloudSave()}
+      else if(a==='eps')openSeriesEps(i);
+    };
+  });
+}
+
+function openSeriesEps(i){
+  var v=CONFIG.videos[i];
+  var html='<h3>📺 '+esc(v.title)+'</h3>';
+  html+='<button class="btn main full" id="bAddEp" style="margin-bottom:10px">➕ إضافة حلقة</button>';
+  (v.episodes||[]).forEach(function(e,ei){
+    html+='<div class="row-item"><div class="body"><b>حلقة '+e.n+': '+esc(e.t)+'</b><small>'+esc(e.yt||e.p||'')+'</small></div><div class="btns"><button data-act="e" data-ei="'+ei+'">✏️</button><button data-act="d" data-ei="'+ei+'">🗑️</button></div></div>';
+  });
+  html+='<button class="btn full" id="bClose" style="margin-top:10px">إغلاق</button>';
+  openModal(html);
+  $('bClose').onclick=closeModal;
+  $('bAddEp').onclick=function(){epForm(v,null)};
+  document.querySelectorAll('#modalInner [data-act]').forEach(function(b){
+    b.onclick=function(){
+      var ei=+b.dataset.ei,a=b.dataset.act;
+      if(a==='e')epForm(v,v.episodes[ei]);
+      else if(a==='d'){if(!confirm('حذف؟'))return;v.episodes.splice(ei,1);saveConfig();openSeriesEps(i);showToast('🗑️');autoCloudSave()}
+    };
+  });
+}
+
+function epForm(v,existing){
+  var isEdit=!!existing,e=existing||{n:1,t:'',yt:''};
+  openModal('<h3>'+(isEdit?'✏️':'➕')+' حلقة</h3><label>رقم الحلقة</label><input id="fN" type="number" value="'+e.n+'"><label>العنوان</label><input id="fT" value="'+esc(e.t)+'"><label>YouTube ID</label><input id="fYT" value="'+esc(e.yt||'')+'" dir="ltr" placeholder="cu68afTJVlk"><label>أو Playlist ID</label><input id="fP" value="'+esc(e.p||'')+'" dir="ltr" placeholder="PLxxx"><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">حفظ</button></div>');
+  $('bCancel').onclick=function(){var i=CONFIG.videos.indexOf(v);openSeriesEps(i)};
+  $('bSave').onclick=function(){
+    var ne={n:parseInt($('fN').value,10)||1,t:$('fT').value.trim()||'حلقة',yt:$('fYT').value.trim(),p:$('fP').value.trim()};
+    if(ne.yt&&ne.p)delete ne.p;
+    if(isEdit){var idx=v.episodes.indexOf(existing);if(idx>-1)v.episodes[idx]=ne}
+    else{if(!v.episodes)v.episodes=[];v.episodes.push(ne);v.episodes.sort(function(a,b){return a.n-b.n})}
+    saveConfig();var i=CONFIG.videos.indexOf(v);openSeriesEps(i);showToast('✅');autoCloudSave();
+  };
+}
+
+$('btnAddVideoSeries').onclick=function(){
+  openModal('<h3>➕ سلسلة</h3><label>الأيقونة</label><input id="fC" value="🎬" maxlength="4"><label>العنوان</label><input id="fT"><label>الوصف</label><input id="fD"><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">إضافة</button></div>');
+  $('bCancel').onclick=closeModal;
+  $('bSave').onclick=function(){
+    var t=$('fT').value.trim();if(!t){showToast('املأ العنوان');return}
+    CONFIG.videos.push({id:uid('v'),cat:'سلسلة',ic:$('fC').value.trim()||'🎬',title:t,desc:$('fD').value.trim(),cover:$('fC').value.trim()||'🎬',episodes:[]});
+    saveConfig();renderVideos();closeModal();showToast('✅');autoCloudSave();
+  };
+};
+
+/* ══════════ الإذاعة ══════════ */
+function renderRadios(){
+  var box=$('radiosList');box.innerHTML='';
+  (CONFIG.radios||[]).forEach(function(r,i){
+    var el=document.createElement('div');el.className='row-item';
+    el.innerHTML='<div class="body"><b>'+(r.ic||'🎧')+' '+esc(r.title)+'</b><small>'+esc(r.description||r.url)+'</small></div><div class="btns"><button data-act="edit" data-i="'+i+'">✏️</button><button data-act="del" data-i="'+i+'">🗑️</button></div>';
+    box.appendChild(el);
+  });
+  box.querySelectorAll('[data-act]').forEach(function(b){
+    b.onclick=function(){
+      var i=+b.dataset.i,a=b.dataset.act;
+      if(a==='edit'){var r=CONFIG.radios[i];openModal('<h3>✏️ إذاعة</h3><label>الأيقونة</label><input id="fIc" value="'+esc(r.ic||'🎧')+'" maxlength="4"><label>العنوان</label><input id="fT" value="'+esc(r.title)+'"><label>الرابط</label><input id="fU" value="'+esc(r.url)+'" dir="ltr"><label>الوصف</label><input id="fD" value="'+esc(r.description||'')+'"><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">حفظ</button></div>');$('bCancel').onclick=closeModal;$('bSave').onclick=function(){r.ic=$('fIc').value.trim();r.title=$('fT').value.trim();r.url=$('fU').value.trim();r.description=$('fD').value.trim();saveConfig();renderRadios();closeModal();showToast('✅');autoCloudSave()}}
+      else if(a==='del'){if(!confirm('حذف؟'))return;CONFIG.radios.splice(i,1);saveConfig();renderRadios();showToast('🗑️');autoCloudSave()}
+    };
+  });
+}
+$('btnAddRadio').onclick=function(){
+  openModal('<h3>➕ إذاعة</h3><label>الأيقونة</label><input id="fIc" value="🎧" maxlength="4"><label>العنوان</label><input id="fT"><label>الرابط</label><input id="fU" dir="ltr" placeholder="https://..."><label>الوصف</label><input id="fD"><div class="row" style="margin-top:12px"><button class="btn" id="bCancel" style="flex:1">إلغاء</button><button class="btn main" id="bSave" style="flex:1">إضافة</button></div>');
+  $('bCancel').onclick=closeModal;
+  $('bSave').onclick=function(){
+    var t=$('fT').value.trim(),u=$('fU').value.trim();
+    if(!t||!u){showToast('املأ الحقول');return}
+    CONFIG.radios.push({id:uid('r'),ic:$('fIc').value.trim()||'🎧',title:t,url:u,description:$('fD').value.trim()});
+    saveConfig();renderRadios();updateStats();closeModal();showToast('✅');autoCloudSave();
+  };
+};
+
+/* ══════════ السحابة ══════════ */
+$('btnSaveCloudConfig').onclick=function(){
+  var id=$('jsonbinBinId').value.trim(),key=$('jsonbinApiKey').value.trim();
+  if(!id||!key){showToast('املأ الحقول');return}
+  CLOUD={binId:id,apiKey:key};
+  try{localStorage.setItem(LS_CLOUD,JSON.stringify(CLOUD))}catch(e){}
+  showToast('✅ حُفظت الإعدادات');updateCloudStatus('idle');
+};
+$('btnCloudSave').onclick=function(){
+  var b=this;b.disabled=true;b.textContent='☁️ جارٍ...';
+  saveCloud().then(function(){updateCloudStatus('ok',new Date().toLocaleTimeString('ar'));b.textContent='☁️ حفظ سحابي';b.disabled=false;showToast('✅')})
+              .catch(function(e){updateCloudStatus('err',e.message);b.textContent='☁️ حفظ سحابي';b.disabled=false;showToast('❌')});
+};
+$('btnCloudLoad').onclick=function(){
+  var b=this;b.disabled=true;b.textContent='🔄 جارٍ...';
+  loadCloud().then(function(){b.textContent='🔄 تحميل من السحابة';b.disabled=false;showToast('✅ تم التحميل')})
+              .catch(function(e){b.textContent='🔄 تحميل من السحابة';b.disabled=false;showToast('❌ '+e.message)});
+};
+
+/* ══════════ النسخ ══════════ */
+function renderPreview(){
+  try{$('jsonPreview').textContent=JSON.stringify(CONFIG,null,2)}catch(e){}
+}
+$('btnExport').onclick=function(){
+  var b=new Blob([JSON.stringify(CONFIG,null,2)],{type:'application/json'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='config.json';a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href)},100);
+  showToast('📤 تم التصدير');
+};
+$('btnImport').onclick=function(){$('fileImport').click()};
+$('fileImport').onchange=function(e){
+  var f=e.target.files[0];if(!f)return;
+  var r=new FileReader();
+  r.onload=function(){
+    try{var d=JSON.parse(r.result);if(!d.version)throw new Error();if(!confirm('استبدال المحتوى؟'))return;CONFIG=deepMerge(defaultConfig(),d);saveConfig();renderAll();showToast('📥 تم الاستيراد');autoCloudSave()}
+    catch(err){showToast('⚠️ ملف غير صالح')}
+  };
+  r.readAsText(f);e.target.value='';
+};
+$('btnReset').onclick=function(){
+  if(!confirm('استعادة الكل؟'))return;
+  if(!confirm('تأكيد نهائي؟'))return;
+  CONFIG=defaultConfig();saveConfig();renderAll();showToast('↺');autoCloudSave();
+};
+
+/* ══════════ التشغيل ══════════ */
+function renderAll(){
+  renderGeneral();
+  renderSections();
+  renderTips();
+  renderVerses();
+  renderPrayer();
+  renderRecovery();
+  renderCBT();
+  renderVideos();
+  renderRadios();
+  renderPreview();
+  updateStats();
+}
+
+renderAll();
+setTimeout(function(){
+  if(CLOUD.binId&&CLOUD.apiKey){
+    updateCloudStatus('loading');
+    loadCloud().then(function(){updateCloudStatus('ok','محمّل من السحابة')})
+              .catch(function(e){updateCloudStatus('err',e.message)});
+  }
+},400);
+
+setInterval(saveConfig,30000);
+
+console.log('%c🎛️ Admin Panel loaded','color:#e8c87a;font-weight:bold');
+</script>
+</body>
+</html>

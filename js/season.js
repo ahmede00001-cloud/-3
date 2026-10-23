@@ -2,9 +2,6 @@
 // season.js - توليد الموسم، الكؤوس، والمحاكاة
 // ============================================
 
-// ============================================
-// بناء عالم اللعبة (الفرق الأولية)
-// ============================================
 function mk(){
   T = {};
   D.forEach(([id, name, Rt, c1, c2, s], i) => {
@@ -27,9 +24,6 @@ function mk(){
   });
 }
 
-// ============================================
-// توليد الموسم الكامل (مع توزيع الكؤوس الجديد)
-// ============================================
 function generateSeason(myId, prev){
   const s = {
     year: SEASON_YEAR,
@@ -46,7 +40,6 @@ function generateSeason(myId, prev){
     qualified: {cafCL:false, cafCC:false, egyptSuper:false, cafSuper:false, clubWC:false}
   };
 
-  // ============ جدول الدوري ============
   const ids = Object.keys(T);
   const sh = [...ids].sort(() => R()-.5);
   const n = sh.length;
@@ -68,7 +61,6 @@ function generateSeason(myId, prev){
   }
   all.forEach(r => rounds.push(r.map(m => [m[1], m[0]])));
 
-  // ============ توزيع جولات الدوري مع تأجيل جولة عند كل مباراة كأس ============
   const cupDayMap = {17:'R32', 49:'R16', 81:'QF', 113:'SF', 145:'F'};
   const cupDaysSorted = [17, 49, 81, 113, 145];
   const cupPostponedRounds = {};
@@ -114,7 +106,6 @@ function generateSeason(myId, prev){
     });
   });
 
-  // ============ كأس مصر ============
   const cupTeams = [...ids, ...DIV2.slice(0, 12)];
   const cs = [...cupTeams].sort(() => R()-.5);
   const cb = {rounds:{}, currentRound:'R32', userAlive:true, winner:null, userMatches:[]};
@@ -132,35 +123,19 @@ function generateSeason(myId, prev){
   }
   s.cupBracket = cb;
 
-  // ============ منطق التأهل للبطولات القارية (v25.1 - مُصحَّح) ============
   if(prev){
     let cafCL = false, cafCC = false;
-    // الأولوية 1: الفائز بدوري أبطال أفريقيا أو الكونفدرالية يتأهل مباشرة لدوري الأبطال
-    if(prev.userWonCAFCL || prev.userWonCAFCC){
-      cafCL = true;
-    }
-    // الأولوية 2: أول مركزين في الدوري
-    else if(prev.leaguePos <= 2){
-      cafCL = true;
-    }
-    // الأولوية 3: بطل كأس مصر يتأهل للكونفدرالية
-    else if(prev.userWonCup){
-      cafCC = true;
-    }
-    // الأولوية 4: 3-4 في الدوري يتأهلون للكونفدرالية
-    else if(prev.leaguePos >= 3 && prev.leaguePos <= 4){
-      cafCC = true;
-    }
+    if(prev.userWonCAFCL || prev.userWonCAFCC){ cafCL = true; }
+    else if(prev.leaguePos <= 2){ cafCL = true; }
+    else if(prev.userWonCup){ cafCC = true; }
+    else if(prev.leaguePos >= 3 && prev.leaguePos <= 4){ cafCC = true; }
     s.qualified.cafCL = cafCL;
     s.qualified.cafCC = cafCC;
-    // السوبر المصري: بطل الدوري × بطل الكأس
     if(prev.userWonLeague || prev.userWonCup) s.qualified.egyptSuper = true;
-    // السوبر الأفريقي وكأس العالم للأبطال القاريين
     if(prev.userWonCAFCL){s.qualified.clubWC = true; s.qualified.cafSuper = true;}
     if(prev.userWonCAFCC) s.qualified.cafSuper = true;
   }
 
-  // ============ دوري أبطال أفريقيا ============
   if(s.qualified.cafCL){
     s.cafCL = {rounds:{}, currentRound:'R16', userAlive:true, winner:null};
     const ct = [myId, 'ahly', 'zamalek', 'pyramids', ...AFRICAN.map(a=>a[0])].slice(0, 16);
@@ -177,7 +152,6 @@ function generateSeason(myId, prev){
     }
   }
 
-  // ============ كأس الكونفدرالية ============
   if(s.qualified.cafCC){
     s.cafCC = {rounds:{}, currentRound:'R16', userAlive:true, winner:null};
     const ct = [myId, 'masry', 'ittihad', 'ceramica', ...AFRICAN.map(a=>a[0])].slice(0, 16);
@@ -194,7 +168,6 @@ function generateSeason(myId, prev){
     }
   }
 
-  // ============ السوبر المصري ============
   if(s.qualified.egyptSuper && prev){
     const lc = prev.userWonLeague ? myId : (prev.leagueWinnerId || tbl()[0].id);
     const cc = prev.userWonCup ? myId : (prev.cupWinnerId || 'ahly');
@@ -205,7 +178,6 @@ function generateSeason(myId, prev){
     }
   }
 
-  // ============ السوبر الأفريقي ============
   if(s.qualified.cafSuper && prev){
     const cw = prev.userWonCAFCL ? myId : (prev.cafCLWinnerId || 'ahly');
     const cc = prev.userWonCAFCC ? myId : (prev.cafCCWinnerId || 'zamalek');
@@ -216,7 +188,6 @@ function generateSeason(myId, prev){
     }
   }
 
-  // ============ كأس العالم للأندية ============
   if(s.qualified.clubWC && prev && prev.userWonCAFCL){
     s.clubWC = {rounds:{}, currentRound:'QF', userAlive:true, winner:null};
     const wt = [myId, ...WORLD.map(w=>w[0])].slice(0, 8);
@@ -237,9 +208,6 @@ function generateSeason(myId, prev){
   return s;
 }
 
-// ============================================
-// التقويم والمواعيد
-// ============================================
 function getNextUserMatch(){
   if(!G.season || !G.season.userCalendar) return null;
   return G.season.userCalendar.find(m => !m.played) || null;
@@ -250,18 +218,18 @@ function daysUntilMatch(m){
   return Math.max(0, m.day-G.season.currentDay);
 }
 
+// ============================================
+// تقدم الأيام (مع فحص انتهاء صلاحية الأسطورة)
+// ============================================
 function advanceToDay(td){
   if(!G.season) return;
   simulateAIUpToDay(td);
   G.season.currentDay = td;
+  updateLegendMarket(); // ✅ فحص يومي لاختفاء الأسطورة
   save();
 }
 
-// ============================================
-// محاكاة مباريات الفرق الأخرى (الذكاء الاصطناعي)
-// ============================================
 function simulateAIUpToDay(td){
-  // مباريات الدوري
   Object.entries(G.season.leagueFixtures).forEach(([rn, d]) => {
     if(d.day <= td && d.played.length < d.round.length){
       const um = d.round.find(m => m[0] === G.my || m[1] === G.my);
@@ -313,13 +281,10 @@ function simulateAIUpToDay(td){
     }
   });
 
-  // محاكاة الكأس
   if(G.season.cupBracket) simulateCupUpToDay(td);
-  // محاكاة الأفريقية
   if(G.season.cafCL) simulateCafComp('cafCL', td);
   if(G.season.cafCC) simulateCafComp('cafCC', td);
 
-  // استعادة اللياقة وتقليل مدة الإصابات
   Object.values(T).forEach(t => {
     t.ps.forEach(p => {
       p.fit = Math.min(100, (p.fit!=null?p.fit:100)+5);
@@ -328,9 +293,6 @@ function simulateAIUpToDay(td){
   });
 }
 
-// ============================================
-// محاكاة تقدم الكأس (الفرق الأخرى)
-// ============================================
 function simulateCupUpToDay(td){
   const cb = G.season.cupBracket;
   const ro = ['R32','R16','QF','SF','F'];
@@ -383,9 +345,6 @@ function simulateCupUpToDay(td){
   });
 }
 
-// ============================================
-// محاكاة تقدم البطولات الأفريقية
-// ============================================
 function simulateCafComp(name, td){
   const c = G.season[name];
   if(!c) return;
@@ -437,9 +396,6 @@ function simulateCafComp(name, td){
   });
 }
 
-// ============================================
-// تقدم الكأس (مباراة المستخدم) - v25.1 FIX
-// ============================================
 function advanceCupBracket(){
   const cb = G.season.cupBracket;
   const ro = ['R32','R16','QF','SF','F'];
@@ -458,7 +414,6 @@ function advanceCupBracket(){
           }
         }
       }
-      // ✅ إضافة مباراة المستخدم للدور التالي
       const um = cb.rounds[nr].find(m => m.home === G.my || m.away === G.my);
       if(um && !G.season.userCalendar.find(x => x.comp === 'cup' && x.round === nr && !x.played)){
         const home = um.home === G.my;
@@ -478,9 +433,6 @@ function advanceCupBracket(){
   });
 }
 
-// ============================================
-// تقدم البطولة الأفريقية (مباراة المستخدم)
-// ============================================
 function advanceCafComp(name){
   const c = G.season[name];
   if(!c) return;
@@ -501,7 +453,6 @@ function advanceCafComp(name){
           }
         }
       }
-      // ✅ إضافة مباراة المستخدم للدور التالي
       const um = c.rounds[nr].find(m => m.home === G.my || m.away === G.my);
       if(um && !G.season.userCalendar.find(x => x.comp === name && x.round === nr && !x.played)){
         const home = um.home === G.my;
@@ -522,9 +473,6 @@ function advanceCafComp(name){
   });
 }
 
-// ============================================
-// تقدم كأس العالم للأندية (مباراة المستخدم)
-// ============================================
 function advanceClubWC(){
   const c = G.season.clubWC;
   if(!c) return;
@@ -544,7 +492,6 @@ function advanceClubWC(){
           }
         }
       }
-      // ✅ إضافة مباراة المستخدم للدور التالي
       const um = c.rounds[nr].find(m => m.home === G.my || m.away === G.my);
       if(um && !G.season.userCalendar.find(x => x.comp === 'clubWC' && x.round === nr && !x.played)){
         const home = um.home === G.my;
@@ -564,17 +511,11 @@ function advanceClubWC(){
   });
 }
 
-// ============================================
-// إضافة كأس لخزانة البطولات
-// ============================================
 function addTrophy(name, seasonNum, year){
   if(!G.trophyCabinet) G.trophyCabinet = [];
   G.trophyCabinet.push({name, season:seasonNum, year});
 }
 
-// ============================================
-// ركلات الترجيح (للمباريات الإقصائية)
-// ============================================
 function realPenaltyShootout(tA, tB){
   let sA = 0, sB = 0;
   const log = [];
@@ -604,9 +545,6 @@ function realPenaltyShootout(tA, tB){
   return {winner: sA>sB ? 'home' : 'away', scoreA:sA, scoreB:sB, log};
 }
 
-// ============================================
-// تطور العالم (انتقالات الذكاء الاصطناعي)
-// ============================================
 function simulateLivingWorld(){
   const ai = Object.values(T).filter(t => t.id !== G.my);
   if(!ai.length) return;
@@ -619,7 +557,6 @@ function simulateLivingWorld(){
     else t.tac = 'balanced';
   });
 
-  // انتقالات بين الفرق
   if(R() < .3){
     const b = ai[Math.floor(R()*ai.length)];
     const s = ai[Math.floor(R()*ai.length)];
@@ -639,7 +576,6 @@ function simulateLivingWorld(){
     }
   }
 
-  // عرض شراء للمستخدم
   if(R() < .2){
     const ut = T[G.my];
     if(ut.ps.length > 15){
@@ -656,19 +592,24 @@ function simulateLivingWorld(){
 }
 
 // ============================================
-// سوق الأساطير (كل 4 جولات)
+// سوق الأساطير (أسطورة واحدة فقط + عداد يوم واحد)
 // ============================================
 function checkLegendsMarket(){
   if(!G.season) return;
+  
+  // إذا كان هناك أسطورة بالفعل في السوق، لا نضف جديد
+  if(G.legendsMarket && G.legendsMarket.length > 0) return;
+
   const r = Object.values(G.season.leagueFixtures).filter(d => d.played.length > 0).length;
   if(r > 0 && r%4 === 0 && G.lastLegendRound !== r){
     G.lastLegendRound = r;
-    const cnt = 1+Math.floor(R()*2);
     const av = LEGEND_POOL.filter(l => !G.usedLegends.includes('legend_'+l.name));
-    for(let i=0; i<cnt && av.length>0; i++){
+    
+    if(av.length > 0){
       const idx = Math.floor(R()*av.length);
       const lg = av.splice(idx, 1)[0];
       const id = 'legend_'+lg.name;
+      
       G.legendsMarket.push({
         id, name:lg.name, pos:lg.pos, r:lg.r,
         fit:100, goals:0, yc:0, rc:0, susp:0,
@@ -677,16 +618,29 @@ function checkLegendsMarket(){
         lvl:1, xp:0, value:lg.price, isLegend:true,
         contract:{years:3, salary:calcSalary(lg.r)},
         age:28, form:[7,7,7], chemistry:0,
-        stats:{matches:0, goals:0, assists:0, rating:0}
+        stats:{matches:0, goals:0, assists:0, rating:0},
+        expiresOnDay: G.season.currentDay + 1 // ✅ تاريخ الانتهاء بعد يوم واحد
       });
+      addNews(`🌟 أسطورة في السوق!`, `🎯 ${lg.name} متاح لمدة يوم واحد فقط!`);
     }
-    addNews(`🌟 سوق الأساطير مفتوح!`, `🎯 ${cnt} أسطورة متاح الآن • تحقق من تبويب السوق`);
   }
 }
 
-// ============================================
-// لاعب الشهر (كل 30 يوم)
-// ============================================
+// ✅ دالة حذف الأسطورة عند انتهاء وقتها
+function updateLegendMarket(){
+  if(!G || !G.season || !G.legendsMarket) return;
+  const currentDay = G.season.currentDay;
+  
+  G.legendsMarket = G.legendsMarket.filter(p => {
+    if (p.expiresOnDay && currentDay >= p.expiresOnDay) {
+      addNews(`⏰ انتهى عرض الأسطورة ${p.name}!`, `🚫 غادر السوق ولن يعود.`);
+      G.usedLegends.push(p.id); // إضافة اللاعب للاعبين المستخدمين حتى لا يعود أبداً
+      return false; // حذفه من السوق
+    }
+    return true;
+  });
+}
+
 function checkPlayerOfMonth(){
   if(!G || !G.season) return;
   const day = G.season.currentDay;
@@ -714,9 +668,6 @@ function checkPlayerOfMonth(){
   }
 }
 
-// ============================================
-// التقاعد والاعتزال
-// ============================================
 function checkRetirements(){
   if(!G || !G.season) return;
   const t = T[G.my];
@@ -748,9 +699,6 @@ function checkRetirements(){
   if(tr.length && G.lu.includes(null)) G.lu = autoFillLineup(t, G.form);
 }
 
-// ============================================
-// تقدم أعمار اللاعبين
-// ============================================
 function updatePlayerAges(){
   if(!G || !G.season) return;
   Object.values(T).forEach(t => {
@@ -766,9 +714,6 @@ function updatePlayerAges(){
   });
 }
 
-// ============================================
-// إنهاء الموسم
-// ============================================
 function endSeason(){
   const t = T[G.my];
   const st = tbl();
@@ -824,9 +769,6 @@ function endSeason(){
   save();
 }
 
-// ============================================
-// بدء الموسم الجديد
-// ============================================
 function startNextSeason(){
   const prevTrophies = G.trophies||0;
   updatePlayerAges();
@@ -887,9 +829,6 @@ function startNextSeason(){
   setTimeout(() => showSponsorOffers(), 500);
 }
 
-// ============================================
-// مكافأة الراعي
-// ============================================
 function checkSponsorBonus(){
   if(!G?.currentSponsor) return;
   const s = G.currentSponsor;
@@ -909,9 +848,6 @@ function checkSponsorBonus(){
   }
 }
 
-// ============================================
-// عروض الرعاية
-// ============================================
 function showSponsorOffers(){
   const shuffled = [...SPONSORS].sort(() => R()-.5);
   const offers = shuffled.slice(0, 3);
@@ -948,9 +884,6 @@ function chooseSponsor(idx){
   save(); dash();
 }
 
-// ============================================
-// عرض بيع لاعب للمستخدم
-// ============================================
 function showOffer(){
   if(!G.pendingOffer) return;
   const b = T[G.pendingOffer.buyerId];
@@ -998,18 +931,13 @@ function rejectOffer(){
   save(); dash();
 }
 
-// ============================================
-// كأس السوبر (المصري والأفريقي)
-// ============================================
 function resolveSuperCups(){
   if(!G.season) return;
 
-  // السوبر المصري
   if(G.season.egyptSuper && !G.season.egyptSuper.played){
     const s = G.season.egyptSuper;
     const userMatch = G.season.userCalendar.find(m => m.comp === 'super' && !m.played);
-    if(userMatch) return; // لم تُلعب بعد
-    // محاكاة
+    if(userMatch) return;
     if(s.winner === null){
       const lc = tbl()[0].id;
       const cc = G.season.cupBracket?.winner || 'ahly';
@@ -1024,7 +952,6 @@ function resolveSuperCups(){
     }
   }
 
-  // السوبر الأفريقي
   if(G.season.cafSuper && !G.season.cafSuper.played){
     const s = G.season.cafSuper;
     const userMatch = G.season.userCalendar.find(m => m.comp === 'cafSuper' && !m.played);
@@ -1044,9 +971,6 @@ function resolveSuperCups(){
   }
 }
 
-// ============================================
-// الانتقال للحدث التالي
-// ============================================
 function nxt(){
   try{
     $('rs').hidden = true;

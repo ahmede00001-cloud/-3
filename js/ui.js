@@ -350,7 +350,7 @@ function compH(){
   return h;
 }
 
-// سوق الانتقالات (تم إصلاحه)
+// سوق الانتقالات
 function trH(t){
   const me = T[G.my];
   const isWindowOpen = checkTransferWindow();
@@ -378,17 +378,28 @@ function trH(t){
       <div style="color:var(--gold);font-size:20px;font-weight:900">${t.budget.toFixed(1)}M</div>
       <div style="font-size:9px;color:var(--m)">${t.ps.length}/25 • رواتب ${totalSal.toFixed(2)}M/مباراة</div>
     </div>
+    
     ${G.legendsMarket && G.legendsMarket.length ? `
-      <div class="sec" style="color:#fbbf24">🌟 سوق الأساطير</div>
+      <div class="sec" style="color:#fbbf24; display:flex; justify-content:space-between;">
+        <span>🌟 سوق الأساطير</span>
+        <span style="font-size:9px; color:#ef4444; animation: badgeGlow 1s infinite alternate;">🔥 عرض محدود</span>
+      </div>
       <div style="max-height:150px;overflow:auto;background:rgba(120,53,15,.2);border-radius:10px;padding:6px;margin-bottom:8px;border:2px solid var(--gold)">
-        ${G.legendsMarket.map(p => `
+        ${G.legendsMarket.map(p => {
+          const remaining = p.expiresOnDay ? Math.max(0, p.expiresOnDay - G.season.currentDay) : 999;
+          return `
           <div class="pl legend" onclick="${isWindowOpen ? `showLegendCard('${p.id}')` : ''}" style="cursor:${isWindowOpen ? 'pointer' : 'not-allowed'};${!isWindowOpen ? 'opacity:0.5' : ''}">
             <span>🌟</span><span style="flex:1;font-size:11px">${p.name}</span>
             <span style="color:var(--gold);font-size:10px">⭐${p.r}</span>
-            <span style="color:#fbbf24;font-size:10px">${p.value}M</span>
-          </div>`).join('')}
+            <div style="display:flex; flex-direction:column; align-items:flex-end; margin-right:6px;">
+              <span style="color:#fbbf24;font-size:10px; font-weight:900;">${p.value}M</span>
+              ${remaining <= 1 ? `<span style="color:#ef4444;font-size:8px;font-weight:bold;background:rgba(239,68,68,.2);padding:1px 4px;border-radius:4px;margin-top:2px">⏳ ينتهي اليوم</span>` : `<span style="color:#4ade80;font-size:8px;margin-top:2px">⏳ ${remaining} أيام</span>`}
+            </div>
+          </div>`;
+        }).join('')}
       </div>
     ` : ''}
+    
     <div class="sec">🛒 السوق (${surplus.length})</div>
     <div style="max-height:200px;overflow:auto;background:rgba(15,34,56,.5);border-radius:10px;padding:6px;margin-bottom:8px;border:1px solid rgba(251,191,36,.2)">
       ${surplus.length === 0 ? '<div style="text-align:center;color:var(--m);padding:10px;font-size:10px">لا لاعبون</div>' 
@@ -643,7 +654,7 @@ function showTeamPlayers(tid){
   $('cmc').innerHTML = h; $('cm').hidden = false;
 }
 
-// بطاقة اللاعب بالتصميم الجديد
+// بطاقة اللاعب
 function showCard(pid, teamId){
   teamId = teamId || G.my; const team = T[teamId];
   if(!team) return; const p = team.ps.find(x => x.id === pid); if(!p) return;
@@ -752,6 +763,7 @@ function cont(){
   if(!G.lu || G.lu.length !== 11) G.lu = autoFillLineup(T[G.my], G.form);
   migrateSave(); autoAssignRoles(); dash();
 }
+
 // ============================================
 // سوق الأساطير (عرض البطاقة والشراء)
 // ============================================
@@ -769,6 +781,11 @@ function showLegendCard(pid){
       <div class="mc-title" style="color:#fbbf24">أسطورة!</div>
       <div class="mc-sub">فرصة نادرة لضم نجم عالمي</div>
     </div>
+    
+    <div style="background:rgba(239,68,68,.15); border:1px dashed #ef4444; color:#fca5a5; padding:8px; border-radius:10px; font-size:11px; margin-bottom:8px; font-weight:bold;">
+      ⏳ عرض محدود! سيختفي هذا اللاعب من السوق مع نهاية اليوم.
+    </div>
+
     <div class="fcard legend" style="margin: 10px auto;">
       <div class="fcard-hd">
         <div style="font-size:12px;color:#fbbf24">🌟 أسطورة</div>

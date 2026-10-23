@@ -91,6 +91,7 @@ class Match {
     this.ball = {x:L/2, y:WD/2, z:0, vz:0, vx:0, vy:0, o:null, fl:null, lastTouch:'home', trail:[]};
     this.ref = {x:L/2, y:WD/2-8, fc:1};
     this.hold = 0; this.sc = null; this.rs = null; this.ag = null;
+    this.idleTicks = 0;
 
     const dt = this.isDerby ? '⚔️ ديربي! ' : '';
     this.say(0, 'info', `${dt}🏁 ${this.compName}: ${c.h.name} × ${c.a.name}`);
@@ -165,7 +166,6 @@ class Match {
       stats: {passes:0, tackles:0, shots:0} 
     });
     
-    // ✅ إصلاح 1: نقل الكرة والتمريرات والركلات للاعب البديل لتجنب تجمد اللعبة
     if(this.ball.o === oP) this.ball.o = iP;
     if(this.ball.fl && this.ball.fl.pl === oP) this.ball.fl.pl = iP;
     if(this.rs && this.rs.tk === oP) this.rs.tk = iP;
@@ -258,8 +258,15 @@ class Match {
   exec(){
     const r = this.rs;
     this.rs = null;
-    if(!r || !r.tk) return;
-    const p = r.tk, k = r.k;
+    if(!r) return;
+    const k = r.k;
+    // ✅ تأكد من أن اللاعب المنفذ لا يزال في الملعب ولم يُطرد
+    let p = r.tk;
+    if(!p || !this.s[k].on.includes(p)){
+      p = this.s[k].on.find(q => q.role !== 'GK') || this.s[k].on[0];
+    }
+    if(!p) return;
+
     this.ball.x = r.x; this.ball.y = r.y;
     this.ball.lastTouch = k;
     const isHuman = k === this.hu;
@@ -312,8 +319,9 @@ class Match {
 
     if(role === 'GK'){
       const vision = (p.passing/99)*0.6 + (p.defending/99)*0.4;
-      const m = this.s[k].on.filter(q => q.role === 'DEF' || q.role === 'MID');
-      const t = m[Math.floor(R()*m.length)] || this.s[k].on[1];
+      // ✅ منع الحارس من التمرير لنفسه لتفادي القسمة على صفر (NaN)
+      const m = this.s[k].on.filter(q => q !== p && (q.role === 'DEF' || q.role === 'MID'));
+      const t = m[Math.floor(R()*m.length)] || this.s[k].on.find(q => q !== p);
       if(t) this.pass(p, t, vision < 0.5, true);
       else p.dec = .7;
       return;
@@ -369,7 +377,7 @@ class Match {
   }
 
   pass(p, m, loft = false, noOff = false, isCorner = false){
-    if(!m) return;
+    if(!m || m === p) return;
     const b = this.ball;
     b.o = null;
     b.lastTouch = p.k;
@@ -549,22 +557,34 @@ class Match {
       return;
     }
 
-    b.o = f.pl;
-    b.x = f.pl.x;
-    b.y = f.pl.y;
-    f.pl.stun = 0;
-    f.pl.dec = .6+R()*.4;
+    // ✅ التأكد من أن اللاعب المستلم للكرة لا يزال موجوداً في الملعب
+    if(f.pl && this.s[f.pl.k].on.includes(f.pl)){
+      b.o = f.pl;
+      b.x = f.pl.x;
+      b.y = f.pl.y;
+      f.pl.stun = 0;
+      f.pl.dec = .6+R()*.4;
+    } else {
+      b.o = null;
+    }
   }
 
   goal(p){
-    if(!checkVAR()) return;
     const k = p.k;
+    const ok = k === 'home' ? 'away' : 'home';
+    // ✅ إصلاح ثغرة الـ VAR: استئناف اللعب بضربة مرمى/حرة عند إلغاء الهدف بدلاً من تجميد الكرة
+    if(!checkVAR()){
+      this.say(Math.floor(this.min), 'var', `📺 الـ VAR يلغي هدف ${p.name}!`);
+      this.banner('📺 هدف ملغي (VAR)!', 1.8);
+      this.rest('gk', ok, ok === 'home' ? 5.5 : L-5.5, 34);
+      return;
+    }
     this.s[k].g++;
     p.goals = (p.goals||0)+1;
     this.say(Math.floor(this.min), 'goal', `⚽ جوووول! ${p.name} لـ ${this.s[k].t.name}!`);
     this.banner(`⚽ هدف! ${this.s[k].t.name}`, 2.0);
     this.sc = {p, k, ttl:1.8};
-    this.ag = {k: k === 'home' ? 'away' : 'home', t:1.8};
+    this.ag = {k: ok, t:1.8};
     this.ball.o = null;
     this.ball.fl = null;
     this.ball.trail = [];
@@ -620,7 +640,8 @@ class Match {
     b.trail.push({x:b.x, y:b.y, z:b.z});
     if(b.trail.length > 6) b.trail.shift();
 
-    if(dd <= step){
+    // ✅ حماية من القسمة على صفر (dd < 0.001)
+    if(dd <= step || dd < 0.001){
       b.x = f.tx;
       b.y = f.ty;
       this.land(f);
@@ -664,18 +685,17 @@ class Match {
     });
   }
 
-  // ✅ إصلاح 2: دالة استرداد الحالة في حال حدوث خطأ
   _recoverFromError(){
     console.warn('Recovering match state...');
     this.ball = {x:L/2, y:WD/2, z:0, vz:0, vx:0, vy:0, o:null, fl:null, lastTouch:'home', trail:[]};
-    this.rs = null; this.sc = null; this.ag = null;
+    this.rs = null; this.sc = null; this.ag = null; this.hold = 0;
     [...this.s.home.on, ...this.s.away.on].forEach(p => {
       p.x = p.bx; p.y = p.by; p.vx = 0; p.vy = 0; p.stun = 0;
       if(isNaN(p.x) || !isFinite(p.x)) p.x = L/2;
       if(isNaN(p.y) || !isFinite(p.y)) p.y = WD/2;
       if(isNaN(p.st) || !isFinite(p.st)) p.st = 100;
     });
-    this.rest('ko', this.hu, L/2, WD/2); // إعادة تشغيل الكرة من المنتصف
+    this.rest('ko', this.hu, L/2, WD/2);
   }
 
   step(){
@@ -728,6 +748,11 @@ class Match {
       this.aiManage();
 
       const b = this.ball;
+      // ✅ التحقق من أن حامل الكرة لا يزال داخل الملعب (لم يُطرد أو يُستبدل بشكل خاطئ)
+      if(b.o && !this.s[b.o.k].on.includes(b.o)){
+        b.o = null;
+      }
+
       const s = this.s;
       const hm = s.home.sh*2+s.home.g*5+Math.round(s.home.ps/8);
       const am = s.away.sh*2+s.away.g*5+Math.round(s.away.ps/8);
@@ -832,7 +857,6 @@ class Match {
         if(p.vy === undefined) p.vy = 0;
 
         if(dist > .3 && p.stun <= 0){
-          const paceFactor = 0.6+0.4*(p.pace/99);
           const stFactor = 0.55+0.45*(p.st/100);
           const cp = b.o === p ? .82 : 1;
           const instSpeed = p.inst === 'press' ? 1.05 : 1;
@@ -868,7 +892,6 @@ class Match {
         this.s[o.k].ps++;
         this.bounds();
       } else if (!this.rs && !this.ag && !this.sc) {
-        // ✅ إصلاح 3: في حال توقفت الكرة فجأة بدون سبب، استرجعها لأقرب لاعب
         const players = this.all();
         if(players.length > 0) {
            const closest = players.reduce((a,c) => Math.hypot(a.x-b.x, a.y-b.y) < Math.hypot(c.x-b.x, c.y-b.y) ? a : c);

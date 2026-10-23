@@ -10,6 +10,9 @@ function play(){
   if(!nm) return alert('لا مباراة!');
   if(daysUntilMatch(nm) > 0) return alert(`بعد ${daysUntilMatch(nm)} يوم!`);
 
+  // ✅ إيقاف أي مباراة سابقة لعدم تداخل الحلقات
+  if(raf) cancelAnimationFrame(raf);
+
   const hm = nm.home;
   const oid = nm.opp;
   let oT;
@@ -73,7 +76,7 @@ function createVirtualTeam(id, name, rating, c1, c2){
   };
 }
 
-// ✅ إضافة درع الحماية (Try-Catch) لمنع تجمد الشاشة
+// ✅ تحديث حلقة اللعبة لمنع الإنهاء المفاجئ عند الأخطاء
 function loop(n){
   last = n;
   try {
@@ -88,9 +91,9 @@ function loop(n){
     raf = requestAnimationFrame(loop);
   } catch(e) {
     console.error("Match Loop Error:", e);
-    // في حال حدوث خطأ، نمنع التجمد وننهي المباراة فوراً
-    Mt.done = true;
-    finish();
+    paused = true; // إيقاف المباراة مؤقتاً بدلاً من إنهائها
+    $('bp').textContent = '▶';
+    raf = requestAnimationFrame(loop); // محاولة الاستمرار
   }
 }
 
@@ -130,6 +133,7 @@ function ui(){
 }
 
 function man(x, p, px, py, t, gk, car, num, isRef = false){
+  if(!p) return;
   const f = p.fc || 1;
   const mv = Math.min(1, p.mv||0);
   const a = Math.sin(p.ph||0)*.95*mv;
@@ -298,8 +302,19 @@ function mtac(k){
   document.querySelectorAll('[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === k));
 }
 
-function pz(){paused = !paused;}
-function spd(){ const a = [1,2,3,4]; speed = a[(a.indexOf(speed)+1)%4]; $('bs').textContent = '×'+speed; }
+// ✅ تحديث زر التوقف لتحديث الأيقونة فوراً
+function pz(){
+  if(!Mt) return;
+  paused = !paused;
+  ui(); 
+}
+
+// ✅ تحديث زر التسريع
+function spd(){ 
+  const a = [1,2,3,4]; 
+  speed = a[(a.indexOf(speed)+1)%4]; 
+  $('bs').textContent = '×'+speed; 
+}
 
 function subm(){
   const s = Mt.s[Mt.hu];
@@ -311,15 +326,11 @@ function subm(){
 
 function doSub(){ if(Mt.sub(Mt.hu, $('so').value, $('si').value)) $('sm').hidden = true; }
 
-// ✅ تأمين دالة التخطي لمنع أي تجمد
 function skip(){
   if(!Mt || Mt.done) return;
-  
   try {
     cancelAnimationFrame(raf);
     Mt.done = true;
-    
-    // محاكاة رياضية فورية لباقي المباراة (تمنع التجمد نهائياً)
     const currentMin = Math.floor(Mt.min);
     const remainingMin = Math.max(0, 90 - currentMin);
     
@@ -330,15 +341,11 @@ function skip(){
       const m = currentMin + i;
       if(R() < hp * 0.015 && Mt.s.home.on.length > 0){
         const p = Mt.s.home.on[Math.floor(R()*Mt.s.home.on.length)];
-        p.goals = (p.goals||0)+1;
-        Mt.s.home.g++;
-        Mt.say(m, 'goal', `⚽ هدف لـ ${Mt.s.home.t.name} عن طريق ${p.name}!`);
+        if(p) { p.goals = (p.goals||0)+1; Mt.s.home.g++; Mt.say(m, 'goal', `⚽ هدف لـ ${Mt.s.home.t.name} عن طريق ${p.name}!`); }
       }
       if(R() < ap * 0.015 && Mt.s.away.on.length > 0){
         const p = Mt.s.away.on[Math.floor(R()*Mt.s.away.on.length)];
-        p.goals = (p.goals||0)+1;
-        Mt.s.away.g++;
-        Mt.say(m, 'goal', `⚽ هدف لـ ${Mt.s.away.t.name} عن طريق ${p.name}!`);
+        if(p) { p.goals = (p.goals||0)+1; Mt.s.away.g++; Mt.say(m, 'goal', `⚽ هدف لـ ${Mt.s.away.t.name} عن طريق ${p.name}!`); }
       }
     }
     
@@ -350,7 +357,7 @@ function skip(){
     finish();
   } catch(e) {
     console.error('Skip Error:', e);
-    finish(); // إنهاء المباراة فوراً في حال حدوث أي خطأ أثناء التخطي
+    finish();
   }
 }
 

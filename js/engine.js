@@ -176,7 +176,7 @@ class Match {
     Object.assign(this.ball, {x, y, z:0, vz:0, vx:0, vy:0, o:null, fl:null, lastTouch:k});
     const s = this.s[k], op = this.opp(k);
     let tk = s.on.find(p => p.role !== 'GK') || s.on[0];
-    if(!tk) return; // ✅ حماية إذا كان الفريق بدون لاعبين
+    if(!tk) return;
 
     const isHuman = k === this.hu;
 
@@ -285,14 +285,13 @@ class Match {
     p.dec = .7;
   }
 
-  // ✅ إضافة حماية ضد الأخطاء (isOffside)
   isOffside(pa, re){
     const dr = pa.dir;
     if((re.x-L/2)*dr <= 2) return false;
     if((re.x-pa.x)*dr <= 2) return false;
     const o = this.opp(pa.k).on.slice().sort((a,b) => (b.x*dr)-(a.x*dr));
     const sl = o[1] || o[0];
-    if(!sl) return false; // حماية إذا كان الفريق بدون لاعبين
+    if(!sl) return false;
     return (re.x-sl.x)*dr > 2.2;
   }
 
@@ -307,7 +306,7 @@ class Match {
       const vision = (p.passing/99)*0.6 + (p.defending/99)*0.4;
       const m = this.s[k].on.filter(q => q.role === 'DEF' || q.role === 'MID');
       const t = m[Math.floor(R()*m.length)] || this.s[k].on[1];
-      if(t) this.pass(p, t, vision < 0.5, true); // ✅ حماية إذا لم يجد حارس المرمى أحداً ليمرر له
+      if(t) this.pass(p, t, vision < 0.5, true);
       else p.dec = .7;
       return;
     }
@@ -657,193 +656,218 @@ class Match {
     });
   }
 
+  // ✅ دالة استرداد الحالة في حال حدوث خطأ
+  _recoverFromError(){
+    console.warn('Recovering match state...');
+    this.ball = {x:L/2, y:WD/2, z:0, vz:0, vx:0, vy:0, o:null, fl:null, lastTouch:'home', trail:[]};
+    this.rs = null; this.sc = null; this.ag = null;
+    [...this.s.home.on, ...this.s.away.on].forEach(p => {
+      p.x = p.bx; p.y = p.by; p.vx = 0; p.vy = 0; p.stun = 0;
+      if(isNaN(p.x) || !isFinite(p.x)) p.x = L/2;
+      if(isNaN(p.y) || !isFinite(p.y)) p.y = WD/2;
+      if(isNaN(p.st) || !isFinite(p.st)) p.st = 100;
+    });
+  }
+
   step(){
     if(this.done) return;
-    const dt = .016;
-    this.t += .25;
-    this.min = this.t/60;
+    
+    // ✅ درع الحماية: منع أي خطأ من تجميد المباراة
+    try {
+      const dt = .016;
+      this.t += .25;
+      this.min = this.t/60;
 
-    if(this.fl){this.fl.ttl -= dt; if(this.fl.ttl <= 0) this.fl = null;}
+      if(this.fl){this.fl.ttl -= dt; if(this.fl.ttl <= 0) this.fl = null;}
 
-    if(this.half === 1 && this.min >= 45+this.inj1){
-      this.half = 2;
-      this.t = 45*60;
-      this.min = 45;
-      this.say(45, 'info', '⏸️ نهاية الشوط الأول');
-      this.all().forEach(p => {p.dir = -p.dir; p.bx = L-p.bx; p.by = WD-p.by;});
-      this.rest('ko', 'away', L/2, WD/2);
-      return;
-    }
-
-    if(this.half === 2 && this.min >= 90+this.inj2){
-      this.done = true;
-      this.say(90, 'info', '🏁 نهاية المباراة');
-      this.banner('🏁 النهاية', 2.5);
-      playSound('whistle');
-      return;
-    }
-
-    if(this.sc){this.sc.ttl -= dt; if(this.sc.ttl <= 0) this.sc = null;}
-
-    if(this.ag){
-      this.ag.t -= dt;
-      if(this.ag.t <= 0){
-        const k = this.ag.k;
-        this.ag = null;
-        this.sc = null;
-        this.rest('ko', k, L/2, WD/2);
+      if(this.half === 1 && this.min >= 45+this.inj1){
+        this.half = 2;
+        this.t = 45*60;
+        this.min = 45;
+        this.say(45, 'info', '⏸️ نهاية الشوط الأول');
+        this.all().forEach(p => {p.dir = -p.dir; p.bx = L-p.bx; p.by = WD-p.by;});
+        this.rest('ko', 'away', L/2, WD/2);
+        return;
       }
-      return;
-    }
 
-    if(this.rs){
-      this.rs.t -= dt;
-      if(this.rs.t <= 0) this.exec();
-      return;
-    }
+      if(this.half === 2 && this.min >= 90+this.inj2){
+        this.done = true;
+        this.say(90, 'info', '🏁 نهاية المباراة');
+        this.banner('🏁 النهاية', 2.5);
+        playSound('whistle');
+        return;
+      }
 
-    this.aiManage();
+      if(this.sc){this.sc.ttl -= dt; if(this.sc.ttl <= 0) this.sc = null;}
 
-    const b = this.ball;
-    const s = this.s;
-    const hm = s.home.sh*2+s.home.g*5+Math.round(s.home.ps/8);
-    const am = s.away.sh*2+s.away.g*5+Math.round(s.away.ps/8);
-    const tot = hm+am || 1;
-    this.momentum = Math.round((hm/tot)*100);
+      if(this.ag){
+        this.ag.t -= dt;
+        if(this.ag.t <= 0){
+          const k = this.ag.k;
+          this.ag = null;
+          this.sc = null;
+          this.rest('ko', k, L/2, WD/2);
+        }
+        return;
+      }
 
-    const rdx = (b.x-4*(b.x > L/2 ? 1 : -1))-this.ref.x;
-    const rdy = (b.y > 34 ? b.y-10 : b.y+10)-this.ref.y;
-    const rd = Math.hypot(rdx, rdy);
-    if(rd > 1){
-      this.ref.x += (rdx/rd)*Math.min(8, rd*2)*dt;
-      this.ref.y += (rdy/rd)*Math.min(8, rd*2)*dt;
-      this.ref.fc = rdx >= 0 ? 1 : -1;
-    }
+      if(this.rs){
+        this.rs.t -= dt;
+        if(this.rs.t <= 0) this.exec();
+        return;
+      }
 
-    if(b.o){
-      const car = b.o;
-      const dfs = this.opp(car.k).on.filter(q => q.role !== 'GK' && q.stun <= 0 && Math.hypot(q.x-car.x, q.y-car.y) < 2.8);
-      if(dfs.length > 0){
-        const d = dfs[0];
-        const tr = this.teamPower(d.k)/this.teamPower(car.k);
-        const defSkill = tacklePower(d);
-        const attSkill = dribblePower(car);
-        const skillRatio = defSkill/Math.max(0.1, attSkill);
-        const dT = this.s[d.k].tc === 'defense' ? 1.30 : (this.s[d.k].tc === 'attack' ? .80 : 1);
-        const pb = dfs.length > 1 ? 1.50 : 1;
-        const tc = 0.24*skillRatio*Math.pow(tr, .6)*dT*pb;
+      this.aiManage();
 
-        if(R() < .012*(d.aggr/75)){this.foul(d, car); return;}
-        else if(R() < tc){
-          d.stats.tackles++;
-          b.o = d;
-          b.lastTouch = d.k;
-          d.dec = .65;
-          car.stun = .85;
+      const b = this.ball;
+      const s = this.s;
+      const hm = s.home.sh*2+s.home.g*5+Math.round(s.home.ps/8);
+      const am = s.away.sh*2+s.away.g*5+Math.round(s.away.ps/8);
+      const tot = hm+am || 1;
+      this.momentum = Math.round((hm/tot)*100);
+
+      const rdx = (b.x-4*(b.x > L/2 ? 1 : -1))-this.ref.x;
+      const rdy = (b.y > 34 ? b.y-10 : b.y+10)-this.ref.y;
+      const rd = Math.hypot(rdx, rdy);
+      if(rd > 1){
+        this.ref.x += (rdx/rd)*Math.min(8, rd*2)*dt;
+        this.ref.y += (rdy/rd)*Math.min(8, rd*2)*dt;
+        this.ref.fc = rdx >= 0 ? 1 : -1;
+      }
+
+      if(b.o){
+        const car = b.o;
+        const dfs = this.opp(car.k).on.filter(q => q.role !== 'GK' && q.stun <= 0 && Math.hypot(q.x-car.x, q.y-car.y) < 2.8);
+        if(dfs.length > 0){
+          const d = dfs[0];
+          const tr = this.teamPower(d.k)/this.teamPower(car.k);
+          const defSkill = tacklePower(d);
+          const attSkill = dribblePower(car);
+          const skillRatio = defSkill/Math.max(0.1, attSkill);
+          const dT = this.s[d.k].tc === 'defense' ? 1.30 : (this.s[d.k].tc === 'attack' ? .80 : 1);
+          const pb = dfs.length > 1 ? 1.50 : 1;
+          const tc = 0.24*skillRatio*Math.pow(tr, .6)*dT*pb;
+
+          if(R() < .012*(d.aggr/75)){this.foul(d, car); return;}
+          else if(R() < tc){
+            d.stats.tackles++;
+            b.o = d;
+            b.lastTouch = d.k;
+            d.dec = .65;
+            car.stun = .85;
+          } else {
+            d.stun = .15;
+            car.x -= car.dir*.12;
+          }
+        }
+      }
+
+      const bs = (b.x-L/2)*.4;
+      const ws = this.weather.stamina;
+
+      this.all().forEach(p => {
+        const role = p.role || p.pos;
+        if(p.kick > 0) p.kick = Math.max(0, p.kick-dt);
+        if(p.dive > 0) p.dive = Math.max(0, p.dive-dt);
+        if(p.stun > 0) p.stun = Math.max(0, p.stun-dt);
+
+        const tc = this.s[p.k].tc;
+        const tacB = TAC_STYLE[tc] || TAC_STYLE.balanced;
+        const physFactor = 1.4-(p.physical/120);
+        let instDrain = 1.0;
+        if(p.inst === 'press') instDrain = 1.5;
+        if(p.inst === 'counter') instDrain = 0.85;
+        if(p.inst === 'stayback') instDrain = 0.75;
+        const drainRate = 0.055*physFactor*tacB.staminaDrain*instDrain/ws;
+        p.st = Math.max(15, p.st-dt*drainRate);
+        if(p.st < p.minSt) p.minSt = p.st;
+
+        const os = this.opp(p.k).on.slice().sort((a,c) => (c.x*p.dir)-(a.x*p.dir));
+        const ol = (os[1] || os[0] || {x: L/2}).x;
+        let ts = role === 'GK' ? 0 : (tc === 'attack' ? 6 : (tc === 'defense' ? -7 : (tc === 'counter' ? -3 : (tc === 'press' ? 5 : 0))))*p.dir;
+        if(p.inst === 'attack') ts += 8*p.dir;
+        if(p.inst === 'defense') ts -= 8*p.dir;
+        if(p.inst === 'counter') ts -= 4*p.dir;
+        if(p.inst === 'press') ts += 3*p.dir;
+        if(p.inst === 'stayback') ts -= 15*p.dir;
+
+        let tx = p.bx+ts+(role === 'GK' ? 0 : bs), ty = p.by;
+
+        if(b.o === p){
+          tx = p.x+p.dir*11;
+          ty = p.y+(34-p.y)*.2;
+          p.dec -= dt;
+          if(p.dec <= 0) this.think(p);
+        } else if(b.fl && b.fl.pl === p){
+          p.stun = 0;
+          tx = b.fl.tx;
+          ty = b.fl.ty;
+        } else if(b.o && b.o.k !== p.k && role !== 'GK'){
+          const d = Math.hypot(b.o.x-p.x, b.o.y-p.y);
+          if(d < 16 && p.stun <= 0){
+            tx = b.o.x-b.o.dir*1.5;
+            ty = b.o.y;
+            if(p.inst === 'press') tx = b.o.x;
+          } else if(role === 'DEF'){
+            ty = p.by+(b.y-34)*.4;
+          }
+        } else if(b.o && b.o.k === p.k && role !== 'GK'){
+          tx += p.dir*(role === 'MID' ? 6 : 4.5);
+        }
+
+        if(role === 'FWD' && b.o !== p && (!b.fl || b.fl.pl !== p)){
+          if(p.inst !== 'defense' && p.inst !== 'stayback' && (tx-ol)*p.dir > -1) tx = ol-p.dir*1.5;
+        }
+
+        const dx = tx-p.x, dy = ty-p.y, dist = Math.hypot(dx, dy);
+        if(p.vx === undefined) p.vx = 0;
+        if(p.vy === undefined) p.vy = 0;
+
+        if(dist > .3 && p.stun <= 0){
+          const paceFactor = 0.6+0.4*(p.pace/99);
+          const stFactor = 0.55+0.45*(p.st/100);
+          const cp = b.o === p ? .82 : 1;
+          const instSpeed = p.inst === 'press' ? 1.05 : 1;
+          const maxSp = (3.5+4.8*(p.pace/99))*cp*stFactor*instSpeed;
+          const dvx = (dx/dist)*maxSp-p.vx;
+          const dvy = (dy/dist)*maxSp-p.vy;
+          const accel = 22*dt;
+          p.vx += Math.max(-accel, Math.min(accel, dvx));
+          p.vy += Math.max(-accel, Math.min(accel, dvy));
+          p.x += p.vx*dt;
+          p.y += p.vy*dt;
+          const spd = Math.hypot(p.vx, p.vy);
+          p.mv = Math.min(1, spd/5);
+          p.ph = (p.ph||0)+dt*spd*2.8;
+          p.fc = p.vx >= 0 ? 1 : -1;
         } else {
-          d.stun = .15;
-          car.x -= car.dir*.12;
+          p.vx *= 0.82;
+          p.vy *= 0.82;
+          p.mv = Math.min(1, Math.hypot(p.vx, p.vy)/5);
+          p.ph = (p.ph||0)+dt*Math.hypot(p.vx, p.vy)*2.8;
         }
-      }
-    }
 
-    const bs = (b.x-L/2)*.4;
-    const ws = this.weather.stamina;
+        p.x = Math.max(1.5, Math.min(L-1.5, p.x));
+        p.y = Math.max(1.5, Math.min(WD-1.5, p.y));
+      });
 
-    this.all().forEach(p => {
-      const role = p.role || p.pos;
-      if(p.kick > 0) p.kick = Math.max(0, p.kick-dt);
-      if(p.dive > 0) p.dive = Math.max(0, p.dive-dt);
-      if(p.stun > 0) p.stun = Math.max(0, p.stun-dt);
-
-      const tc = this.s[p.k].tc;
-      const tacB = TAC_STYLE[tc] || TAC_STYLE.balanced;
-      const physFactor = 1.4-(p.physical/120);
-      let instDrain = 1.0;
-      if(p.inst === 'press') instDrain = 1.5;
-      if(p.inst === 'counter') instDrain = 0.85;
-      if(p.inst === 'stayback') instDrain = 0.75;
-      const drainRate = 0.055*physFactor*tacB.staminaDrain*instDrain/ws;
-      p.st = Math.max(15, p.st-dt*drainRate);
-      if(p.st < p.minSt) p.minSt = p.st;
-
-      const os = this.opp(p.k).on.slice().sort((a,c) => (c.x*p.dir)-(a.x*p.dir));
-      const ol = (os[1] || os[0] || {x: L/2}).x; // ✅ حماية ضد الأخطاء
-      let ts = role === 'GK' ? 0 : (tc === 'attack' ? 6 : (tc === 'defense' ? -7 : (tc === 'counter' ? -3 : (tc === 'press' ? 5 : 0))))*p.dir;
-      if(p.inst === 'attack') ts += 8*p.dir;
-      if(p.inst === 'defense') ts -= 8*p.dir;
-      if(p.inst === 'counter') ts -= 4*p.dir;
-      if(p.inst === 'press') ts += 3*p.dir;
-      if(p.inst === 'stayback') ts -= 15*p.dir;
-
-      let tx = p.bx+ts+(role === 'GK' ? 0 : bs), ty = p.by;
-
-      if(b.o === p){
-        tx = p.x+p.dir*11;
-        ty = p.y+(34-p.y)*.2;
-        p.dec -= dt;
-        if(p.dec <= 0) this.think(p);
-      } else if(b.fl && b.fl.pl === p){
-        p.stun = 0;
-        tx = b.fl.tx;
-        ty = b.fl.ty;
-      } else if(b.o && b.o.k !== p.k && role !== 'GK'){
-        const d = Math.hypot(b.o.x-p.x, b.o.y-p.y);
-        if(d < 16 && p.stun <= 0){
-          tx = b.o.x-b.o.dir*1.5;
-          ty = b.o.y;
-          if(p.inst === 'press') tx = b.o.x;
-        } else if(role === 'DEF'){
-          ty = p.by+(b.y-34)*.4;
-        }
-      } else if(b.o && b.o.k === p.k && role !== 'GK'){
-        tx += p.dir*(role === 'MID' ? 6 : 4.5);
+      if(b.fl) this.fly(dt);
+      else if(b.o){
+        const o = b.o;
+        b.x = o.x+o.dir*.7;
+        b.y = o.y;
+        b.z = 0;
+        this.s[o.k].ps++;
+        this.bounds();
       }
 
-      if(role === 'FWD' && b.o !== p && (!b.fl || b.fl.pl !== p)){
-        if(p.inst !== 'defense' && p.inst !== 'stayback' && (tx-ol)*p.dir > -1) tx = ol-p.dir*1.5;
+      // ✅ فحص نهائي للقيم غير الصالحة
+      if(isNaN(b.x) || isNaN(b.y) || !isFinite(b.x) || !isFinite(b.y)){
+        this._recoverFromError();
       }
-
-      const dx = tx-p.x, dy = ty-p.y, dist = Math.hypot(dx, dy);
-      if(p.vx === undefined) p.vx = 0;
-      if(p.vy === undefined) p.vy = 0;
-
-      if(dist > .3 && p.stun <= 0){
-        const paceFactor = 0.6+0.4*(p.pace/99);
-        const stFactor = 0.55+0.45*(p.st/100);
-        const cp = b.o === p ? .82 : 1;
-        const instSpeed = p.inst === 'press' ? 1.05 : 1;
-        const maxSp = (3.5+4.8*(p.pace/99))*cp*stFactor*instSpeed;
-        const dvx = (dx/dist)*maxSp-p.vx;
-        const dvy = (dy/dist)*maxSp-p.vy;
-        const accel = 22*dt;
-        p.vx += Math.max(-accel, Math.min(accel, dvx));
-        p.vy += Math.max(-accel, Math.min(accel, dvy));
-        p.x += p.vx*dt;
-        p.y += p.vy*dt;
-        const spd = Math.hypot(p.vx, p.vy);
-        p.mv = Math.min(1, spd/5);
-        p.ph = (p.ph||0)+dt*spd*2.8;
-        p.fc = p.vx >= 0 ? 1 : -1;
-      } else {
-        p.vx *= 0.82;
-        p.vy *= 0.82;
-        p.mv = Math.min(1, Math.hypot(p.vx, p.vy)/5);
-        p.ph = (p.ph||0)+dt*Math.hypot(p.vx, p.vy)*2.8;
-      }
-
-      p.x = Math.max(1.5, Math.min(L-1.5, p.x));
-      p.y = Math.max(1.5, Math.min(WD-1.5, p.y));
-    });
-
-    if(b.fl) this.fly(dt);
-    else if(b.o){
-      const o = b.o;
-      b.x = o.x+o.dir*.7;
-      b.y = o.y;
-      b.z = 0;
-      this.s[o.k].ps++;
-      this.bounds();
+    } catch(e) {
+      console.error('Match Step Error:', e);
+      this._recoverFromError();
     }
   }
 }

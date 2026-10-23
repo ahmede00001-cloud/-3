@@ -428,8 +428,32 @@ function crH(t){
   let h = `<div class="c" style="text-align:center;padding:10px">
     <div style="font-size:10px;color:var(--m)">الفريق</div>
     <div style="font-size:12px;margin-top:4px;font-weight:900">${t.ps.length} لاعب • مستوى ${teamLvl(t)}</div>
-  </div>
-  <div class="g2">`;
+  </div>`;
+
+  // Add Training Section
+  const trainFocus = G.training?.focus || 'balanced';
+  const trainIntensity = G.training?.intensity || 'normal';
+  h += `<div class="c">
+    <div class="sec">🏋️ مركز التدريب</div>
+    <div style="font-size:10px; color:#94a3b8; margin-bottom:8px;">اختر تركيز التدريب وشدة التمرين. التدريب المكثف يطور اللاعبين أسرع لكنه يسبب إرهاقاً وإصابات.</div>
+    
+    <div style="font-size:10px; color:var(--gold); margin-bottom:4px;">التركيز:</div>
+    <div style="display:flex; gap:4px; margin-bottom:8px; flex-wrap:wrap;">
+      <div class="chip ${trainFocus==='attack'?'on':''}" onclick="setTraining('focus','attack')">⚔️ هجوم</div>
+      <div class="chip ${trainFocus==='defense'?'on':''}" onclick="setTraining('focus','defense')">🛡️ دفاع</div>
+      <div class="chip ${trainFocus==='fitness'?'on':''}" onclick="setTraining('focus','fitness')">🏃 بدني</div>
+      <div class="chip ${trainFocus==='youth'?'on':''}" onclick="setTraining('focus','youth')">🌱 شباب</div>
+    </div>
+
+    <div style="font-size:10px; color:var(--gold); margin-bottom:4px;">الشدة:</div>
+    <div style="display:flex; gap:4px; flex-wrap:wrap;">
+      <div class="chip ${trainIntensity==='light'?'on':''}" onclick="setTraining('intensity','light')">خفيف</div>
+      <div class="chip ${trainIntensity==='normal'?'on':''}" onclick="setTraining('intensity','normal')">عادي</div>
+      <div class="chip ${trainIntensity==='intense'?'on':''}" onclick="setTraining('intensity','intense')">مكثف 🔥</div>
+    </div>
+  </div>`;
+
+  h += `<div class="g2">`;
 
   h += [...t.ps].sort((a,b) => b.r-a.r || b.lvl-a.lvl).map(p => {
     const mo = getMoraleEmoji(p.morale);
@@ -479,9 +503,39 @@ function mgrH(){
     </div>
     <div style="font-size:10px;color:var(--m);text-align:right">XP: ${xp} ${nxt?'/ '+nxt.xp:'— أقصى'}</div>
     <div class="xp-bar"><div style="width:${pct}%"></div></div>
-  </div>
+  </div>`;
 
-  <div class="c"><div class="sec">💰 الاقتصاد</div>
+  const fac = G.facilities || {stadium: 1, training: 1, youth: 1};
+  
+  h += `<div class="c">
+    <div class="sec">🏗️ تطوير المنشآت</div>
+    
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; background:rgba(0,0,0,.2); padding:8px; border-radius:8px;">
+      <div>
+        <div style="font-size:12px; color:#fff; font-weight:bold;">🏟️ الملعب</div>
+        <div style="font-size:9px; color:#94a3b8;">المستوى ${fac.stadium} • يزيد دخل المباراة</div>
+      </div>
+      <button class="b sm" onclick="upgradeFacility('stadium')" ${fac.stadium>=5?'disabled':''} style="padding:4px 8px; font-size:10px;">ترقية (${50*fac.stadium}M)</button>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; background:rgba(0,0,0,.2); padding:8px; border-radius:8px;">
+      <div>
+        <div style="font-size:12px; color:#fff; font-weight:bold;">🏋️ مركز التدريب</div>
+        <div style="font-size:9px; color:#94a3b8;">المستوى ${fac.training} • يزيد سرعة تطور اللاعبين</div>
+      </div>
+      <button class="b sm" onclick="upgradeFacility('training')" ${fac.training>=5?'disabled':''} style="padding:4px 8px; font-size:10px;">ترقية (${50*fac.training}M)</button>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.2); padding:8px; border-radius:8px;">
+      <div>
+        <div style="font-size:12px; color:#fff; font-weight:bold;">🌱 أكاديمية الشباب</div>
+        <div style="font-size:9px; color:#94a3b8;">المستوى ${fac.youth} • ينتج لاعبين شباب أفضل</div>
+      </div>
+      <button class="b sm" onclick="upgradeFacility('youth')" ${fac.youth>=5?'disabled':''} style="padding:4px 8px; font-size:10px;">ترقية (${50*fac.youth}M)</button>
+    </div>
+  </div>`;
+
+  h += `<div class="c"><div class="sec">💰 الاقتصاد</div>
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#fff;margin-bottom:6px"><span>الميزانية:</span><b style="color:${t.budget>=0?'#4ade80':'#f87171'}">${t.budget.toFixed(1)}M</b></div>
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#fff;margin-bottom:6px"><span>رواتب/مباراة:</span><b style="color:#f87171">-${totalSal.toFixed(2)}M</b></div>
   </div>
@@ -543,6 +597,22 @@ function autoFillAction(){ G.lu = autoFillLineup(T[G.my], G.form); autoAssignRol
 function clearLineupAction(){ const gk = G.lu[0]; G.lu = new Array(11).fill(null); if(gk) G.lu[0] = gk; G.inst = {}; save(); dash(); }
 function setF(f){ G.form = f; G.lu = autoFillLineup(T[G.my], f); G.inst = {}; save(); dash(); }
 function toggleSound(){ soundEnabled = !soundEnabled; save(); dash(); }
+
+function setTraining(type, val) {
+  if(!G.training) G.training = { focus: 'balanced', intensity: 'normal' };
+  G.training[type] = val;
+  save(); dash();
+}
+
+function upgradeFacility(type) {
+  if(!G.facilities) G.facilities = {stadium: 1, training: 1, youth: 1};
+  const cost = 50 * G.facilities[type];
+  if(T[G.my].budget < cost) return alert('ميزانية غير كافية!');
+  T[G.my].budget -= cost;
+  G.facilities[type]++;
+  addNews(`🏗️ تم تطوير ${type === 'stadium' ? 'الملعب' : type === 'training' ? 'مركز التدريب' : 'أكاديمية الشباب'}`, `المستوى الجديد: ${G.facilities[type]}`);
+  save(); dash();
+}
 
 function advanceToNextMatch(){
   const nm = getNextUserMatch();
@@ -672,7 +742,7 @@ function removePlayer(){
   $('pm').hidden = true; save(); dash();
 }
 
-// عرض لاعبي فريق آخر (تصميم جديد)
+// عرض لاعبي فريق آخر
 function showTeamPlayers(tid){
   const team = T[tid]; if(!team) return;
   const st = autoFillLineup(team, team.form);
@@ -709,7 +779,7 @@ function showTeamPlayers(tid){
   $('cmc').innerHTML = h; $('cm').hidden = false;
 }
 
-// بطاقة اللاعب (تصميم احترافي كروت FIFA)
+// بطاقة اللاعب
 function showCard(pid, teamId){
   teamId = teamId || G.my; const team = T[teamId];
   if(!team) return; const p = team.ps.find(x => x.id === pid); if(!p) return;
@@ -804,7 +874,17 @@ function selTeam(){
 }
 
 function choose(id){
-  G = { my: id, form:'4-3-3', tac:'balanced', tab:'lu', username: tempUserData.username, managerName: tempUserData.managerName, trophies:0, news:[], inst:{}, legendsMarket:[], usedLegends:[], lastLegendRound:0, seasonNumber:1, history:[], trophyCabinet:[], youthPlayers:[], pendingOffer:null, boardObjectives:null, managerXp:0, managerLevel:1, hallOfFame:[], monthlyAwards:[], lastPOTM:0, currentSponsor:null, lossStreak:0, boardAnger:0, captain:null, penaltyTaker:null, freeKickTaker:null, cornerTaker:null };
+  G = { 
+    my: id, form:'4-3-3', tac:'balanced', tab:'lu', 
+    username: tempUserData.username, managerName: tempUserData.managerName, 
+    trophies:0, news:[], inst:{}, legendsMarket:[], usedLegends:[], lastLegendRound:0, 
+    seasonNumber:1, history:[], trophyCabinet:[], youthPlayers:[], pendingOffer:null, 
+    boardObjectives:null, managerXp:0, managerLevel:1, hallOfFame:[], monthlyAwards:[], 
+    lastPOTM:0, currentSponsor:null, lossStreak:0, boardAnger:0, captain:null, 
+    penaltyTaker:null, freeKickTaker:null, cornerTaker:null,
+    training: { focus: 'balanced', intensity: 'normal' },
+    facilities: { stadium: 1, training: 1, youth: 1 }
+  };
   G.season = generateSeason(id, null); G.boardObjectives = setBoardObjectives(T[id]);
   G.youthPlayers = [generateYouthPlayer(T[id]), generateYouthPlayer(T[id])];
   G.lu = autoFillLineup(T[id], G.form); autoAssignRoles();
@@ -818,6 +898,8 @@ function migrateSave(){
     t.ps.forEach(p => { if(!p.contract) p.contract = {years:2, salary:calcSalary(p.r)}; });
   });
   if(G.captain === undefined) G.captain = null;
+  if(!G.training) G.training = { focus: 'balanced', intensity: 'normal' };
+  if(!G.facilities) G.facilities = {stadium: 1, training: 1, youth: 1};
 }
 
 function cont(){

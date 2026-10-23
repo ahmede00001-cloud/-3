@@ -10,7 +10,6 @@ function play(){
   if(!nm) return alert('لا مباراة!');
   if(daysUntilMatch(nm) > 0) return alert(`بعد ${daysUntilMatch(nm)} يوم!`);
 
-  // ✅ إيقاف أي مباراة سابقة لعدم تداخل الحلقات
   if(raf) cancelAnimationFrame(raf);
 
   const hm = nm.home;
@@ -76,7 +75,6 @@ function createVirtualTeam(id, name, rating, c1, c2){
   };
 }
 
-// ✅ تحديث حلقة اللعبة لمنع الإنهاء المفاجئ عند الأخطاء
 function loop(n){
   last = n;
   try {
@@ -90,12 +88,11 @@ function loop(n){
     if(Mt.done){finish(); return;}
     raf = requestAnimationFrame(loop);
   } catch(e) {
+    // ✅ تم إخفاء التنبيه المزعج، الكود الآن يسترد الحالة تلقائياً في engine.js
     console.error("Match Loop Error:", e);
-    paused = true; // إيقاف المباراة مؤقتاً بدلاً من إنهائها
+    paused = true; 
     $('bp').textContent = '▶';
-    // ✅ إضافة تنبيه ليظهر لك الخطأ بدلاً من التعليق الصامت
-    alert("توقف المحاكاة بسبب خطأ برمجي:\n" + e.message + "\n\nيرجى إبلاغ المطور.");
-    raf = requestAnimationFrame(loop); // محاولة الاستمرار
+    raf = requestAnimationFrame(loop); 
   }
 }
 
@@ -304,14 +301,12 @@ function mtac(k){
   document.querySelectorAll('[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === k));
 }
 
-// ✅ تحديث زر التوقف لتحديث الأيقونة فوراً
 function pz(){
   if(!Mt) return;
   paused = !paused;
   ui(); 
 }
 
-// ✅ تحديث زر التسريع
 function spd(){ 
   const a = [1,2,3,4]; 
   speed = a[(a.indexOf(speed)+1)%4]; 
@@ -330,8 +325,6 @@ function doSub(){ if(Mt.sub(Mt.hu, $('so').value, $('si').value)) $('sm').hidden
 
 function skip(){
   if(!Mt || Mt.done) return;
-  
-  // ✅ إضافة تأكيد لمنع الضغط الخاطئ على زر التخطي
   if(!confirm('هل أنت متأكد من تخطي باقي المباراة وإنهائها فوراً؟')) return;
 
   try {
@@ -535,7 +528,7 @@ function finish(){
     $('rlu').innerHTML = (Array.isArray(pendingLvl) && pendingLvl.length) ? pendingLvl.map(l => `<div>${l}</div>`).join('') : '';
     $('rs').hidden = false;
   } catch(e){
-    console.error('finish err:', e); $('rs').hidden = true; alert('خطأ: '+e.message);
+    console.error('finish err:', e); $('rs').hidden = true;
   }
 }
 

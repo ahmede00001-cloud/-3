@@ -312,17 +312,17 @@ function skip(){
   
   $('lg').innerHTML = '<div style="text-align:center;color:gold;padding:20px;font-weight:bold;">⏳ جاري محاكاة باقي المباراة...</div>';
   
-  let loops = 0;
-  const doBatch = () => {
-    for(let i=0; i<50; i++){
-      if(!Mt.done) Mt.step();
-      else break;
+  setTimeout(() => {
+    let safety = 0;
+    while(!Mt.done && safety < 100000){
+      Mt.step();
+      safety++;
     }
-    loops++;
-    if(!Mt.done && loops < 2000){ setTimeout(doBatch, 5); } 
-    else { isSkipping = false; ui(); draw(); finish(); }
-  };
-  doBatch();
+    isSkipping = false;
+    ui();
+    draw();
+    finish();
+  }, 50);
 }
 
 function syncMatchStats(m){

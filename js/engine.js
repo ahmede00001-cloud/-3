@@ -67,7 +67,7 @@ class Match {
           y: slot.y * WD,
           vx:0, vy:0, dec:0, kick:0, mv:0, ph: R()*6,
           fc: k==='home' ? 1 : -1,
-          stun:0,
+          stun:0, reacting: false, reactY: 34, // خصائص تفاعل الحارس
           stats:{passes:0, tackles:0, shots:0}
         };
       });
@@ -162,6 +162,7 @@ class Match {
       bx: oP.bx, by: oP.by, x: oP.x, y: oP.y,
       vx:0, vy:0, dec:.6, kick:0, mv:0, ph:0,
       fc: oP.fc, stun:0, minSt: iP.st,
+      reacting: false,
       stats: {passes:0, tackles:0, shots:0} 
     });
     
@@ -220,6 +221,7 @@ class Match {
     this.all().forEach(p => {
       p.x = p.bx; p.y = p.by;
       p.mv = 0; p.stun = 0; p.vx = 0; p.vy = 0;
+      p.reacting = false; // تصفير تفاعل الحارس
       if(p.role === 'FWD') p.x -= p.dir*8;
     });
 
@@ -332,7 +334,6 @@ class Match {
 
     const cd = this.opp(k).on.filter(o => o.role !== 'GK' && Math.hypot(o.x-p.x, o.y-p.y) < 4.8 && (gx-o.x)*dr > 0);
 
-    // ✅ تحسين 1: ذكاء التسديد (مراعاة الزاوية)
     let shootWilling = role === 'FWD' ? 0.45 : 0.25;
     shootWilling += ((p.shooting/99)-0.5)*0.50;
     shootWilling += (p.dribbling/99-0.5)*0.15;
@@ -364,7 +365,6 @@ class Match {
     const on = m.filter(q => !this.isOffside(p, q));
     const pool = (on.length > 0 && R() > .05) ? on : m;
 
-    // ✅ تحسين 2: تفضيل التمريرات الأمامية والاختراق
     const sc = pool.map(q => {
       const no = this.opp(k).on.filter(o => Math.hypot(o.x-q.x, o.y-q.y) < 6.5).length;
       const fg = (q.x-p.x)*dr; 
@@ -416,7 +416,9 @@ class Match {
   }
 
   shoot(p, dg, isPen = false, isFK = false){
-    const b = this.ball, k = p.k, gx = p.dir > 0 ? L : 0;
+    const b = this.ball, k = p.k;
+    // ✅ توجيه الكرة لما بعد خط المرمى قليلاً لتدخل الشباك
+    const gx = p.dir > 0 ? L + 3 : -3; 
     b.o = null;
     b.lastTouch = k;
     p.kick = .5;
@@ -453,8 +455,14 @@ class Match {
     const spread = isPen ? 3.6 : (14-acc*6.5+df)/(wp*powerFactor);
     const ty = 34+(R()-.5)*spread;
 
-    b.fl = {k:'shot', tx:gx, ty, sp: isPen ? 36 : 33, pl:p, isPen, dg};
+    // ✅ تقليل السرعة لتكون التسديدة مرئية
+    b.fl = {k:'shot', tx:gx, ty, sp: isPen ? 28 : 24, pl:p, isPen, dg};
     b.vz = R() < .35 ? 8 : 2.5;
+
+    // ✅ إخبار حارس الخصم بالتفاعل مع التسديدة
+    const ok = p.k === 'home' ? 'away' : 'home';
+    const gk = this.s[ok].on.find(q => q.role === 'GK');
+    if(gk) { gk.reacting = true; gk.reactY = ty; }
 
     if(isPen){
       const suffix = p.origId === this.effectiveRoles.penaltyTaker ? ' (المتخصص)' : '';
@@ -531,6 +539,9 @@ class Match {
       const gk = this.s[ok].on.find(p => p.role === 'GK');
       const dy = Math.abs(b.y-34);
 
+      // ✅ إعادة تصفير تفاعل الحارس
+      if(gk) { gk.reacting = false; gk.dive = 0.5; }
+
       if(dy >= 3.35 && dy <= 3.75){
         this.say(Math.floor(this.min), 'shot', `💥 العارضة!`);
         this.rest('gk', ok, ok === 'home' ? 5.5 : L-5.5, 34);
@@ -548,7 +559,6 @@ class Match {
 
       if(ot && R() > sc) this.goal(f.pl);
       else if(ot){
-        if(gk) gk.dive = .5;
         if(R() < .45){
           this.s[f.pl.k].co++;
           this.say(Math.floor(this.min), 'save', `🧤 تألق الحارس!`);
@@ -566,7 +576,6 @@ class Match {
     }
 
     if(f.pl && this.s[f.pl.k].on.includes(f.pl)){
-      // ✅ تحسين 3: اللمسة الأولى (First Touch)
       const pressure = this.opp(f.pl.k).on.filter(q => Math.hypot(q.x - b.x, q.y - b.y) < 3.5).length;
       const controlSkill = (f.pl.dribbling/99) * 0.7 + (f.pl.passing/99) * 0.3;
       const errorChance = pressure * 0.15 * (1 - controlSkill); 
@@ -608,7 +617,7 @@ class Match {
     this.sc = {p, k, ttl:1.8};
     this.ag = {k: ok, t:1.8};
     this.ball.o = null;
-    this.ball.fl = null;
+    // لا نقوم بمسح b.fl هنا لكي تظل الكرة داخل الشبكة مرئية
     this.ball.trail = [];
     playSound('goal');
     if(R() < .005 && !p.injury){
@@ -689,7 +698,11 @@ class Match {
         }
       }
     }
-    this.bounds();
+    
+    // ✅ منع دالة bounds من التدخل في التسديدات، وترك الكرة تكمل مسارها لـ land()
+    if (f.k !== 'shot') {
+        this.bounds();
+    }
   }
 
   aiManage(){
@@ -712,6 +725,7 @@ class Match {
     this.rs = null; this.sc = null; this.ag = null; this.hold = 0;
     [...this.s.home.on, ...this.s.away.on].forEach(p => {
       p.x = p.bx; p.y = p.by; p.vx = 0; p.vy = 0; p.stun = 0;
+      p.reacting = false;
       if(isNaN(p.x) || !isFinite(p.x)) p.x = L/2;
       if(isNaN(p.y) || !isFinite(p.y)) p.y = WD/2;
       if(isNaN(p.st) || !isFinite(p.st)) p.st = 100;
@@ -846,13 +860,20 @@ class Match {
 
         let tx = p.bx+ts+(role === 'GK' ? 0 : bs), ty = p.by;
 
-        // ✅ تحسين 4: تمركز حارس المرمى
+        // ✅ تحسين 4: تمركز حارس المرمى وتفاعله مع التسديدات
         if (role === 'GK') {
-          const gx = p.dir > 0 ? L : 0;
-          const distToBall = Math.hypot(b.x - gx, b.y - 34);
-          if (distToBall < 40) {
-            tx = p.bx + (b.x - p.bx) * 0.1; 
-            ty = 34 + (b.y - 34) * 0.3;
+          if (p.reacting) {
+            // تحرك نحو مسار الكرة بمجرد انطلاق التسديدة
+            ty = p.reactY;
+            tx = p.bx + (p.dir > 0 ? 1 : -1);
+            p.dive = 0.5;
+          } else {
+            const gx = p.dir > 0 ? L : 0;
+            const distToBall = Math.hypot(b.x - gx, b.y - 34);
+            if (distToBall < 40) {
+              tx = p.bx + (b.x - p.bx) * 0.1; 
+              ty = 34 + (b.y - 34) * 0.3;
+            }
           }
         } 
         else if(b.o === p){
@@ -874,7 +895,6 @@ class Match {
             if(p.inst === 'press') tx = b.o.x;
           } 
           else {
-            // ✅ تحسين 5: التمركز الدفاعي الذكي (الرقابة)
             if (role === 'DEF' || role === 'MID') {
               const oppForwards = this.opp(p.k).on.filter(o => o.role === 'FWD' || o.role === 'MID');
               let targetOpp = null, minD = 999;

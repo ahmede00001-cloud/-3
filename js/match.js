@@ -434,14 +434,34 @@ function doSub(){
 
 function skip(){
   if(!Mt || Mt.done) return;
-  let s = 0;
-  while(!Mt.done && s < 60000){
-    Mt.step();
-    s++;
-  }
-  ui();
-  draw();
-  finish();
+  
+  // إظهار علامة تحميل بسيطة
+  $('lg').innerHTML = '<div style="text-align:center;color:gold;padding:20px;font-weight:bold;">⏳ جاري محاكاة باقي المباراة...</div>';
+  
+  let steps = 0;
+  const totalSteps = 60000;
+  
+  const doBatch = () => {
+    // تنفيذ 1000 خطوة فقط في كل مرة لعدم تجميد الهاتف
+    for(let i=0; i<1000; i++){
+      if(!Mt.done) Mt.step();
+      else break;
+    }
+    steps += 1000;
+    
+    if(!Mt.done && steps < totalSteps){
+      // إعطاء المتصفح فرصة للتنفس (تحديث الشاشة) قبل الدفعة التالية
+      setTimeout(doBatch, 5);
+    } else {
+      // انتهت المباراة
+      ui();
+      draw();
+      finish();
+    }
+  };
+  
+  // بدء المحاكاة
+  doBatch();
 }
 
 // ============================================

@@ -163,12 +163,58 @@ function generateSeason(myId, prev){
 function getNextUserMatch(){ if(!G.season || !G.season.userCalendar) return null; return G.season.userCalendar.find(m => !m.played) || null; }
 function daysUntilMatch(m){ if(!m || !G.season) return 0; return Math.max(0, m.day-G.season.currentDay); }
 
+// ============================================
+// تقدم الأيام (مع تطبيق التدريب وفحص الأساطير)
+// ============================================
 function advanceToDay(td){
   if(!G.season) return;
   simulateAIUpToDay(td);
   G.season.currentDay = td;
+  
+  applyTraining(); // تطبيق التدريب اليومي
   updateLegendMarket();
+  
   save();
+}
+
+function applyTraining() {
+  if (!G.training) G.training = { focus: 'balanced', intensity: 'normal' };
+  const t = T[G.my];
+  const focus = G.training.focus;
+  const intensity = G.training.intensity;
+
+  let xpMult = 1;
+  let injuryRisk = 0;
+  let staminaDrain = 0;
+
+  if (intensity === 'light') { xpMult = 0.5; injuryRisk = 0.001; staminaDrain = 2; }
+  else if (intensity === 'normal') { xpMult = 1.0; injuryRisk = 0.005; staminaDrain = 5; }
+  else if (intensity === 'intense') { xpMult = 1.8; injuryRisk = 0.015; staminaDrain = 10; }
+
+  const facLevel = G.facilities?.training || 1;
+  xpMult *= (1 + (facLevel - 1) * 0.25);
+
+  t.ps.forEach(p => {
+    p.fit = Math.max(20, (p.fit || 100) - staminaDrain);
+    if (R() < injuryRisk) tryInjure(p);
+
+    let xpGain = 20 * xpMult;
+
+    if (focus === 'attack') {
+      p.shooting = Math.min(99, p.shooting + (R() < 0.3 ? 1 : 0));
+      p.dribbling = Math.min(99, p.dribbling + (R() < 0.2 ? 1 : 0));
+    } else if (focus === 'defense') {
+      p.defending = Math.min(99, p.defending + (R() < 0.3 ? 1 : 0));
+      p.physical = Math.min(99, p.physical + (R() < 0.2 ? 1 : 0));
+    } else if (focus === 'fitness') {
+      p.pace = Math.min(99, p.pace + (R() < 0.3 ? 1 : 0));
+      p.physical = Math.min(99, p.physical + (R() < 0.2 ? 1 : 0));
+    } else if (focus === 'youth' && p.age <= 23) {
+      xpGain *= 2;
+    }
+
+    gainXp(p, Math.round(xpGain));
+  });
 }
 
 function simulateAIUpToDay(td){
@@ -493,9 +539,6 @@ function simulateLivingWorld(){
   }
 }
 
-// ============================================
-// سوق الأساطير (أسطورة واحدة فقط + عداد يوم واحد)
-// ============================================
 function checkLegendsMarket(){
   if(!G.season) return;
   if(G.legendsMarket && G.legendsMarket.length > 0) return;
@@ -538,6 +581,20 @@ function updateLegendMarket(){
     }
     return true;
   });
+}
+
+function generateYouthPlayer(t){
+  const pos = POS[Math.floor(R()*4)];
+  const name = YOUTH_NAMES[Math.floor(R()*YOUTH_NAMES.length)]+' '+(10+Math.floor(R()*90));
+  
+  // تحسين جودة الشباب بناءً على تطوير الأكاديمية
+  const facLevel = G.facilities?.youth || 1;
+  const rating = 55 + Math.floor(R()*15) + (facLevel * 2);
+
+  const p = createPlayer(t.id+'_youth_'+Date.now()+'_'+Math.floor(R()*10000), name, pos, rating, 16);
+  p.isYouth = true;
+  p.morale = 90;
+  return p;
 }
 
 function checkPlayerOfMonth(){

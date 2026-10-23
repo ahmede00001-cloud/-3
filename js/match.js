@@ -421,31 +421,35 @@ function finish(){
     const s = Mt.s;
     const mg = s[Mt.hu].g;
     const og = s[Mt.hu==='home' ? 'away' : 'home'].g;
-    const myT = Mt.s[Mt.hu].t;
-    const oppT = Mt.s[Mt.hu==='home' ? 'away' : 'home'].t;
     
-    // ✅ جلب المباراة المحفوظة حصرياً عبر مرجع كائن المباراة بدلاً من إعادة البحث العشوائي
-    const nm = Mt ? Mt.calendarItem : getNextUserMatch();
-    
-    const cn = {league:'الدوري', cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
-
-    if(nm && nm.comp === 'league'){
-      rec(Mt.h, Mt.a, s.home.g, s.away.g);
-      const lf = G.season.leagueFixtures[nm.round];
-      if(lf){ const k = `${Mt.h.id}_${Mt.a.id}`; if(!lf.played.includes(k)) lf.played.push(k); }
-    }
-
+    // ✅ حفظ حالة انتهاء المباراة في أول سطر لضمان عدم تكرارها نهائياً
+    const nm = (Mt && Mt.calendarItem) ? Mt.calendarItem : getNextUserMatch();
     let rW = mg > og, rD = mg === og;
     const isKO = ['cup','cafCL','cafCC','super','cafSuper','clubWC'].includes(nm?.comp);
     let pr = null;
-    if(isKO && rD){
+
+    if(isKO && rD && Mt){
       pr = realPenaltyShootout(Mt.h, Mt.a);
       const pw = pr.winner === 'home' ? Mt.h.id : Mt.a.id;
       if(pw === G.my) rW = true;
       showPenaltyModal(pr, Mt.h.name, Mt.a.name);
     }
 
-    if(nm){ nm.played = true; nm.result = {myGoals:mg, oppGoals:og, won:rW, draw:rD, penalty:pr}; }
+    if(nm){ 
+      nm.played = true; 
+      nm.result = {myGoals:mg, oppGoals:og, won:rW, draw:rD, penalty:pr}; 
+      save(); // 💾 الحفظ الفوري هنا يمنع تكرار المباراة نهائياً
+    }
+
+    const myT = Mt.s[Mt.hu].t;
+    const oppT = Mt.s[Mt.hu==='home' ? 'away' : 'home'].t;
+    const cn = {league:'الدوري', cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
+
+    if(nm && nm.comp === 'league' && Mt){
+      rec(Mt.h, Mt.a, s.home.g, s.away.g);
+      const lf = G.season.leagueFixtures[nm.round];
+      if(lf){ const k = `${Mt.h.id}_${Mt.a.id}`; if(!lf.played.includes(k)) lf.played.push(k); }
+    }
 
     if(nm){
       if(nm.comp === 'cup' && G.season.cupBracket){
@@ -474,7 +478,7 @@ function finish(){
       }
     }
 
-    syncMatchStats(Mt);
+    if(Mt) syncMatchStats(Mt);
     updateMorale(myT, rW ? 'win' : (rD ? 'draw' : 'loss'));
     updateMorale(oppT, rW ? 'loss' : (rD ? 'draw' : 'win'));
     updateContractMorale(myT);
@@ -487,15 +491,17 @@ function finish(){
     
     if(myT.budget < -20){ myT.budget += 30; addNews(`💰 قرض طارئ من الإدارة!`, `📈 +30M لتفادي الإفلاس`); }
 
-    if(Mt.isDerby){
+    if(Mt && Mt.isDerby){
       if(rW) addNews(`⚔️🔥 فوز ديربي تاريخي!`, `${myT.name} يهزم ${oppT.name} ${s.home.g}-${s.away.g}`);
       else if(!rD) addNews(`⚔️😞 خسارة ديربي مؤلمة`, `${oppT.name} يهزم ${myT.name} ${s.home.g}-${s.away.g}`);
       else addNews(`⚔️ تعادل ديربي مثير`, `${myT.name} و${oppT.name} ${s.home.g}-${s.away.g}`);
     }
 
     const homeScorers = [], awayScorers = [];
-    Mt.s[Mt.hu].on.forEach(p => {if(p.goals > 0) homeScorers.push(`${p.name}×${p.goals}`);});
-    Mt.s[Mt.hu==='home' ? 'away' : 'home'].on.forEach(p => {if(p.goals > 0) awayScorers.push(`${p.name}×${p.goals}`);});
+    if(Mt){
+      Mt.s[Mt.hu].on.forEach(p => {if(p.goals > 0) homeScorers.push(`${p.name}×${p.goals}`);});
+      Mt.s[Mt.hu==='home' ? 'away' : 'home'].on.forEach(p => {if(p.goals > 0) awayScorers.push(`${p.name}×${p.goals}`);});
+    }
     let scorerLine = '';
     if(homeScorers.length) scorerLine += `⚽ ${myT.name}: ${homeScorers.join(', ')}`;
     if(awayScorers.length){ if(scorerLine) scorerLine += '\n'; scorerLine += `⚽ ${oppT.name}: ${awayScorers.join(', ')}`; }
@@ -505,7 +511,7 @@ function finish(){
 
     let xpG = rW ? 50 : rD ? 20 : 5;
     if(isKO && rW) xpG += 30;
-    if(Mt.isDerby && rW) xpG += 20;
+    if(Mt && Mt.isDerby && rW) xpG += 20;
     addManagerXp(xpG);
 
     if(rW){ playSound('goal'); G.lossStreak = 0; } 
@@ -539,7 +545,12 @@ function finish(){
     $('rlu').innerHTML = (Array.isArray(pendingLvl) && pendingLvl.length) ? pendingLvl.map(l => `<div>${l}</div>`).join('') : '';
     $('rs').hidden = false;
   } catch(e){
-    console.error('finish err:', e); $('rs').hidden = true;
+    console.error('finish err:', e); 
+    try {
+      const nm = (Mt && Mt.calendarItem) ? Mt.calendarItem : getNextUserMatch();
+      if(nm){ nm.played = true; save(); }
+    } catch(err){}
+    $('rs').hidden = true;
   }
 }
 

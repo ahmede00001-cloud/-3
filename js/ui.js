@@ -752,3 +752,64 @@ function cont(){
   if(!G.lu || G.lu.length !== 11) G.lu = autoFillLineup(T[G.my], G.form);
   migrateSave(); autoAssignRoles(); dash();
 }
+// ============================================
+// سوق الأساطير (عرض البطاقة والشراء)
+// ============================================
+function showLegendCard(pid){
+  if(!checkTransferWindow()) return alert('نافذة مغلقة!');
+  const p = G.legendsMarket.find(x => x.id === pid);
+  if(!p) return;
+  const me = T[G.my];
+  const can = me.budget >= p.value && me.ps.length < 25;
+
+  $('cmc').innerHTML = `<div class="mc" style="border:2px solid #fbbf24">
+    <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
+    <div class="mc-head">
+      <div class="mc-icon">🌟</div>
+      <div class="mc-title" style="color:#fbbf24">أسطورة!</div>
+      <div class="mc-sub">فرصة نادرة لضم نجم عالمي</div>
+    </div>
+    <div class="fcard legend" style="margin: 10px auto;">
+      <div class="fcard-hd">
+        <div style="font-size:12px;color:#fbbf24">🌟 أسطورة</div>
+        <div class="fcard-rt">${p.r}</div>
+        <div class="fcard-pos">${p.pos}</div>
+        <div class="fcard-lv">L${p.lvl}</div>
+      </div>
+      <div class="fcard-nm">${p.name}</div>
+      <div class="fcard-tm">${p.age} سنة</div>
+      <div class="fcard-stats">
+        <div><span>⚡ سرعة</span><b>${p.pace}</b></div>
+        <div><span>🎯 تسديد</span><b>${p.shooting}</b></div>
+        <div><span>🎨 تمرير</span><b>${p.passing}</b></div>
+        <div><span>🏃 مراوغة</span><b>${p.dribbling}</b></div>
+        <div><span>🛡️ دفاع</span><b>${p.defending}</b></div>
+        <div><span>💪 بدنية</span><b>${p.physical}</b></div>
+      </div>
+      <div class="fcard-ft">💰 ${p.value}M</div>
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:${can?'#4ade80':'#f87171'};font-weight:900">${can?'✅ يمكنك ضمه':'⚠️ لا يمكن (ميزانية غير كافية/الفريق ممتلئ)'}</div>
+    <div class="mc-actions">
+      <button class="b ${can?'':'full'}" style="background:linear-gradient(180deg,#fbbf24,#d97706);color:#000;opacity:${can?1:.4};padding:12px;font-size:12px" ${can?`onclick="buyLegend('${p.id}')"`:'disabled'}>🌟 شراء بـ ${p.value}M</button>
+      <button class="b" style="background:#475569;color:#fff;padding:12px;font-size:12px" onclick="$('cm').hidden=true">إغلاق</button>
+    </div>
+  </div>`;
+  $('cm').hidden = false;
+}
+
+function buyLegend(pid){
+  if(!checkTransferWindow()) return alert('نافذة مغلقة!');
+  const p = G.legendsMarket.find(x => x.id === pid);
+  const me = T[G.my];
+  if(!p || me.budget < p.value || me.ps.length >= 25) return;
+  
+  me.budget = Math.round((me.budget - p.value) * 10) / 10;
+  me.ps.push(p);
+  G.legendsMarket = G.legendsMarket.filter(x => x.id !== pid);
+  G.usedLegends.push(pid);
+  
+  addNews(`🌟🌟 ${p.name} ينضم لـ ${me.name}!`, `💸 صفقة أسطورية بـ${p.value}M • تقييم ${p.r}`);
+  alert(`🎉 تم التعاقد مع ${p.name} بنجاح!`);
+  $('cm').hidden = true;
+  save(); dash();
+}

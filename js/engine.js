@@ -151,6 +151,8 @@ class Match {
     const ii = s.bn.findIndex(p => p.id === iId);
     if(oi < 0 || ii < 0) return false;
     const oP = s.on[oi], iP = s.bn[ii];
+    
+    // ✅ إصلاح: إضافة كائن الإحصائيات stats للاعب البديل لمنع تعليق المباراة عند التسديد
     Object.assign(iP, {
       k,
       dir: oP.dir,
@@ -160,8 +162,10 @@ class Match {
       inst: oP.inst,
       bx: oP.bx, by: oP.by, x: oP.x, y: oP.y,
       vx:0, vy:0, dec:.6, kick:0, mv:0, ph:0,
-      fc: oP.fc, stun:0, minSt: iP.st
+      fc: oP.fc, stun:0, minSt: iP.st,
+      stats: {passes:0, tackles:0, shots:0} 
     });
+    
     if(this.ball.o === oP) this.ball.o = iP;
     s.on[oi] = iP;
     s.played.push(iP);

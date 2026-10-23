@@ -152,7 +152,6 @@ class Match {
     if(oi < 0 || ii < 0) return false;
     const oP = s.on[oi], iP = s.bn[ii];
     
-    // ✅ إصلاح: إضافة كائن الإحصائيات stats للاعب البديل لمنع تعليق المباراة عند التسديد
     Object.assign(iP, {
       k,
       dir: oP.dir,
@@ -166,7 +165,12 @@ class Match {
       stats: {passes:0, tackles:0, shots:0} 
     });
     
+    // ✅ إصلاح 1: نقل الكرة والتمريرات والركلات للاعب البديل لتجنب تجمد اللعبة
     if(this.ball.o === oP) this.ball.o = iP;
+    if(this.ball.fl && this.ball.fl.pl === oP) this.ball.fl.pl = iP;
+    if(this.rs && this.rs.tk === oP) this.rs.tk = iP;
+    if(this.sc && this.sc.p === oP) this.sc.p = iP;
+
     s.on[oi] = iP;
     s.played.push(iP);
     s.bn.splice(ii, 1);
@@ -660,7 +664,7 @@ class Match {
     });
   }
 
-  // ✅ دالة استرداد الحالة في حال حدوث خطأ
+  // ✅ إصلاح 2: دالة استرداد الحالة في حال حدوث خطأ
   _recoverFromError(){
     console.warn('Recovering match state...');
     this.ball = {x:L/2, y:WD/2, z:0, vz:0, vx:0, vy:0, o:null, fl:null, lastTouch:'home', trail:[]};
@@ -671,12 +675,12 @@ class Match {
       if(isNaN(p.y) || !isFinite(p.y)) p.y = WD/2;
       if(isNaN(p.st) || !isFinite(p.st)) p.st = 100;
     });
+    this.rest('ko', this.hu, L/2, WD/2); // إعادة تشغيل الكرة من المنتصف
   }
 
   step(){
     if(this.done) return;
     
-    // ✅ درع الحماية: منع أي خطأ من تجميد المباراة
     try {
       const dt = .016;
       this.t += .25;
@@ -863,9 +867,19 @@ class Match {
         b.z = 0;
         this.s[o.k].ps++;
         this.bounds();
+      } else if (!this.rs && !this.ag && !this.sc) {
+        // ✅ إصلاح 3: في حال توقفت الكرة فجأة بدون سبب، استرجعها لأقرب لاعب
+        const players = this.all();
+        if(players.length > 0) {
+           const closest = players.reduce((a,c) => Math.hypot(a.x-b.x, a.y-b.y) < Math.hypot(c.x-b.x, c.y-b.y) ? a : c);
+           b.o = closest;
+           b.lastTouch = closest.k;
+           closest.dec = .6;
+        } else {
+           this.rest('ko', 'home', L/2, WD/2);
+        }
       }
 
-      // ✅ فحص نهائي للقيم غير الصالحة
       if(isNaN(b.x) || isNaN(b.y) || !isFinite(b.x) || !isFinite(b.y)){
         this._recoverFromError();
       }

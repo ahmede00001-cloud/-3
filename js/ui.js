@@ -430,11 +430,37 @@ function crH(t){
     <div style="font-size:12px;margin-top:4px;font-weight:900">${t.ps.length} لاعب • مستوى ${teamLvl(t)}</div>
   </div>`;
 
-  // Add Training Section
+  // حساب متوسط تقدم الفريق في التدريب
+  const teamAvgXp = t.ps.reduce((sum, p) => {
+    if(p.lvl >= 10) return sum + 100;
+    return sum + Math.min(100, ((p.xp || 0) / xpNeeded(p.lvl)) * 100);
+  }, 0) / t.ps.length;
+
+  // لوحة التدريب
   const trainFocus = G.training?.focus || 'balanced';
   const trainIntensity = G.training?.intensity || 'normal';
+  const intensityLabels = {light: 'خفيف', normal: 'عادي', intense: 'مكثف 🔥'};
+  const intensityColors = {light: '#4ade80', normal: '#fbbf24', intense: '#ef4444'};
+  const focusLabels = {attack: '⚔️ هجوم', defense: '🛡️ دفاع', fitness: '🏃 بدني', youth: '🌱 شباب', balanced: '⚖️ متوازن'};
+  
   h += `<div class="c">
     <div class="sec">🏋️ مركز التدريب</div>
+    
+    <!-- شريط تقدم الفريق العام -->
+    <div style="background:linear-gradient(135deg,rgba(59,130,246,.15),rgba(15,34,56,.5));border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:10px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:11px;color:#94a3b8;font-weight:bold;">📊 تقدم الفريق في التدريب</span>
+        <b style="font-size:13px;color:#60a5fa;">${Math.round(teamAvgXp)}%</b>
+      </div>
+      <div style="height:10px;background:rgba(0,0,0,.5);border-radius:5px;overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,.5);">
+        <div style="width:${teamAvgXp}%;height:100%;background:linear-gradient(90deg,#3b82f6,#22d3ee);border-radius:5px;transition:width .5s;box-shadow:0 0 10px rgba(34,211,238,.6);"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:9px;color:#94a3b8;">
+        <span>التركيز: <b style="color:#fff;">${focusLabels[trainFocus]}</b></span>
+        <span>الشدة: <b style="color:${intensityColors[trainIntensity]};">${intensityLabels[trainIntensity]}</b></span>
+      </div>
+    </div>
+
     <div style="font-size:10px; color:#94a3b8; margin-bottom:8px;">اختر تركيز التدريب وشدة التمرين. التدريب المكثف يطور اللاعبين أسرع لكنه يسبب إرهاقاً وإصابات.</div>
     
     <div style="font-size:10px; color:var(--gold); margin-bottom:4px;">التركيز:</div>
@@ -459,17 +485,34 @@ function crH(t){
     const mo = getMoraleEmoji(p.morale);
     const inj = p.injury ? '🚑 ' : '';
     const conYrs = p.contract?.years || 0;
-    const conColor = conYrs<=0 ? '#f87171' : conYrs===1 ? '#fbbf24' : '#4ade80';
+    
+    // حساب تقدم اللاعب
+    const maxed = p.lvl >= 10;
+    const xpPct = maxed ? 100 : Math.min(100, Math.round(((p.xp || 0) / xpNeeded(p.lvl)) * 100));
+    const xpBarColor = maxed ? '#22c55e' : 'linear-gradient(90deg,#3b82f6,#22d3ee)';
+    const xpText = maxed ? 'MAX' : `${p.xp || 0}/${xpNeeded(p.lvl)}`;
+    
     return `<div class="c" style="padding:8px;cursor:pointer;margin-bottom:4px;${p.injury?'border-color:#ef4444':''}${conYrs<=0?'border-color:#f87171':''}" onclick="showCard('${p.id}')">
-      <div style="display:flex;gap:6px;align-items:center">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
         <div style="width:36px;height:36px;border-radius:50%;background:${p.injury?'#7f1d1d':t.c1};border:2px solid ${p.injury?'#ef4444':'var(--gold)'};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11px;color:${t.c2==='#FFFFFF'?'#000':t.c2}">${p.r}</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:10px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${inj}${p.name} ${mo}</div>
           <div style="font-size:9px;color:var(--m)">${p.pos} • L${p.lvl} • ${p.age}س</div>
         </div>
       </div>
+      
+      <!-- شريط تقدم اللاعب (XP) -->
+      <div style="height:4px;background:rgba(0,0,0,.5);border-radius:2px;overflow:hidden;position:relative;">
+        <div style="width:${xpPct}%;height:100%;background:${xpBarColor};border-radius:2px;transition:width .5s;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#94a3b8;margin-top:2px;">
+        <span>XP</span>
+        <span style="color:${maxed ? '#22c55e' : '#60a5fa'};font-weight:bold;">${xpText}</span>
+      </div>
+      
     </div>`;
   }).join('');
+  
   h += '</div>';
   return h;
 }
@@ -742,77 +785,160 @@ function removePlayer(){
   $('pm').hidden = true; save(); dash();
 }
 
-// عرض لاعبي فريق آخر
+// عرض لاعبي فريق آخر (تصميم مضمون)
 function showTeamPlayers(tid){
   const team = T[tid]; if(!team) return;
   const st = autoFillLineup(team, team.form);
   
-  let h = `<div class="mc mc-info modal-bg-anim">
+  let h = `<div class="mc mc-info modal-bg-anim" style="padding: 20px 15px;">
     <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
-    <div class="mc-head" style="padding-bottom:10px">
-      <div class="mc-icon" style="font-size:40px">🛡️</div>
-      <div class="mc-title">${team.name}</div>
-      <div class="mc-sub">💰 ${team.budget.toFixed(1)}M • ⭐ ${team.R}</div>
+    
+    <!-- الترويسة -->
+    <div style="text-align:center; margin-bottom: 15px;">
+      <div style="font-size:40px; filter:drop-shadow(0 0 15px rgba(255,255,255,.2)); margin-bottom:5px;">🛡️</div>
+      <div style="font-size:20px; font-weight:900; color:#fff; text-shadow: 0 2px 4px rgba(0,0,0,.5);">${team.name}</div>
+      <div style="font-size:12px; color:#94a3b8; margin-top:4px;">💰 ${team.budget.toFixed(1)}M • ⭐ ${team.R}</div>
     </div>
-    <div class="mc-list" style="max-height:50vh; padding:10px;">`;
+
+    <!-- قائمة اللاعبين -->
+    <div style="max-height: 55vh; overflow-y: auto; padding-left: 5px; padding-right: 5px;">`;
 
   const groups = {GK:[], DEF:[], MID:[], FWD:[]};
-  [...team.ps].sort((a,b) => b.r-a.r).forEach(p => { if(groups[p.pos]) groups[p.pos].push(p); });
+  [...team.ps].sort((a,b) => b.r - a.r).forEach(p => { 
+    if(groups[p.pos]) groups[p.pos].push(p); 
+  });
+  
   const groupLabels = {GK:'🧤 حراس المرمى', DEF:'🛡️ خط الدفاع', MID:'🎨 خط الوسط', FWD:'⚔️ خط الهجوم'};
 
   Object.entries(groups).forEach(([pos, players]) => {
     if(players.length === 0) return;
-    h += `<div class="sec" style="margin-top:15px">${groupLabels[pos]}</div>`;
+    
+    h += `<div style="font-size:12px; font-weight:900; color:#fbbf24; margin:15px 0 8px; display:flex; align-items:center; gap:6px;">
+      <div style="width:3px; height:14px; background:#fbbf24; border-radius:2px;"></div>
+      ${groupLabels[pos]}
+    </div>`;
+    
     players.forEach(p => {
       const isS = st.includes(p.id);
-      h += `<div class="mini-p-card ${isS?'starter':''}" onclick="showCard('${p.id}','${tid}')">
-        <div class="mini-p-info">
-          <div class="mini-p-name">${p.injury?'🚑 ':''}${p.name}</div>
-          <div class="mini-p-pos">${p.pos} • ⭐${p.r} ${isS?'(أساسي)':''}</div>
+      h += `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); padding:10px 12px; border-radius:10px; margin-bottom:6px; border-right:3px solid ${isS ? '#4ade80' : 'transparent'}; cursor:pointer; transition: background 0.2s;" onclick="showCard('${p.id}','${tid}')" onpointerdown="this.style.background='rgba(255,255,255,0.1)'" onpointerup="this.style.background='rgba(255,255,255,0.05)'">
+        
+        <!-- معلومات اللاعب -->
+        <div style="text-align:right;">
+          <div style="font-size:13px; font-weight:900; color:#fff; margin-bottom:2px;">
+            ${p.injury ? '🚑 ' : ''}${p.name}
+          </div>
+          <div style="font-size:10px; color:#94a3b8; font-weight:600;">
+            ${p.pos} ${isS ? '<span style="color:#4ade80; margin-right:5px;">• أساسي</span>' : ''}
+          </div>
         </div>
-        <div class="mini-p-rating" style="background:${isS?'#4ade80':'#94a3b8'}; color:#000">${p.r}</div>
+
+        <!-- تقييم اللاعب -->
+        <div style="width:34px; height:34px; border-radius:50%; background:${isS ? '#4ade80' : '#64748b'}; color:#000; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,.4); border: 1px solid ${isS ? '#22c55e' : '#475569'};">
+          ${p.r}
+        </div>
       </div>`;
     });
   });
   
-  h += `</div><div class="mc-actions"><button class="b full" onclick="$('cm').hidden=true">إغلاق</button></div></div>`;
+  h += `</div>
+    <div style="margin-top:15px;">
+      <button class="b full" onclick="$('cm').hidden=true" style="padding: 12px;">إغلاق</button>
+    </div>
+  </div>`;
   $('cmc').innerHTML = h; $('cm').hidden = false;
 }
 
-// بطاقة اللاعب
+// بطاقة اللاعب (تصميم احترافي FIFA Style + شريط تقدم)
 function showCard(pid, teamId){
   teamId = teamId || G.my; const team = T[teamId];
   if(!team) return; const p = team.ps.find(x => x.id === pid); if(!p) return;
   const isO = teamId !== G.my; const mo = getMoraleEmoji(p.morale);
   
-  $('cmc').innerHTML = `<div class="mc mc-warning modal-bg-anim">
+  // حساب تقدم اللاعب
+  const maxed = p.lvl >= 10;
+  const xpPct = maxed ? 100 : Math.min(100, Math.round(((p.xp || 0) / xpNeeded(p.lvl)) * 100));
+  const xpText = maxed ? 'MAX LEVEL' : `${p.xp || 0} / ${xpNeeded(p.lvl)}`;
+  
+  $('cmc').innerHTML = `<div class="mc mc-warning modal-bg-anim" style="padding: 20px 15px;">
     <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
-    <div class="p-card-modern" style="margin-top:5px">
-      <div class="p-card-header">
-        <div class="p-card-rating">${p.r}</div>
-        <div class="p-card-img">👤</div>
-        <div class="p-card-pos">${p.pos}</div>
-      </div>
-      <div class="p-card-name">${p.name}</div>
-      <div style="text-align:center; font-size:10px; color:#94a3b8; margin-top:4px;">${team.name} • ${p.age} سنة • ${mo}</div>
+    
+    <!-- بطاقة اللاعب -->
+    <div style="background: linear-gradient(160deg, #1e293b, #0f172a); border: 2px solid #fbbf24; border-radius: 20px; padding: 20px 15px; margin-top: 10px; box-shadow: 0 15px 35px rgba(0,0,0,.6), inset 0 0 30px rgba(251,191,36,.1); position: relative; overflow: hidden;">
       
-      <div class="p-card-attr-grid">
-        <div class="p-card-attr-item"><span>⚡ سرعة</span><b>${p.pace}</b></div>
-        <div class="p-card-attr-item"><span>🎯 تسديد</span><b>${p.shooting}</b></div>
-        <div class="p-card-attr-item"><span>🎨 تمرير</span><b>${p.passing}</b></div>
-        <div class="p-card-attr-item"><span>🏃 مراوغة</span><b>${p.dribbling}</b></div>
-        <div class="p-card-attr-item"><span>🛡️ دفاع</span><b>${p.defending}</b></div>
-        <div class="p-card-attr-item"><span>💪 بدنية</span><b>${p.physical}</b></div>
+      <!-- لمعة الخلفية -->
+      <div style="position:absolute; top:-50px; right:-50px; width:150px; height:150px; background:rgba(251,191,36,.15); border-radius:50%; filter:blur(40px);"></div>
+
+      <!-- رأس البطاقة -->
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; position:relative; z-index:1;">
+        <div style="text-align: right;">
+          <div style="font-size:55px; font-weight:900; color:#fbbf24; line-height:0.9; text-shadow: 0 5px 15px rgba(0,0,0,.5); font-family: 'Cairo', sans-serif;">${p.r}</div>
+          <div style="font-size:14px; font-weight:900; color:#fff; margin-top: 5px; letter-spacing: 1px;">${p.pos}</div>
+        </div>
+        
+        <div style="width: 70px; height: 70px; border-radius: 50%; background: rgba(255,255,255,.05); border: 2px solid rgba(255,255,255,.1); display: flex; align-items: center; justify-content: center; font-size: 35px; box-shadow: 0 5px 15px rgba(0,0,0,.3);">
+          👤
+        </div>
       </div>
       
-      <div style="background:linear-gradient(90deg, transparent, rgba(251,191,36,.15), transparent); padding:10px; text-align:center; font-size:13px; font-weight:900; color:#fbbf24; border-top:1px solid rgba(251,191,36,.2)">
+      <!-- اسم اللاعب -->
+      <div style="text-align:center; font-size:22px; font-weight:900; color:#fff; margin-top:15px; text-shadow: 0 3px 6px rgba(0,0,0,.8); position:relative; z-index:1;">${p.name}</div>
+      <div style="text-align:center; font-size:11px; color:#94a3b8; margin-top:5px; position:relative; z-index:1;">
+        ${team.name} • ${p.age} سنة • ${mo}
+      </div>
+      
+      <!-- فاصل -->
+      <div style="height: 1px; background: linear-gradient(90deg, transparent, rgba(251,191,36,.3), transparent); margin: 15px 0;"></div>
+
+      <!-- السمات -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; position:relative; z-index:1;">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.05);">
+          <span style="font-size:11px; color:#94a3b8; font-weight:bold;">⚡ سرعة</span>
+          <b style="color:#fff; font-size:15px;">${p.pace}</b>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.05);">
+          <span style="font-size:11px; color:#94a3b8; font-weight:bold;">🎯 تسديد</span>
+          <b style="color:#fff; font-size:15px;">${p.shooting}</b>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.05);">
+          <span style="font-size:11px; color:#94a3b8; font-weight:bold;">🎨 تمرير</span>
+          <b style="color:#fff; font-size:15px;">${p.passing}</b>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.05);">
+          <span style="font-size:11px; color:#94a3b8; font-weight:bold;">🏃 مراوغة</span>
+          <b style="color:#fff; font-size:15px;">${p.dribbling}</b>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.05);">
+          <span style="font-size:11px; color:#94a3b8; font-weight:bold;">🛡️ دفاع</span>
+          <b style="color:#fff; font-size:15px;">${p.defending}</b>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.05);">
+          <span style="font-size:11px; color:#94a3b8; font-weight:bold;">💪 بدنية</span>
+          <b style="color:#fff; font-size:15px;">${p.physical}</b>
+        </div>
+      </div>
+      
+      <!-- شريط تقدم الخبرة (XP) -->
+      <div style="margin-top:15px; position:relative; z-index:1;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;margin-bottom:4px;">
+          <span>⭐ تقدم المستوى (XP)</span>
+          <b style="color:${maxed ? '#22c55e' : '#60a5fa'};">${xpText}</b>
+        </div>
+        <div style="height:8px;background:rgba(0,0,0,.5);border-radius:4px;overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,.5);">
+          <div style="width:${xpPct}%;height:100%;background:${maxed ? '#22c55e' : 'linear-gradient(90deg,#3b82f6,#22d3ee)'};border-radius:4px;transition:width .5s;box-shadow:0 0 10px ${maxed ? 'rgba(34,197,94,.6)' : 'rgba(34,211,238,.6)'};"></div>
+        </div>
+      </div>
+
+      <!-- القيمة السوقية -->
+      <div style="text-align:center; font-size:14px; font-weight:900; color:#fbbf24; background:rgba(251,191,36,.1); padding:12px; border-radius:10px; margin-top:15px; border:1px dashed rgba(251,191,36,.4); position:relative; z-index:1;">
         💰 القيمة السوقية: ${p.value}M
       </div>
+      
     </div>
     
-    <div class="mc-actions" style="margin-top:15px">
-      ${isO ? `<button class="b a full" onclick="makeOffer('${p.id}','${teamId}')">💰 عرض شراء</button>` : ''}
-      <button class="b ${isO?'':'full'}" style="background:#334155;color:#fff" onclick="$('cm').hidden=true">إغلاق</button>
+    <!-- الأزرار -->
+    <div style="display:flex; gap:10px; margin-top:20px;">
+      ${isO ? `<button class="b a full" style="flex:2; padding:14px;" onclick="makeOffer('${p.id}','${teamId}')">💰 عرض شراء</button>` : ''}
+      <button class="b ${isO?'':'full'}" style="background:#334155; color:#fff; flex:1; padding:14px;" onclick="$('cm').hidden=true">إغلاق</button>
     </div>
   </div>`;
   $('cm').hidden = false;

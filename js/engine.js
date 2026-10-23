@@ -176,6 +176,8 @@ class Match {
     Object.assign(this.ball, {x, y, z:0, vz:0, vx:0, vy:0, o:null, fl:null, lastTouch:k});
     const s = this.s[k], op = this.opp(k);
     let tk = s.on.find(p => p.role !== 'GK') || s.on[0];
+    if(!tk) return; // ✅ حماية إذا كان الفريق بدون لاعبين
+
     const isHuman = k === this.hu;
 
     if(type === 'gk') tk = s.on.find(p => p.role === 'GK') || tk;
@@ -283,12 +285,14 @@ class Match {
     p.dec = .7;
   }
 
+  // ✅ إضافة حماية ضد الأخطاء (isOffside)
   isOffside(pa, re){
     const dr = pa.dir;
     if((re.x-L/2)*dr <= 2) return false;
     if((re.x-pa.x)*dr <= 2) return false;
     const o = this.opp(pa.k).on.slice().sort((a,b) => (b.x*dr)-(a.x*dr));
     const sl = o[1] || o[0];
+    if(!sl) return false; // حماية إذا كان الفريق بدون لاعبين
     return (re.x-sl.x)*dr > 2.2;
   }
 
@@ -303,7 +307,8 @@ class Match {
       const vision = (p.passing/99)*0.6 + (p.defending/99)*0.4;
       const m = this.s[k].on.filter(q => q.role === 'DEF' || q.role === 'MID');
       const t = m[Math.floor(R()*m.length)] || this.s[k].on[1];
-      this.pass(p, t, vision < 0.5, true);
+      if(t) this.pass(p, t, vision < 0.5, true); // ✅ حماية إذا لم يجد حارس المرمى أحداً ليمرر له
+      else p.dec = .7;
       return;
     }
 
@@ -763,7 +768,7 @@ class Match {
       if(p.st < p.minSt) p.minSt = p.st;
 
       const os = this.opp(p.k).on.slice().sort((a,c) => (c.x*p.dir)-(a.x*p.dir));
-      const ol = (os[1] || os[0]).x;
+      const ol = (os[1] || os[0] || {x: L/2}).x; // ✅ حماية ضد الأخطاء
       let ts = role === 'GK' ? 0 : (tc === 'attack' ? 6 : (tc === 'defense' ? -7 : (tc === 'counter' ? -3 : (tc === 'press' ? 5 : 0))))*p.dir;
       if(p.inst === 'attack') ts += 8*p.dir;
       if(p.inst === 'defense') ts -= 8*p.dir;

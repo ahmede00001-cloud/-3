@@ -2,6 +2,15 @@
 // engine.js - محرك المباراة (نسخة الاستقرار التام)
 // ============================================
 
+// ✅ تعريف دالة التعليق cmt لضمان عدم توقف اللعبة عند التسديد
+if (typeof window.cmt !== 'function') {
+  window.cmt = function(type, p) {
+    const list = (typeof CMT !== 'undefined' && CMT[type]) ? CMT[type] : ['كرة خطيرة من {p}!'];
+    const tpl = list[Math.floor(R() * list.length)];
+    return tpl.replace('{p}', p && p.name ? p.name : 'اللاعب');
+  };
+}
+
 class Match {
   constructor(c){
     this.h = c.h; this.a = c.a; this.hu = c.human;
@@ -415,7 +424,7 @@ class Match {
 
   shoot(p, dg, isPen = false, isFK = false){
     const b = this.ball, k = p.k;
-    const gx = p.dir > 0 ? L + 2 : -2; // التوجيه لما بعد الخط
+    const gx = p.dir > 0 ? L + 2 : -2;
     b.o = null;
     b.lastTouch = k;
     p.kick = .5;
@@ -673,7 +682,6 @@ class Match {
       }
     }
     
-    // ✅ الكرة تتجاوز الحدود فقط إذا لم تكن تسديدة
     if (f.k !== 'shot') {
         this.bounds();
     }

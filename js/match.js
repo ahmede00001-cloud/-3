@@ -93,6 +93,8 @@ function loop(n){
     console.error("Match Loop Error:", e);
     paused = true; // إيقاف المباراة مؤقتاً بدلاً من إنهائها
     $('bp').textContent = '▶';
+    // ✅ إضافة تنبيه ليظهر لك الخطأ بدلاً من التعليق الصامت
+    alert("توقف المحاكاة بسبب خطأ برمجي:\n" + e.message + "\n\nيرجى إبلاغ المطور.");
     raf = requestAnimationFrame(loop); // محاولة الاستمرار
   }
 }
@@ -328,6 +330,10 @@ function doSub(){ if(Mt.sub(Mt.hu, $('so').value, $('si').value)) $('sm').hidden
 
 function skip(){
   if(!Mt || Mt.done) return;
+  
+  // ✅ إضافة تأكيد لمنع الضغط الخاطئ على زر التخطي
+  if(!confirm('هل أنت متأكد من تخطي باقي المباراة وإنهائها فوراً؟')) return;
+
   try {
     cancelAnimationFrame(raf);
     Mt.done = true;
@@ -399,7 +405,7 @@ function syncMatchStats(m){
 
     (m.injuries||[]).forEach(inj => {
       const team = m.s.home.t.ps.find(p => p.id === inj.id) ? m.s.home.t : m.s.away.t;
-      const p = team.ps.find(x => x.id === inj.id);
+      const p = team.ps.find(p => p.id === inj.id);
       if(p) tryInjure(p);
     });
   } catch(e){ console.error('sync error:', e); }

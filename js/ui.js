@@ -566,14 +566,43 @@ function checkCupNotification(){
 
 function showCupNotification(nm){
   const oppName = T[nm.opp]?.name || AFRICAN.find(a=>a[0]===nm.opp)?.[1] || nm.opp;
-  $('cmc').innerHTML = `<div class="mc mc-warning">
+  const postponed = G.season.postponedRounds?.find(p => p.cupRound === nm.round);
+  
+  let postponeHTML = '';
+  if (postponed) {
+    postponeHTML = `
+      <div style="background:rgba(239,68,68,.15); border:1px solid #ef4444; border-radius:12px; padding:10px; margin:10px 0; text-align:right;">
+        <div style="font-size:12px; color:#fca5a5; font-weight:900; margin-bottom:4px;">⚠️ تم تأجيل الجولة ${postponed.leagueRound} من الدوري</div>
+        <div style="font-size:10px; color:#cbd5e1;">الكأس له الأولوية. ستُلعب الجولة المؤجلة لاحقاً.</div>
+      </div>
+    `;
+  }
+
+  $('cmc').innerHTML = `<div class="mc mc-warning modal-bg-anim">
     <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
-    <div class="mc-head"><div class="mc-icon">🏆</div><div class="mc-title">مباراة كأس!</div></div>
-    <div style="padding:14px;background:rgba(0,0,0,.35);border-radius:12px;margin:8px 0;text-align:center">
-      <div style="font-size:14px;color:#fff;margin-bottom:8px"><b>${T[G.my].name}</b> 🆚 <b>${oppName}</b></div>
-      <div style="font-size:12px;color:#fbbf24">📅 ${dayToDate(nm.day)}</div>
+    <div class="mc-head">
+      <div class="mc-icon" style="font-size:50px; filter:drop-shadow(0 0 20px rgba(251,191,36,.8))">🏆</div>
+      <div class="mc-title" style="color:#fbbf24">مباراة كأس مصر!</div>
+      <div class="mc-sub">دور ${nm.round}</div>
     </div>
-    <div class="mc-actions"><button class="b full" onclick="$('cm').hidden=true">✅ فهمت</button></div>
+    
+    <div style="background:linear-gradient(135deg, rgba(30,41,59,.9), rgba(15,23,42,.9)); border:1px solid rgba(251,191,36,.3); border-radius:16px; padding:15px; margin:10px 0;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <div style="font-size:14px; font-weight:900; color:#fff; flex:1; text-align:center;">${T[G.my].name}</div>
+        <div style="font-size:12px; color:#94a3b8; font-weight:900; padding:0 10px;">VS</div>
+        <div style="font-size:14px; font-weight:900; color:#fff; flex:1; text-align:center;">${oppName}</div>
+      </div>
+      <div style="text-align:center; font-size:11px; color:#fbbf24; background:rgba(0,0,0,.4); padding:4px; border-radius:8px;">
+        📅 ${dayToDate(nm.day)} • ${nm.home ? '🏟️ على أرضك' : '✈️ خارج أرضك'}
+      </div>
+    </div>
+    
+    ${postponeHTML}
+    
+    <div class="info-box" style="font-size:10px; text-align:center; color:#cbd5e1; margin-top:5px;">
+      ⚠️ مباراة إقصائية: التعادل يعني ركلات ترجيح!
+    </div>
+    <div class="mc-actions"><button class="b full" onclick="$('cm').hidden=true">✅ فهمت - إلى المباراة</button></div>
   </div>`;
   $('cm').hidden = false;
 }
@@ -643,39 +672,74 @@ function removePlayer(){
   $('pm').hidden = true; save(); dash();
 }
 
+// عرض لاعبي فريق آخر (تصميم جديد)
 function showTeamPlayers(tid){
   const team = T[tid]; if(!team) return;
   const st = autoFillLineup(team, team.form);
-  let h = `<div class="mc mc-info"><button class="mc-close" onclick="$('cm').hidden=true">✕</button><div class="mc-head"><div class="mc-icon">👥</div><div class="mc-title">${team.name}</div></div><div class="mc-list">`;
-  [...team.ps].sort((a,b) => b.r-a.r).forEach(p => {
-    h += `<div class="mc-list-item" onclick="showCard('${p.id}','${tid}')" style="cursor:pointer"><div style="text-align:right;flex:1"><div style="font-size:12px;color:#fff;font-weight:700">${p.name}</div><div style="font-size:10px;color:var(--m)">${p.pos} • ⭐${p.r}</div></div><div style="color:#4ade80;font-weight:900">${p.value}M</div></div>`;
+  
+  let h = `<div class="mc mc-info modal-bg-anim">
+    <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
+    <div class="mc-head" style="padding-bottom:10px">
+      <div class="mc-icon" style="font-size:40px">🛡️</div>
+      <div class="mc-title">${team.name}</div>
+      <div class="mc-sub">💰 ${team.budget.toFixed(1)}M • ⭐ ${team.R}</div>
+    </div>
+    <div class="mc-list" style="max-height:50vh; padding:10px;">`;
+
+  const groups = {GK:[], DEF:[], MID:[], FWD:[]};
+  [...team.ps].sort((a,b) => b.r-a.r).forEach(p => { if(groups[p.pos]) groups[p.pos].push(p); });
+  const groupLabels = {GK:'🧤 حراس المرمى', DEF:'🛡️ خط الدفاع', MID:'🎨 خط الوسط', FWD:'⚔️ خط الهجوم'};
+
+  Object.entries(groups).forEach(([pos, players]) => {
+    if(players.length === 0) return;
+    h += `<div class="sec" style="margin-top:15px">${groupLabels[pos]}</div>`;
+    players.forEach(p => {
+      const isS = st.includes(p.id);
+      h += `<div class="mini-p-card ${isS?'starter':''}" onclick="showCard('${p.id}','${tid}')">
+        <div class="mini-p-info">
+          <div class="mini-p-name">${p.injury?'🚑 ':''}${p.name}</div>
+          <div class="mini-p-pos">${p.pos} • ⭐${p.r} ${isS?'(أساسي)':''}</div>
+        </div>
+        <div class="mini-p-rating" style="background:${isS?'#4ade80':'#94a3b8'}; color:#000">${p.r}</div>
+      </div>`;
+    });
   });
+  
   h += `</div><div class="mc-actions"><button class="b full" onclick="$('cm').hidden=true">إغلاق</button></div></div>`;
   $('cmc').innerHTML = h; $('cm').hidden = false;
 }
 
-// بطاقة اللاعب
+// بطاقة اللاعب (تصميم احترافي كروت FIFA)
 function showCard(pid, teamId){
   teamId = teamId || G.my; const team = T[teamId];
   if(!team) return; const p = team.ps.find(x => x.id === pid); if(!p) return;
   const isO = teamId !== G.my; const mo = getMoraleEmoji(p.morale);
   
-  $('cmc').innerHTML = `<div class="mc mc-warning">
+  $('cmc').innerHTML = `<div class="mc mc-warning modal-bg-anim">
     <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
-    <div class="mc-head" style="padding-bottom:0"><div class="mc-title" style="font-size:16px">${p.name}</div><div class="mc-sub">${team.name} • ${p.age} سنة</div></div>
-    <div class="fcard" style="margin-top:10px">
-      <div class="fcard-hd"><div class="fcard-rt">${p.r}</div><div class="fcard-pos">${p.pos} ${mo}</div></div>
-      <div class="fcard-nm">${p.name}</div>
-      <div class="fcard-stats">
-        <div><span>⚡ سرعة</span><b>${p.pace}</b></div>
-        <div><span>🎯 تسديد</span><b>${p.shooting}</b></div>
-        <div><span>🎨 تمرير</span><b>${p.passing}</b></div>
-        <div><span>🏃 مراوغة</span><b>${p.dribbling}</b></div>
-        <div><span>🛡️ دفاع</span><b>${p.defending}</b></div>
-        <div><span>💪 بدنية</span><b>${p.physical}</b></div>
+    <div class="p-card-modern" style="margin-top:5px">
+      <div class="p-card-header">
+        <div class="p-card-rating">${p.r}</div>
+        <div class="p-card-img">👤</div>
+        <div class="p-card-pos">${p.pos}</div>
       </div>
-      <div style="text-align:center; padding:10px; font-size:12px; background:rgba(251,191,36,.1); color:#fbbf24">💰 القيمة: ${p.value}M</div>
+      <div class="p-card-name">${p.name}</div>
+      <div style="text-align:center; font-size:10px; color:#94a3b8; margin-top:4px;">${team.name} • ${p.age} سنة • ${mo}</div>
+      
+      <div class="p-card-attr-grid">
+        <div class="p-card-attr-item"><span>⚡ سرعة</span><b>${p.pace}</b></div>
+        <div class="p-card-attr-item"><span>🎯 تسديد</span><b>${p.shooting}</b></div>
+        <div class="p-card-attr-item"><span>🎨 تمرير</span><b>${p.passing}</b></div>
+        <div class="p-card-attr-item"><span>🏃 مراوغة</span><b>${p.dribbling}</b></div>
+        <div class="p-card-attr-item"><span>🛡️ دفاع</span><b>${p.defending}</b></div>
+        <div class="p-card-attr-item"><span>💪 بدنية</span><b>${p.physical}</b></div>
+      </div>
+      
+      <div style="background:linear-gradient(90deg, transparent, rgba(251,191,36,.15), transparent); padding:10px; text-align:center; font-size:13px; font-weight:900; color:#fbbf24; border-top:1px solid rgba(251,191,36,.2)">
+        💰 القيمة السوقية: ${p.value}M
+      </div>
     </div>
+    
     <div class="mc-actions" style="margin-top:15px">
       ${isO ? `<button class="b a full" onclick="makeOffer('${p.id}','${teamId}')">💰 عرض شراء</button>` : ''}
       <button class="b ${isO?'':'full'}" style="background:#334155;color:#fff" onclick="$('cm').hidden=true">إغلاق</button>
@@ -774,7 +838,7 @@ function showLegendCard(pid){
   const me = T[G.my];
   const can = me.budget >= p.value && me.ps.length < 25;
 
-  $('cmc').innerHTML = `<div class="mc" style="border:2px solid #fbbf24">
+  $('cmc').innerHTML = `<div class="mc" style="border:2px solid #fbbf24 modal-bg-anim">
     <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
     <div class="mc-head">
       <div class="mc-icon">🌟</div>

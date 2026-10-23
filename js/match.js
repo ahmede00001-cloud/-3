@@ -10,12 +10,10 @@ function play(){
   const nm = getNextUserMatch();
   if(!nm) return alert('لا مباراة!');
 
-  // ✅ إصلاح المشكلة: تقديم اليوم تلقائياً لموعد المباراة بدلاً من إظهار خطأ
   if(daysUntilMatch(nm) > 0) {
     advanceToDay(nm.day); 
   }
 
-  // ✅ إغلاق جميع النوافذ المنبثقة (مثل نافذة معلومات المباراة) لضمان بدء اللعب
   document.querySelectorAll('.md').forEach(el => el.hidden = true);
 
   if(raf) cancelAnimationFrame(raf);
@@ -52,6 +50,9 @@ function play(){
     compName: cn[nm.comp] || nm.comp,
     weather: w
   });
+
+  // ✅ حفظ مرجع المباراة الحالية لتجنب أخطاء تكرارها عند النهاية
+  Mt.calendarItem = nm;
 
   $('mh').textContent = Mt.h.name;
   $('ma').textContent = Mt.a.name;
@@ -422,7 +423,10 @@ function finish(){
     const og = s[Mt.hu==='home' ? 'away' : 'home'].g;
     const myT = Mt.s[Mt.hu].t;
     const oppT = Mt.s[Mt.hu==='home' ? 'away' : 'home'].t;
-    const nm = getNextUserMatch();
+    
+    // ✅ جلب المباراة المحفوظة حصرياً عبر مرجع كائن المباراة بدلاً من إعادة البحث العشوائي
+    const nm = Mt ? Mt.calendarItem : getNextUserMatch();
+    
     const cn = {league:'الدوري', cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
 
     if(nm && nm.comp === 'league'){
@@ -527,7 +531,7 @@ function finish(){
     $('rcomp').textContent = cn[nm?.comp]||'مباراة';
     $('rst').innerHTML = `📊 <b>استحواذ:</b> ${Math.round(100*s.home.ps/(s.home.ps+s.away.ps||1))}% • <b>تسديدات:</b> ${s.home.sh}-${s.away.sh}`;
     $('rsc').textContent = `${Mt.h.name} ${s.home.g} - ${s.away.g} ${Mt.a.name}`;
-    $('rso').innerHTML = `${rsEmoji} ${rW?'فوز! 🎉':rD?'تعادل 🤝':'خسارة 😞'}`;
+    $('rso').innerHTML = `${rsEmoji} ${rW?'فوز! 🎉':rD?'تعادل 🤝':'خسارة 😔'}`;
     $('rso').style.color = rW ? '#22c55e' : rD ? '#fbbf24' : '#ef4444';
     $('rfin').innerHTML = `💰 صافي المباراة: <b style="color:${netIncome>=0?'#4ade80':'#f87171'}">${netIncome>=0?'+':''}${netIncome.toFixed(1)}M</b> • الرصيد: ${myT.budget.toFixed(1)}M`;
     if(pr){ $('rpen').style.display = 'block'; $('rpen').innerHTML = `🥅 ترجيح: ${pr.scoreA}-${pr.scoreB}`; } 

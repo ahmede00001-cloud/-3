@@ -303,26 +303,40 @@ function subm(){
 
 function doSub(){ if(Mt.sub(Mt.hu, $('so').value, $('si').value)) $('sm').hidden = true; }
 
-let isSkipping = false;
 function skip(){
-  if(!Mt || Mt.done || isSkipping) return;
-  isSkipping = true;
-  paused = true;
+  if(!Mt || Mt.done) return;
   cancelAnimationFrame(raf);
+  Mt.done = true;
   
-  $('lg').innerHTML = '<div style="text-align:center;color:gold;padding:20px;font-weight:bold;">⏳ جاري محاكاة باقي المباراة...</div>';
+  // محاكاة رياضية فورية لباقي المباراة (تمنع التجمد نهائياً)
+  const currentMin = Math.floor(Mt.min);
+  const remainingMin = Math.max(0, 90 - currentMin);
   
-  setTimeout(() => {
-    let safety = 0;
-    while(!Mt.done && safety < 100000){
-      Mt.step();
-      safety++;
+  const hp = Mt.teamPower('home');
+  const ap = Mt.teamPower('away');
+  
+  for(let i=0; i<remainingMin; i++){
+    const m = currentMin + i;
+    if(R() < hp * 0.015){
+      const p = Mt.s.home.on[Math.floor(R()*Mt.s.home.on.length)];
+      p.goals = (p.goals||0)+1;
+      Mt.s.home.g++;
+      Mt.say(m, 'goal', `⚽ هدف لـ ${Mt.s.home.t.name} عن طريق ${p.name}!`);
     }
-    isSkipping = false;
-    ui();
-    draw();
-    finish();
-  }, 50);
+    if(R() < ap * 0.015){
+      const p = Mt.s.away.on[Math.floor(R()*Mt.s.away.on.length)];
+      p.goals = (p.goals||0)+1;
+      Mt.s.away.g++;
+      Mt.say(m, 'goal', `⚽ هدف لـ ${Mt.s.away.t.name} عن طريق ${p.name}!`);
+    }
+  }
+  
+  Mt.min = 90 + Mt.inj2;
+  Mt.say(90, 'info', '🏁 نهاية المباراة');
+  
+  ui();
+  draw();
+  finish();
 }
 
 function syncMatchStats(m){

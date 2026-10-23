@@ -91,7 +91,6 @@ class Match {
     this.ball = {x:L/2, y:WD/2, z:0, vz:0, vx:0, vy:0, o:null, fl:null, lastTouch:'home', trail:[]};
     this.ref = {x:L/2, y:WD/2-8, fc:1};
     this.hold = 0; this.sc = null; this.rs = null; this.ag = null;
-    this.idleTicks = 0;
 
     const dt = this.isDerby ? '⚔️ ديربي! ' : '';
     this.say(0, 'info', `${dt}🏁 ${this.compName}: ${c.h.name} × ${c.a.name}`);
@@ -260,7 +259,6 @@ class Match {
     this.rs = null;
     if(!r) return;
     const k = r.k;
-    // ✅ تأكد من أن اللاعب المنفذ لا يزال في الملعب ولم يُطرد
     let p = r.tk;
     if(!p || !this.s[k].on.includes(p)){
       p = this.s[k].on.find(q => q.role !== 'GK') || this.s[k].on[0];
@@ -319,7 +317,6 @@ class Match {
 
     if(role === 'GK'){
       const vision = (p.passing/99)*0.6 + (p.defending/99)*0.4;
-      // ✅ منع الحارس من التمرير لنفسه لتفادي القسمة على صفر (NaN)
       const m = this.s[k].on.filter(q => q !== p && (q.role === 'DEF' || q.role === 'MID'));
       const t = m[Math.floor(R()*m.length)] || this.s[k].on.find(q => q !== p);
       if(t) this.pass(p, t, vision < 0.5, true);
@@ -335,9 +332,15 @@ class Match {
 
     const cd = this.opp(k).on.filter(o => o.role !== 'GK' && Math.hypot(o.x-p.x, o.y-p.y) < 4.8 && (gx-o.x)*dr > 0);
 
+    // ✅ تحسين 1: ذكاء التسديد (مراعاة الزاوية)
     let shootWilling = role === 'FWD' ? 0.45 : 0.25;
     shootWilling += ((p.shooting/99)-0.5)*0.50;
     shootWilling += (p.dribbling/99-0.5)*0.15;
+    
+    const angleToGoal = Math.abs(p.y - 34);
+    if (angleToGoal > 20) shootWilling *= 0.3;
+    else if (angleToGoal > 12) shootWilling *= 0.7;
+
     shootWilling *= fmB.att*tacB.att;
     if(p.inst === 'attack') shootWilling += .15;
     if(p.inst === 'defense') shootWilling -= .15;
@@ -361,12 +364,17 @@ class Match {
     const on = m.filter(q => !this.isOffside(p, q));
     const pool = (on.length > 0 && R() > .05) ? on : m;
 
+    // ✅ تحسين 2: تفضيل التمريرات الأمامية والاختراق
     const sc = pool.map(q => {
       const no = this.opp(k).on.filter(o => Math.hypot(o.x-q.x, o.y-q.y) < 6.5).length;
-      const fg = (q.x-p.x)*dr;
-      const sp2 = no === 0 ? 15 : -no*12;
+      const fg = (q.x-p.x)*dr; 
+      const sp2 = no === 0 ? 15 : -no*12; 
       const vision = (p.passing/99);
-      return {q, score: fg*.6 + sp2 + (R()*8-4) + vision*3};
+      
+      let directionBonus = fg > 5 ? 10 : (fg < -5 ? -5 : 0);
+      if (cd.length > 0 && fg < 0) directionBonus += 15;
+
+      return {q, score: fg*.6 + sp2 + (R()*8-4) + vision*3 + directionBonus};
     }).sort((a,b) => b.score-a.score);
 
     const bm = sc[0];
@@ -557,8 +565,23 @@ class Match {
       return;
     }
 
-    // ✅ التأكد من أن اللاعب المستلم للكرة لا يزال موجوداً في الملعب
     if(f.pl && this.s[f.pl.k].on.includes(f.pl)){
+      // ✅ تحسين 3: اللمسة الأولى (First Touch)
+      const pressure = this.opp(f.pl.k).on.filter(q => Math.hypot(q.x - b.x, q.y - b.y) < 3.5).length;
+      const controlSkill = (f.pl.dribbling/99) * 0.7 + (f.pl.passing/99) * 0.3;
+      const errorChance = pressure * 0.15 * (1 - controlSkill); 
+      
+      if(R() < errorChance) {
+        b.o = null;
+        b.x += (R() - 0.5) * 8;
+        b.y += (R() - 0.5) * 8;
+        b.lastTouch = f.passer ? f.passer.k : f.pl.k; 
+        this.say(Math.floor(this.min), 'info', `⚠️ لمسة أولى سيئة من ${f.pl.name}!`);
+        f.pl.stun = 0.3; 
+        f.pl.dec = 0.8; 
+        return;
+      }
+
       b.o = f.pl;
       b.x = f.pl.x;
       b.y = f.pl.y;
@@ -572,7 +595,6 @@ class Match {
   goal(p){
     const k = p.k;
     const ok = k === 'home' ? 'away' : 'home';
-    // ✅ إصلاح ثغرة الـ VAR: استئناف اللعب بضربة مرمى/حرة عند إلغاء الهدف بدلاً من تجميد الكرة
     if(!checkVAR()){
       this.say(Math.floor(this.min), 'var', `📺 الـ VAR يلغي هدف ${p.name}!`);
       this.banner('📺 هدف ملغي (VAR)!', 1.8);
@@ -640,7 +662,6 @@ class Match {
     b.trail.push({x:b.x, y:b.y, z:b.z});
     if(b.trail.length > 6) b.trail.shift();
 
-    // ✅ حماية من القسمة على صفر (dd < 0.001)
     if(dd <= step || dd < 0.001){
       b.x = f.tx;
       b.y = f.ty;
@@ -748,7 +769,6 @@ class Match {
       this.aiManage();
 
       const b = this.ball;
-      // ✅ التحقق من أن حامل الكرة لا يزال داخل الملعب (لم يُطرد أو يُستبدل بشكل خاطئ)
       if(b.o && !this.s[b.o.k].on.includes(b.o)){
         b.o = null;
       }
@@ -826,25 +846,56 @@ class Match {
 
         let tx = p.bx+ts+(role === 'GK' ? 0 : bs), ty = p.by;
 
-        if(b.o === p){
+        // ✅ تحسين 4: تمركز حارس المرمى
+        if (role === 'GK') {
+          const gx = p.dir > 0 ? L : 0;
+          const distToBall = Math.hypot(b.x - gx, b.y - 34);
+          if (distToBall < 40) {
+            tx = p.bx + (b.x - p.bx) * 0.1; 
+            ty = 34 + (b.y - 34) * 0.3;
+          }
+        } 
+        else if(b.o === p){
           tx = p.x+p.dir*11;
           ty = p.y+(34-p.y)*.2;
           p.dec -= dt;
           if(p.dec <= 0) this.think(p);
-        } else if(b.fl && b.fl.pl === p){
+        } 
+        else if(b.fl && b.fl.pl === p){
           p.stun = 0;
           tx = b.fl.tx;
           ty = b.fl.ty;
-        } else if(b.o && b.o.k !== p.k && role !== 'GK'){
+        } 
+        else if(b.o && b.o.k !== p.k){
           const d = Math.hypot(b.o.x-p.x, b.o.y-p.y);
           if(d < 16 && p.stun <= 0){
             tx = b.o.x-b.o.dir*1.5;
             ty = b.o.y;
             if(p.inst === 'press') tx = b.o.x;
-          } else if(role === 'DEF'){
-            ty = p.by+(b.y-34)*.4;
+          } 
+          else {
+            // ✅ تحسين 5: التمركز الدفاعي الذكي (الرقابة)
+            if (role === 'DEF' || role === 'MID') {
+              const oppForwards = this.opp(p.k).on.filter(o => o.role === 'FWD' || o.role === 'MID');
+              let targetOpp = null, minD = 999;
+              oppForwards.forEach(o => {
+                const dist = Math.hypot(o.x - p.x, o.y - p.y);
+                if (dist < minD && (o.x - p.x) * p.dir > 0) { 
+                  minD = dist;
+                  targetOpp = o;
+                }
+              });
+
+              if (targetOpp && minD < 20) {
+                tx = targetOpp.x - targetOpp.dir * 2;
+                ty = targetOpp.y;
+              } else if(role === 'DEF'){
+                ty = p.by+(b.y-34)*.4; 
+              }
+            }
           }
-        } else if(b.o && b.o.k === p.k && role !== 'GK'){
+        } 
+        else if(b.o && b.o.k === p.k && role !== 'GK'){
           tx += p.dir*(role === 'MID' ? 6 : 4.5);
         }
 

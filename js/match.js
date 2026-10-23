@@ -4,11 +4,19 @@
 
 function play(){
   if(!G.lu || G.lu.length !== 11 || G.lu.includes(null) || G.lu.some(id => !T[G.my].ps.find(p => p.id === id))){
-    return alert('التشكيلة غير مكتملة!');
+    return alert('التشكيلة غير مكتملة! يرجى التأكد من اختيار 11 لاعباً.');
   }
+  
   const nm = getNextUserMatch();
   if(!nm) return alert('لا مباراة!');
-  if(daysUntilMatch(nm) > 0) return alert(`بعد ${daysUntilMatch(nm)} يوم!`);
+
+  // ✅ إصلاح المشكلة: تقديم اليوم تلقائياً لموعد المباراة بدلاً من إظهار خطأ
+  if(daysUntilMatch(nm) > 0) {
+    advanceToDay(nm.day); 
+  }
+
+  // ✅ إغلاق جميع النوافذ المنبثقة (مثل نافذة معلومات المباراة) لضمان بدء اللعب
+  document.querySelectorAll('.md').forEach(el => el.hidden = true);
 
   if(raf) cancelAnimationFrame(raf);
 
@@ -78,14 +86,9 @@ function createVirtualTeam(id, name, rating, c1, c2){
 function loop(n){
   last = n;
   try {
-    if(!paused && !Mt.done){
-      if(Mt.hold > 0){
-        Mt.hold -= speed;
-      } else {
-        for(let i=0; i<speed; i++){
-          if(!Mt.done && (!Mt.hold || Mt.hold <= 0)) Mt.step();
-          else if(Mt.hold > 0) Mt.hold--;
-        }
+    if(!paused && !Mt.done && Mt.hold <= 0){
+      for(let i=0; i<speed; i++){
+        if(!Mt.done) Mt.step();
       }
     }
     draw();
@@ -94,11 +97,8 @@ function loop(n){
     raf = requestAnimationFrame(loop);
   } catch(e) {
     console.error("Match Loop Error:", e);
-    // ✅ إصلاح: استرداد الحالة تلقائياً دون إيقاف اللعبة (تم إزالة paused = true)
-    if(Mt){
-      Mt.hold = 0;
-      if(typeof Mt._recoverFromError === 'function') Mt._recoverFromError();
-    }
+    paused = true; 
+    $('bp').textContent = '▶';
     raf = requestAnimationFrame(loop); 
   }
 }
@@ -261,15 +261,8 @@ function draw(){
   drawPitch(x, W, H, P, u);
 
   const LS = [];
-  for(const k of ['home','away']){
-    Mt.s[k].on.forEach((p, i) => {
-      // ✅ حماية إضافية ضد اللاعبين غير المعرفين أثناء الطرد أو التبديل
-      if(p && typeof p.x === 'number' && typeof p.y === 'number'){
-        LS.push([p, k, i, false]);
-      }
-    });
-  }
-  if(Mt.ref && typeof Mt.ref.y === 'number') LS.push([Mt.ref, 'ref', 0, true]);
+  for(const k of ['home','away']) Mt.s[k].on.forEach((p, i) => LS.push([p, k, i, false]));
+  LS.push([Mt.ref, 'ref', 0, true]);
   LS.sort((a, b) => a[0].y-b[0].y);
 
   LS.forEach(([p, k, i, isRef]) => {

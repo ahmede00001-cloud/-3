@@ -793,15 +793,14 @@ function showTeamPlayers(tid){
   let h = `<div class="mc mc-info modal-bg-anim" style="padding: 20px 15px;">
     <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
     
-    <!-- الترويسة -->
     <div style="text-align:center; margin-bottom: 15px;">
-      <div style="font-size:40px; filter:drop-shadow(0 0 15px rgba(255,255,255,.2)); margin-bottom:5px;">🛡️</div>
-      <div style="font-size:20px; font-weight:900; color:#fff; text-shadow: 0 2px 4px rgba(0,0,0,.5);">${team.name}</div>
-      <div style="font-size:12px; color:#94a3b8; margin-top:4px;">💰 ${team.budget.toFixed(1)}M • ⭐ ${team.R}</div>
+      <div style="font-size:35px; margin-bottom:5px;">🛡️</div>
+      <div style="font-size:18px; font-weight:900; color:#fff;">${team.name}</div>
+      <div style="font-size:11px; color:#94a3b8; margin-top:2px;">💰 ${team.budget.toFixed(1)}M • ⭐ ${team.R}</div>
     </div>
 
-    <!-- قائمة اللاعبين -->
-    <div style="max-height: 55vh; overflow-y: auto; padding-left: 5px; padding-right: 5px;">`;
+    <!-- تخصيص حاوية القائمة لإخفاء أو تجميل شريط التمرير -->
+    <div style="max-height: 50vh; overflow-y: auto; padding: 0 4px; scrollbar-width: thin; scrollbar-color: #fbbf24 rgba(0,0,0,.2);">`;
 
   const groups = {GK:[], DEF:[], MID:[], FWD:[]};
   [...team.ps].sort((a,b) => b.r - a.r).forEach(p => { 
@@ -813,27 +812,25 @@ function showTeamPlayers(tid){
   Object.entries(groups).forEach(([pos, players]) => {
     if(players.length === 0) return;
     
-    h += `<div style="font-size:12px; font-weight:900; color:#fbbf24; margin:15px 0 8px; display:flex; align-items:center; gap:6px;">
-      <div style="width:3px; height:14px; background:#fbbf24; border-radius:2px;"></div>
+    h += `<div style="font-size:11px; font-weight:900; color:#fbbf24; margin:12px 0 6px; display:flex; align-items:center; gap:6px;">
+      <div style="width:3px; height:12px; background:#fbbf24; border-radius:2px;"></div>
       ${groupLabels[pos]}
     </div>`;
     
     players.forEach(p => {
       const isS = st.includes(p.id);
-      h += `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); padding:10px 12px; border-radius:10px; margin-bottom:6px; border-right:3px solid ${isS ? '#4ade80' : 'transparent'}; cursor:pointer; transition: background 0.2s;" onclick="showCard('${p.id}','${tid}')" onpointerdown="this.style.background='rgba(255,255,255,0.1)'" onpointerup="this.style.background='rgba(255,255,255,0.05)'">
+      h += `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:8px; margin-bottom:6px; border-right:3px solid ${isS ? '#4ade80' : 'transparent'}; cursor:pointer;" onclick="showCard('${p.id}','${tid}')">
         
-        <!-- معلومات اللاعب -->
         <div style="text-align:right;">
-          <div style="font-size:13px; font-weight:900; color:#fff; margin-bottom:2px;">
+          <div style="font-size:12px; font-weight:bold; color:#fff;">
             ${p.injury ? '🚑 ' : ''}${p.name}
           </div>
-          <div style="font-size:10px; color:#94a3b8; font-weight:600;">
-            ${p.pos} ${isS ? '<span style="color:#4ade80; margin-right:5px;">• أساسي</span>' : ''}
+          <div style="font-size:10px; color:#94a3b8;">
+            ${p.pos} ${isS ? '<span style="color:#4ade80; margin-right:4px;">• أساسي</span>' : ''}
           </div>
         </div>
 
-        <!-- تقييم اللاعب -->
-        <div style="width:34px; height:34px; border-radius:50%; background:${isS ? '#4ade80' : '#64748b'}; color:#000; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,.4); border: 1px solid ${isS ? '#22c55e' : '#475569'};">
+        <div style="width:30px; height:30px; border-radius:50%; background:${isS ? '#4ade80' : '#475569'}; color:#000; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px;">
           ${p.r}
         </div>
       </div>`;
@@ -841,12 +838,13 @@ function showTeamPlayers(tid){
   });
   
   h += `</div>
-    <div style="margin-top:15px;">
-      <button class="b full" onclick="$('cm').hidden=true" style="padding: 12px;">إغلاق</button>
+    <div style="margin-top:12px;">
+      <button class="b full" onclick="$('cm').hidden=true" style="padding: 10px;">إغلاق</button>
     </div>
   </div>`;
   $('cmc').innerHTML = h; $('cm').hidden = false;
 }
+
 
 // بطاقة اللاعب (تصميم احترافي FIFA Style + شريط تقدم)
 function showCard(pid, teamId){
@@ -854,7 +852,6 @@ function showCard(pid, teamId){
   if(!team) return; const p = team.ps.find(x => x.id === pid); if(!p) return;
   const isO = teamId !== G.my; const mo = getMoraleEmoji(p.morale);
   
-  // حساب تقدم اللاعب
   const maxed = p.lvl >= 10;
   const xpPct = maxed ? 100 : Math.min(100, Math.round(((p.xp || 0) / xpNeeded(p.lvl)) * 100));
   const xpText = maxed ? 'MAX LEVEL' : `${p.xp || 0} / ${xpNeeded(p.lvl)}`;
@@ -862,87 +859,65 @@ function showCard(pid, teamId){
   $('cmc').innerHTML = `<div class="mc mc-warning modal-bg-anim" style="padding: 20px 15px;">
     <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
     
-    <!-- بطاقة اللاعب -->
-    <div style="background: linear-gradient(160deg, #1e293b, #0f172a); border: 2px solid #fbbf24; border-radius: 20px; padding: 20px 15px; margin-top: 10px; box-shadow: 0 15px 35px rgba(0,0,0,.6), inset 0 0 30px rgba(251,191,36,.1); position: relative; overflow: hidden;">
+    <div style="background: linear-gradient(160deg, #1e293b, #0f172a); border: 2px solid #fbbf24; border-radius: 20px; padding: 20px 15px; margin-top: 10px; box-shadow: 0 15px 35px rgba(0,0,0,.6); position: relative; overflow: hidden;">
       
-      <!-- لمعة الخلفية -->
-      <div style="position:absolute; top:-50px; right:-50px; width:150px; height:150px; background:rgba(251,191,36,.15); border-radius:50%; filter:blur(40px);"></div>
-
-      <!-- رأس البطاقة -->
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; position:relative; z-index:1;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
         <div style="text-align: right;">
-          <div style="font-size:55px; font-weight:900; color:#fbbf24; line-height:0.9; text-shadow: 0 5px 15px rgba(0,0,0,.5); font-family: 'Cairo', sans-serif;">${p.r}</div>
-          <div style="font-size:14px; font-weight:900; color:#fff; margin-top: 5px; letter-spacing: 1px;">${p.pos}</div>
+          <div style="font-size:45px; font-weight:900; color:#fbbf24; line-height:1;">${p.r}</div>
+          <div style="font-size:12px; font-weight:bold; color:#94a3b8; margin-top: 2px;">${p.pos}</div>
         </div>
-        
-        <div style="width: 70px; height: 70px; border-radius: 50%; background: rgba(255,255,255,.05); border: 2px solid rgba(255,255,255,.1); display: flex; align-items: center; justify-content: center; font-size: 35px; box-shadow: 0 5px 15px rgba(0,0,0,.3);">
-          👤
-        </div>
+        <div style="font-size:30px;">👤</div>
       </div>
       
-      <!-- اسم اللاعب -->
-      <div style="text-align:center; font-size:22px; font-weight:900; color:#fff; margin-top:15px; text-shadow: 0 3px 6px rgba(0,0,0,.8); position:relative; z-index:1;">${p.name}</div>
-      <div style="text-align:center; font-size:11px; color:#94a3b8; margin-top:5px; position:relative; z-index:1;">
+      <div style="text-align:center; font-size:20px; font-weight:900; color:#fff; margin-top:10px;">${p.name}</div>
+      <div style="text-align:center; font-size:11px; color:#94a3b8; margin-top:2px;">
         ${team.name} • ${p.age} سنة • ${mo}
       </div>
       
-      <!-- فاصل -->
-      <div style="height: 1px; background: linear-gradient(90deg, transparent, rgba(251,191,36,.3), transparent); margin: 15px 0;"></div>
+      <div style="height: 1px; background: rgba(251,191,36,.3); margin: 12px 0;"></div>
 
-      <!-- السمات -->
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; position:relative; z-index:1;">
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.05);">
-          <span style="font-size:11px; color:#94a3b8; font-weight:bold;">⚡ سرعة</span>
-          <b style="color:#fff; font-size:15px;">${p.pace}</b>
+      <!-- إحصائيات اللاعب بشكل منظم ومنفصل عن الأرقام -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px;">
+          <span style="font-size:11px; color:#94a3b8;">⚡ سرعة</span>
+          <b style="color:#fff; font-size:14px;">${p.pace}</b>
         </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.05);">
-          <span style="font-size:11px; color:#94a3b8; font-weight:bold;">🎯 تسديد</span>
-          <b style="color:#fff; font-size:15px;">${p.shooting}</b>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px;">
+          <span style="font-size:11px; color:#94a3b8;">🎯 تسديد</span>
+          <b style="color:#fff; font-size:14px;">${p.shooting}</b>
         </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.05);">
-          <span style="font-size:11px; color:#94a3b8; font-weight:bold;">🎨 تمرير</span>
-          <b style="color:#fff; font-size:15px;">${p.passing}</b>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px;">
+          <span style="font-size:11px; color:#94a3b8;">🎨 تمرير</span>
+          <b style="color:#fff; font-size:14px;">${p.passing}</b>
         </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.05);">
-          <span style="font-size:11px; color:#94a3b8; font-weight:bold;">🏃 مراوغة</span>
-          <b style="color:#fff; font-size:15px;">${p.dribbling}</b>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px;">
+          <span style="font-size:11px; color:#94a3b8;">🏃 مراوغة</span>
+          <b style="color:#fff; font-size:14px;">${p.dribbling}</b>
         </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.05);">
-          <span style="font-size:11px; color:#94a3b8; font-weight:bold;">🛡️ دفاع</span>
-          <b style="color:#fff; font-size:15px;">${p.defending}</b>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px;">
+          <span style="font-size:11px; color:#94a3b8;">🛡️ دفاع</span>
+          <b style="color:#fff; font-size:14px;">${p.defending}</b>
         </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.05);">
-          <span style="font-size:11px; color:#94a3b8; font-weight:bold;">💪 بدنية</span>
-          <b style="color:#fff; font-size:15px;">${p.physical}</b>
-        </div>
-      </div>
-      
-      <!-- شريط تقدم الخبرة (XP) -->
-      <div style="margin-top:15px; position:relative; z-index:1;">
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;margin-bottom:4px;">
-          <span>⭐ تقدم المستوى (XP)</span>
-          <b style="color:${maxed ? '#22c55e' : '#60a5fa'};">${xpText}</b>
-        </div>
-        <div style="height:8px;background:rgba(0,0,0,.5);border-radius:4px;overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,.5);">
-          <div style="width:${xpPct}%;height:100%;background:${maxed ? '#22c55e' : 'linear-gradient(90deg,#3b82f6,#22d3ee)'};border-radius:4px;transition:width .5s;box-shadow:0 0 10px ${maxed ? 'rgba(34,197,94,.6)' : 'rgba(34,211,238,.6)'};"></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px;">
+          <span style="font-size:11px; color:#94a3b8;">💪 بدنية</span>
+          <b style="color:#fff; font-size:14px;">${p.physical}</b>
         </div>
       </div>
 
-      <!-- القيمة السوقية -->
-      <div style="text-align:center; font-size:14px; font-weight:900; color:#fbbf24; background:rgba(251,191,36,.1); padding:12px; border-radius:10px; margin-top:15px; border:1px dashed rgba(251,191,36,.4); position:relative; z-index:1;">
+      <div style="text-align:center; font-size:13px; font-weight:900; color:#fbbf24; background:rgba(251,191,36,.1); padding:10px; border-radius:8px; margin-top:12px;">
         💰 القيمة السوقية: ${p.value}M
       </div>
       
     </div>
     
-    <!-- الأزرار -->
-    <div style="display:flex; gap:10px; margin-top:20px;">
-      ${isO ? `<button class="b a full" style="flex:2; padding:14px;" onclick="makeOffer('${p.id}','${teamId}')">💰 عرض شراء</button>` : ''}
-      <button class="b ${isO?'':'full'}" style="background:#334155; color:#fff; flex:1; padding:14px;" onclick="$('cm').hidden=true">إغلاق</button>
+    <div style="display:flex; gap:10px; margin-top:15px;">
+      ${isO ? `<button class="b a full" style="flex:2; padding:12px;" onclick="makeOffer('${p.id}','${teamId}')">💰 عرض شراء</button>` : ''}
+      <button class="b ${isO?'':'full'}" style="background:#334155; color:#fff; flex:1; padding:12px;" onclick="$('cm').hidden=true">إغلاق</button>
     </div>
   </div>`;
   $('cm').hidden = false;
 }
+
 
 function makeOffer(pid, tid){
   if(!checkTransferWindow()) return alert('نافذة مغلقة!');

@@ -1310,3 +1310,79 @@ function prev(t){
     <small style="color:var(--m)">(${nm.home?'ملعبك 🏟️':'خارج ✈️'})</small>
   </div>`;
 }
+// ============================================
+// تبويب سوق الانتقالات
+// ============================================
+function trH(t){
+  const me = T[G.my];
+  const isWindowOpen = checkTransferWindow();
+  const surplus = [];
+  
+  Object.values(T).forEach(team => {
+    if(team.id === G.my) return;
+    const b11 = autoFillLineup(team, team.form);
+    team.ps.forEach(p => {
+      if(!b11.includes(p.id) && !p.susp && !p.injury && p.r >= 70) surplus.push({p, team});
+    });
+  });
+  
+  surplus.sort((a,b) => b.p.r - a.p.r);
+  const mine = [...t.ps].sort((a,b) => b.r - a.r);
+  
+  let winMsg = isWindowOpen 
+    ? `<div style="background:rgba(74,222,128,.2);border:1px solid #4ade80;border-radius:10px;padding:8px;text-align:center;font-size:11px;color:#4ade80;margin-bottom:8px">✅ نافذة الانتقالات مفتوحة</div>`
+    : `<div style="background:rgba(248,113,113,.2);border:1px solid #f87171;border-radius:10px;padding:8px;text-align:center;font-size:11px;color:#f87171;margin-bottom:8px">❌ النافذة مغلقة (1-60، 140-175)</div>`;
+    
+  let totalSal = 0;
+  t.ps.forEach(p => totalSal += (p.contract?.salary || 0));
+  
+  return winMsg + `
+    <div class="c" style="text-align:center;border:1px solid rgba(251,191,36,.4);padding:10px">
+      <div style="font-size:10px;color:var(--m)">ميزانيتك</div>
+      <div style="color:var(--gold);font-size:20px;font-weight:900;text-shadow:0 0 15px rgba(251,191,36,.5)">${t.budget.toFixed(1)}M</div>
+      <div style="font-size:9px;color:var(--m)">${t.ps.length}/25 • رواتب ${totalSal.toFixed(2)}M/مباراة</div>
+    </div>
+    
+    ${G.legendsMarket && G.legendsMarket.length ? `
+      <div class="sec" style="color:#fbbf24">🌟 سوق الأساطير</div>
+      <div style="max-height:150px;overflow:auto;background:linear-gradient(135deg,rgba(120,53,15,.4),rgba(41,37,36,.6));border-radius:10px;padding:6px;margin-bottom:8px;border:2px solid var(--gold)">
+        ${G.legendsMarket.map(p => `
+          <div class="pl legend" onclick="${isWindowOpen ? `showLegendCard('${p.id}')` : ''}" style="cursor:${isWindowOpen ? 'pointer' : 'not-allowed'};${!isWindowOpen ? 'opacity:0.5' : ''}">
+            <span>🌟</span>
+            <span style="flex:1;font-size:11px">${p.name}</span>
+            <span style="color:var(--gold);font-weight:900;font-size:10px">⭐${p.r}</span>
+            <span style="color:#fbbf24;font-size:10px">${p.value}M</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : `<div class="c" style="text-align:center;font-size:10px;color:var(--m);padding:8px;border:1px dashed var(--gold)">🌟 سوق الأساطير بعد كل 4 جولات</div>`}
+    
+    <div class="sec">🛒 السوق (${surplus.length})</div>
+    <div style="max-height:200px;overflow:auto;background:rgba(15,34,56,.5);border-radius:10px;padding:6px;margin-bottom:8px;border:1px solid rgba(251,191,36,.2)">
+      ${surplus.length === 0 
+        ? '<div style="text-align:center;color:var(--m);padding:10px;font-size:10px">لا لاعبون</div>' 
+        : surplus.slice(0, 40).map(x => `
+          <div class="pl" style="cursor:${isWindowOpen ? 'pointer' : 'not-allowed'};${!isWindowOpen ? 'opacity:0.5' : ''}" onclick="${isWindowOpen ? `showCard('${x.p.id}','${x.team.id}')` : ''}">
+            <span style="flex:1;font-size:11px">${x.p.name}</span>
+            <span style="font-size:9px;color:var(--m)">${x.p.pos}</span>
+            <span style="color:var(--gold);font-size:10px">⭐${x.p.r}</span>
+            <span style="color:#4ade80;font-weight:700;font-size:10px">${x.p.value}M</span>
+          </div>
+        `).join('')}
+    </div>
+    
+    <div class="sec">📤 لاعبوك</div>
+    <div style="max-height:200px;overflow:auto;background:rgba(15,34,56,.5);border-radius:10px;padding:6px;border:1px solid rgba(251,191,36,.2)">
+      ${mine.map(p => `
+        <div class="pl">
+          <span style="flex:1;cursor:pointer;font-size:11px" onclick="showCard('${p.id}')">${p.injury ? '🚑 ' : ''}${p.name}</span>
+          <span style="color:#c4b5fd;font-size:9px">L${p.lvl}</span>
+          <span style="font-size:9px;color:var(--m)">${p.pos}</span>
+          <span style="color:var(--gold);font-size:10px">⭐${p.r}</span>
+          <span style="color:#4ade80;font-size:10px">${p.value}M</span>
+          <button class="b a sm" style="padding:3px 8px;font-size:9px;opacity:${isWindowOpen ? 1 : .4}" ${isWindowOpen ? `onclick="event.stopPropagation();sellPlayer('${p.id}')"` : 'disabled'}>بيع</button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}

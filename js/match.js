@@ -336,33 +336,32 @@ function skip(){
 
   try {
     cancelAnimationFrame(raf);
-    Mt.done = true;
+    // إحصائية سريعة وبسيطة بدلاً من الحلقة المعقدة التي قد تسبب تجمد
+    const hp = Mt.teamPower('home');
+    const ap = Mt.teamPower('away');
     const currentMin = Math.floor(Mt.min);
     const remainingMin = Math.max(0, 90 - currentMin);
     
-    const hp = Mt.teamPower('home');
-    const ap = Mt.teamPower('away');
+    const homeGoalChance = hp * 0.015 * remainingMin;
+    const awayGoalChance = ap * 0.015 * remainingMin;
     
-    for(let i=0; i<remainingMin; i++){
-      const m = currentMin + i;
-      if(R() < hp * 0.015 && Mt.s.home.on.length > 0){
-        const p = Mt.s.home.on[Math.floor(R()*Mt.s.home.on.length)];
-        if(p) { p.goals = (p.goals||0)+1; Mt.s.home.g++; Mt.say(m, 'goal', `⚽ هدف لـ ${Mt.s.home.t.name} عن طريق ${p.name}!`); }
-      }
-      if(R() < ap * 0.015 && Mt.s.away.on.length > 0){
-        const p = Mt.s.away.on[Math.floor(R()*Mt.s.away.on.length)];
-        if(p) { p.goals = (p.goals||0)+1; Mt.s.away.g++; Mt.say(m, 'goal', `⚽ هدف لـ ${Mt.s.away.t.name} عن طريق ${p.name}!`); }
-      }
+    if(R() < homeGoalChance) { 
+        Mt.s.home.g++; 
+        Mt.say(90, 'goal', `⚽ هدف متأخر لـ ${Mt.s.home.t.name}`); 
+    }
+    if(R() < awayGoalChance) { 
+        Mt.s.away.g++; 
+        Mt.say(90, 'goal', `⚽ هدف متأخر لـ ${Mt.s.away.t.name}`); 
     }
     
     Mt.min = 90 + Mt.inj2;
+    Mt.done = true;
     Mt.say(90, 'info', '🏁 نهاية المباراة');
     
-    ui();
-    draw();
     finish();
   } catch(e) {
     console.error('Skip Error:', e);
+    Mt.done = true;
     finish();
   }
 }
@@ -412,6 +411,9 @@ function syncMatchStats(m){
 }
 
 function finish(){
+  // إخفاء شاشة الملعب فوراً لمنع تجمد الشاشة
+  $('ms').hidden = true;
+
   try{
     cancelAnimationFrame(raf);
     if(Mt.fin) return;
@@ -433,14 +435,13 @@ function finish(){
       showPenaltyModal(pr, Mt.h.name, Mt.a.name);
     }
 
-    // 💥 الحل الجذري: إزالة المباراة من التقويم نهائياً بدلاً من تعليمها فقط
     if(nm){ 
       nm.played = true; 
       nm.result = {myGoals:mg, oppGoals:og, won:rW, draw:rD, penalty:pr}; 
       if(G.season && G.season.userCalendar) {
           G.season.userCalendar = G.season.userCalendar.filter(m => m !== nm);
       }
-      save(); // 💾 حفظ فوري لمنع أي تكرار
+      save(); 
     }
 
     const myT = Mt.s[Mt.hu].t;
@@ -448,7 +449,7 @@ function finish(){
     const cn = {league:'الدوري', cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
 
     if(nm && nm.comp === 'league' && Mt){
-      rec(Mt.h, Mt.a, s.home.g, s.away.g);
+      try { rec(Mt.h, Mt.a, s.home.g, s.away.g); } catch(e){}
       const lf = G.season.leagueFixtures[nm.round];
       if(lf){ const k = `${Mt.h.id}_${Mt.a.id}`; if(!lf.played.includes(k)) lf.played.push(k); }
     }
@@ -480,7 +481,8 @@ function finish(){
       }
     }
 
-    if(Mt) syncMatchStats(Mt);
+    try { if(Mt) syncMatchStats(Mt); } catch(e) { console.error('sync err', e); }
+    
     updateMorale(myT, rW ? 'win' : (rD ? 'draw' : 'loss'));
     updateMorale(oppT, rW ? 'loss' : (rD ? 'draw' : 'win'));
     updateContractMorale(myT);
@@ -545,9 +547,12 @@ function finish(){
     if(pr){ $('rpen').style.display = 'block'; $('rpen').innerHTML = `🥅 ترجيح: ${pr.scoreA}-${pr.scoreB}`; } 
     else $('rpen').style.display = 'none';
     $('rlu').innerHTML = (Array.isArray(pendingLvl) && pendingLvl.length) ? pendingLvl.map(l => `<div>${l}</div>`).join('') : '';
-    $('rs').hidden = false;
+    $('rs').hidden = false; // إظهار النتيجة
   } catch(e){
     console.error('finish err:', e); 
+    // في حال حدوث خطأ كارثي، نغلق الشاشات ونعود للرئيسية
+    $('ms').hidden = true;
+    $('rs').hidden = true;
     try {
       const nm = (Mt && Mt.calendarItem) ? Mt.calendarItem : getNextUserMatch();
       if(nm){ 
@@ -558,7 +563,6 @@ function finish(){
           save(); 
       }
     } catch(err){}
-    $('rs').hidden = true;
     if(typeof dash === 'function') dash();
   }
 }

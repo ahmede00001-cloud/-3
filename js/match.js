@@ -1,5 +1,5 @@
 // ============================================
-// match.js - واجهة المباراة (نظام المهمات - معدل لضمان عدم التكرار)
+// match.js - واجهة المباراة (نسخة نهائية تمنع التكرار)
 // ============================================
 
 function playTournamentMatch() { G.forcedMatchComp = 'tournament'; play(); }
@@ -12,8 +12,10 @@ function play(){
   const nm = getNextUserMatch(G.forcedMatchComp || null);
   if(!nm) return alert('لا مباراة!');
   
-  // حماية إضافية: إذا كانت المباراة ملعوبة بالخطأ، تجاوزها فوراً
+  // حماية: إذا كانت المباراة ملعوبة بالخطأ، احذفها فوراً
   if(nm.played) {
+      G.season.userCalendar = G.season.userCalendar.filter(m => m !== nm);
+      save();
       if(typeof nxt === 'function') return nxt();
   }
 
@@ -55,6 +57,9 @@ function play(){
     compName: cn[nm.comp] || nm.comp,
     weather: w
   });
+
+  // ✅ ربط المباراة الحالية بالكائن لضمان عدم ضياعها
+  Mt.matchData = nm;
 
   $('mh').textContent = Mt.h.name;
   $('ma').textContent = Mt.a.name;
@@ -498,7 +503,8 @@ function finish(){
     if(Mt.fin) return;
     Mt.fin = 1;
 
-    const nm = getNextUserMatch(G.forcedMatchComp || null);
+    // ✅ استخدام matchData لضمان تعديل المباراة الصحيحة
+    const nm = Mt.matchData || getNextUserMatch(G.forcedMatchComp || null);
     const s = Mt.s;
     const mg = s[Mt.hu].g;
     const og = s[Mt.hu==='home' ? 'away' : 'home'].g;
@@ -508,6 +514,9 @@ function finish(){
 
     if(nm){
       nm.played = true;
+      // ✅ الحل الجذري: حذف المباراة من التقويم فوراً
+      G.season.userCalendar = G.season.userCalendar.filter(m => m !== nm);
+      
       let rW = mg > og, rD = mg === og;
       const isKO = ['cup','cafCL','cafCC','super','cafSuper','clubWC'].includes(nm.comp);
       let pr = null;
@@ -523,7 +532,7 @@ function finish(){
 
       nm.result = {myGoals:mg, oppGoals:og, won:rW, draw:rD, penalty:pr};
 
-      // ✅ الإصلاح الجذري: حفظ اللعبة فوراً هنا قبل أي عملية أخرى!
+      // حفظ اللعبة فوراً هنا قبل أي عملية أخرى!
       save(); 
 
       // تسجيل الدوري
@@ -664,7 +673,7 @@ function finish(){
       }
     } catch(e){ console.error('Manager XP error:', e); }
 
-    save(); // حفظ إضافي لضمان تحديث الميزانية والإحصائيات
+    save();
 
     let rW = mg > og, rD = mg === og;
     const rsIcon = rW ? '🏆' : rD ? '🤝' : '😞';
@@ -692,11 +701,10 @@ function finish(){
 
   } catch(e){
     console.error('Fatal finish error:', e);
-    // ✅ شبكة أمان: إذا حدث أي خطأ، نعتبر المباراة ملعوبة ونحفظها حتى لا تعلق اللعبة
-    const nm = getNextUserMatch(G.forcedMatchComp || null);
+    const nm = Mt.matchData || getNextUserMatch(G.forcedMatchComp || null);
     if(nm) {
         nm.played = true;
-        nm.result = {myGoals:0, oppGoals:0, won:false, draw:true}; // نتيجة وهمية لتخطي المباراة
+        G.season.userCalendar = G.season.userCalendar.filter(m => m !== nm);
     }
     G.forcedMatchComp = null;
     save();

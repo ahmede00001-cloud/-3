@@ -341,16 +341,13 @@ function doSub(){ if(Mt.sub(Mt.hu, $('so').value, $('si').value)) $('sm').hidden
 
 function skip(){
   if(!Mt || Mt.done) return;
-  // تم إزالة نافذة التأكيد لتجنب التعليق
   try {
-    // 1. إخفاء شاشة الملعب فوراً وبقوة
     const msEl = $('ms');
     msEl.hidden = true;
     msEl.style.display = 'none';
 
     cancelAnimationFrame(raf);
     
-    // 2. حساب سريع
     const hp = Mt.teamPower('home');
     const ap = Mt.teamPower('away');
     const currentMin = Math.floor(Mt.min);
@@ -369,11 +366,10 @@ function skip(){
     Mt.done = true;
     Mt.say(90, 'info', '🏁 نهاية المباراة');
     
-    // 3. عرض النتيجة
     finish();
   } catch(e) {
     console.error('Skip Error:', e);
-    $('ms').style.display = 'none'; // إخفاء إجباري في حالة حدوث خطأ
+    $('ms').style.display = 'none';
     Mt.done = true;
     finish();
   }
@@ -424,7 +420,6 @@ function syncMatchStats(m){
 }
 
 function finish(){
-  // ✅ إخفاء شاشة الملعب فوراً وبقوة
   const msEl = $('ms');
   if(msEl) {
       msEl.hidden = true;
@@ -440,7 +435,12 @@ function finish(){
     const mg = s[Mt.hu].g;
     const og = s[Mt.hu==='home' ? 'away' : 'home'].g;
     
-    const nm = (Mt && Mt.calendarItem) ? Mt.calendarItem : getNextUserMatch();
+    // ✅ الحل الأكيد: سحب واستبعاد المباراة الحالية تماماً من جدول الترتيب والتقويم لمنع تكرارها
+    let nm = (Mt && Mt.calendarItem) ? Mt.calendarItem : null;
+    if(!nm && G && G.season && G.season.userCalendar){
+      nm = G.season.userCalendar.find(m => !m.played);
+    }
+
     let rW = mg > og, rD = mg === og;
     const isKO = ['cup','cafCL','cafCC','super','cafSuper','clubWC'].includes(nm?.comp);
     let pr = null;
@@ -565,25 +565,23 @@ function finish(){
     else $('rpen').style.display = 'none';
     $('rlu').innerHTML = (Array.isArray(pendingLvl) && pendingLvl.length) ? pendingLvl.map(l => `<div>${l}</div>`).join('') : '';
     
-    // ✅ إظهار شاشة النتيجة بقوة
     const rsEl = $('rs');
     rsEl.hidden = false;
     rsEl.style.display = 'flex';
 
   } catch(e){
     console.error('finish err:', e); 
-    // في حال حدوث خطأ كارثي، نغلق الشاشات ونعود للرئيسية
     const msEl = $('ms'); if(msEl) { msEl.hidden = true; msEl.style.display = 'none'; }
     const rsEl = $('rs'); if(rsEl) { rsEl.hidden = true; rsEl.style.display = 'none'; }
     
     try {
-      const nm = (Mt && Mt.calendarItem) ? Mt.calendarItem : getNextUserMatch();
-      if(nm){ 
-          nm.played = true; 
-          if(G.season && G.season.userCalendar) {
-              G.season.userCalendar = G.season.userCalendar.filter(m => m !== nm);
-          }
-          save(); 
+      if(G && G.season && G.season.userCalendar){
+        const nm = G.season.userCalendar.find(m => !m.played);
+        if(nm){ 
+            nm.played = true; 
+            G.season.userCalendar = G.season.userCalendar.filter(m => m !== nm);
+            save(); 
+        }
       }
     } catch(err){}
     if(typeof dash === 'function') dash();

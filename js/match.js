@@ -1,5 +1,5 @@
 // ============================================
-// match.js - واجهة المباراة
+// match.js - واجهة المباراة (يستأنف الوقت تلقائياً بعد المباراة)
 // ============================================
 
 function playTournamentMatch() { G.forcedMatchComp = 'tournament'; play(); }
@@ -12,6 +12,9 @@ function play(){
   const nm = getNextUserMatch(G.forcedMatchComp || null);
   if(!nm) return alert('لا مباراة!');
   if(daysUntilMatch(nm) > 0) return alert(`بعد ${daysUntilMatch(nm)} يوم!`);
+
+  // إيقاف مؤقت لمحرك الوقت أثناء المباراة
+  if(G) G.timePaused = true;
 
   const hm = nm.home;
   const oid = nm.opp;
@@ -676,12 +679,24 @@ function finish(){
     $('rlu').innerHTML = (Array.isArray(pendingLvl) && pendingLvl.length) ? pendingLvl.map(l => `<div>${l}</div>`).join('') : '';
     $('rs').hidden = false;
 
+    // إعادة ضبط فلتر البطولة حتى لا يؤثر على المباريات القادمة
+    G.forcedMatchComp = null;
+
+    // استئناف محرك الوقت (سيتوقف تلقائياً إن كانت هناك مباراة أخرى اليوم)
+    if(typeof resumeTimeIfNeeded === 'function') {
+      setTimeout(() => resumeTimeIfNeeded(), 300);
+    }
+
   } catch(e){
     console.error('Fatal finish error:', e);
     const nm = getNextUserMatch(G.forcedMatchComp || null);
     if(nm) nm.played = true;
+    G.forcedMatchComp = null;
     save();
     $('rs').hidden = false;
+    if(typeof resumeTimeIfNeeded === 'function') {
+      setTimeout(() => resumeTimeIfNeeded(), 300);
+    }
   }
 }
 

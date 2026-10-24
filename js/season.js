@@ -1,10 +1,14 @@
 // ============================================
-// season.js - النسخة النهائية (تحديث جذري لمنع تكرار المباريات)
+// season.js - المنطق الأساسي (النسخة الكاملة)
 // ============================================
 
-function mk(){
+function mk(leagueId = 'egypt'){
   T = {};
-  D.slice(0, 18).forEach(([id, name, Rt, c1, c2, s], i) => {
+  const leagueData = (typeof LEAGUES !== 'undefined' && LEAGUES[leagueId]) 
+                     ? LEAGUES[leagueId].teams 
+                     : LEAGUES['egypt'].teams;
+
+  leagueData.forEach(([id, name, Rt, c1, c2, s], i) => {
     const ps = [];
     s.split('|').forEach((g, gi) => {
       g.split(' ').forEach((nm, j) => {
@@ -228,24 +232,16 @@ function generateSeason(myId, prev){
   return s;
 }
 
-// ✅ تحديث جذري: شبكة أمان تمنع تكرار أي مباراة تم لعبها حتى لو لم يتم حفظها بشكل صحيح
 function getNextUserMatch(filterComp){
   if(!G.season || !G.season.userCalendar) return null;
+  G.season.userCalendar.forEach(m => { if(m.result) m.played = true; });
   
-  // 1. إجبار أي مباراة لها نتيجة مسجلة على أنها "تم لعبها"
-  G.season.userCalendar.forEach(m => {
-    if(m.result) m.played = true;
-  });
-
-  // 2. فلترة المباريات التي لم تُلعب
   let matches = G.season.userCalendar.filter(m => !m.played);
-  
   if (filterComp === 'league') {
     matches = matches.filter(m => m.comp === 'league');
   } else if (filterComp === 'tournament') {
     matches = matches.filter(m => m.comp !== 'league');
   }
-  
   return matches[0] || null;
 }
 
@@ -1026,6 +1022,9 @@ function simulateCurrentRound(filterComp) {
     }
 
     nm.played = true;
+    // ✅ إزالة المباراة من التقويم
+    G.season.userCalendar = G.season.userCalendar.filter(m => m !== nm);
+    
     const myT = T[G.my];
     const oppT = T[nm.opp] || createVirtualTeam(nm.opp, nm.opp, 75);
     const myR = myT.R + (nm.home ? 2 : 0);
@@ -1135,13 +1134,16 @@ function nxt(){
       } else {
         G.season.currentDay = Math.max(G.season.currentDay, nextMatch.day);
       }
+
       advanceCupBracket();
       if(G.season.cafCL) advanceCafComp('cafCL');
       if(G.season.cafCC) advanceCafComp('cafCC');
       if(G.season.clubWC) advanceClubWC();
+
       simulateLivingWorld();
       save();
       dash();
+      
       if(G.pendingOffer) setTimeout(() => showOffer(), 300);
     }
 

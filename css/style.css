@@ -62,7 +62,14 @@ tr.clickable:active{background:rgba(251,191,36,.1)}
 .li.card{background:linear-gradient(90deg,rgba(234,179,8,.3),rgba(234,179,8,.1));border-right:3px solid #eab308}
 .li.var{background:linear-gradient(90deg,rgba(168,85,247,.3),rgba(168,85,247,.1));border-right:3px solid #a855f7;font-weight:900}
 .li.injury{background:linear-gradient(90deg,rgba(239,68,68,.3),rgba(239,68,68,.1));border-right:3px solid #ef4444}
+
+/* ========================================= */
+/* إصلاح انكماش النوافذ المنبثقة (Modals) */
+/* ========================================= */
 .md{position:fixed;inset:0;background:rgba(3,7,18,.92);backdrop-filter:blur(12px);z-index:1000;display:flex;align-items:flex-end;justify-content:center;padding:0;overflow:hidden}
+#cmc{width:100%;display:flex;justify-content:center;align-items:flex-end;pointer-events:none;}
+#cmc > div{pointer-events:auto;width:100%;display:flex;justify-content:center;}
+
 .mc{background:linear-gradient(180deg,#0f2238,#06101e);border:1px solid rgba(251,191,36,.3);border-radius:28px 28px 0 0;padding:32px 18px calc(28px + env(safe-area-inset-bottom));width:100%;max-width:480px;text-align:center;display:flex;flex-direction:column;gap:12px;max-height:92vh;overflow-y:auto;box-shadow:0 -20px 60px rgba(0,0,0,.8);animation:sheetUp .35s cubic-bezier(.34,1.56,.64,1);position:relative}
 .mc::before{content:'';position:absolute;top:8px;left:50%;transform:translateX(-50%);width:50px;height:5px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);border-radius:3px}
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
@@ -150,8 +157,18 @@ input:focus,select:focus{border-color:#fbbf24;box-shadow:0 0 0 3px rgba(251,191,
 .sp-row{display:flex;gap:6px;margin-bottom:6px}
 .sp-opt{flex:1;padding:8px;border-radius:8px;background:rgba(15,34,56,.8);border:1px solid rgba(255,255,255,.1);font-size:10px;text-align:center;cursor:pointer;color:#fff;font-weight:700;transition:all .15s}
 .sp-opt.on{background:linear-gradient(180deg,#fbbf24,#d97706);color:#000;border-color:var(--gold);font-weight:900}
-.sponsor-card{background:linear-gradient(135deg,rgba(15,34,56,.9),rgba(30,64,175,.8));border:2px solid #60a5fa;border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer;text-align:right;transition:all .2s}
-.sponsor-card:active{transform:scale(.97);border-color:var(--gold)}
+
+/* ========================================= */
+/* إصلاح بطاقات الرعاية (التي كانت منكمشة) */
+/* ========================================= */
+.sponsor-card{background:linear-gradient(135deg,rgba(15,34,56,.9),rgba(30,64,175,.8));border:2px solid #60a5fa;border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer;text-align:right;transition:all .2s;width:100%;box-sizing:border-box;}
+.sponsor-card>div:first-child{display:flex;justify-content:space-between;align-items:center;width:100%;}
+.sponsor-card>div:first-child>div:first-child{display:flex;align-items:center;gap:10px;flex:1;min-width:0;}
+.sponsor-card>div:first-child>div:first-child>div:nth-child(2){min-width:0;text-align:right;}
+.sponsor-card .s-name{font-size:16px;font-weight:900;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sponsor-card .s-sub{font-size:10px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sponsor-card>div:first-child>div:last-child{text-align:left;flex-shrink:0;}
+
 .profile-header{display:flex;align-items:center;gap:14px;padding:18px;background:linear-gradient(135deg,rgba(30,41,59,.9),rgba(15,23,42,.9));border-radius:16px;border:2px solid var(--gold);margin-bottom:12px}
 .profile-avatar{width:70px;height:70px;border-radius:50%;background:linear-gradient(135deg,#fbbf24,#d97706);display:flex;align-items:center;justify-content:center;font-size:34px;border:3px solid #fff}
 .info-box{background:linear-gradient(135deg,rgba(251,191,36,.15),rgba(217,119,6,.08));border:1px solid rgba(251,191,36,.4);border-radius:10px;padding:8px 12px;font-size:10px;line-height:1.5;margin:6px 0;color:#fef3c7}
@@ -234,182 +251,31 @@ input:focus,select:focus{border-color:#fbbf24;box-shadow:0 0 0 3px rgba(251,191,
 /* ========================================= */
 /* إضافات للتجاوب مع شاشات الكمبيوتر (Desktop) */
 /* ========================================= */
-
 @media (min-width: 768px) {
-  /* 1. تغيير الخلفية الخارجية لتبدو احترافية */
-  body {
-    background: #020617;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    overflow: hidden;
-  }
-
-  /* 2. توسيط التطبيق وإعطائه عرض مناسب لشاشة الكمبيوتر */
-  #app {
-    max-width: 1000px;
-    height: 95vh;
-    border-radius: 20px;
-    box-shadow: 0 0 60px rgba(59, 130, 246, 0.2), inset 0 0 20px rgba(0,0,0,0.5);
-    border: 1px solid rgba(251, 191, 36, 0.2);
-  }
-  
-  /* إخفاء الهيدر القديم لأن الناف بار سيقوم بالمهمة */
-  header {
-    display: none;
-  }
-  
-  /* 3. تحويل الشريط السفلي إلى شريط علوي أنيق */
-  .bottom-nav {
-    position: sticky;
-    top: 0;
-    bottom: auto;
-    height: 64px;
-    width: 100%;
-    max-width: 100%;
-    border-radius: 20px 20px 0 0;
-    border-bottom: 2px solid rgba(251, 191, 36, 0.4);
-    border-top: none;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-    padding: 0;
-    margin-bottom: 10px;
-  }
-
-  .nav-item {
-    flex-direction: row;
-    gap: 10px;
-    font-size: 14px;
-    padding: 15px 25px;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-  }
-  
-  .nav-item span {
-    font-size: 18px;
-  }
-
-  .nav-item:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--gold);
-  }
-
-  .nav-item.on {
-    background: rgba(251, 191, 36, 0.15);
-    border-bottom: 3px solid var(--gold);
-  }
-
-  /* 4. عرض العناصر في أعمدة متعددة (بدلاً من عمودين للموبايل) */
-  .g2 {
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
-    gap: 15px;
-  }
-
-  /* 5. تكبير الملعب (التشكيلة) وتوسيطه */
-  .pitch-wrapper {
-    max-width: 650px;
-    margin: 0 auto 15px auto;
-    border-radius: 20px;
-  }
-
-  /* 6. تحسين شكل النوافذ المنبثقة (Modals) لتكون في المنتصف */
-  .md {
-    align-items: center;
-    padding: 20px;
-  }
-  
-  .mc {
-    max-width: 650px;
-    width: 100%;
-    border-radius: 24px;
-    padding: 30px;
-    border: 1px solid rgba(251, 191, 36, 0.4);
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
-  }
-  
-  .mc::before {
-    display: none; /* إخفاء خط السحب من الأعلى */
-  }
-
-  .mc-close {
-    top: 20px;
-    left: 20px;
-  }
-
-  /* 7. توسيط شاشة المباراة وتكبيرها */
-  #ms {
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-  }
-  
-  #ms > div {
-    width: 100%;
-    max-width: 900px;
-    border-radius: 20px;
-    margin: 0;
-    border: 1px solid rgba(251, 191, 36, 0.3);
-    box-shadow: 0 0 40px rgba(0,0,0,0.8);
-    overflow: hidden;
-  }
-  
-  #pc {
-    border-radius: 0;
-  }
-
-  /* 8. إضافة تأثيرات الماوس (Hover) لجميع الأزرار والبطاقات */
-  .b:hover, 
-  .team-select-card:hover, 
-  .pl:hover, 
-  .card:hover,
-  .role-card:hover,
-  .sponsor-card:hover,
-  .chip:hover:not(.on),
-  .tl:hover,
-  .press-option:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(251, 191, 36, 0.25);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    filter: brightness(1.1);
-  }
-
-  .b:active, .tl:active {
-    transform: translateY(1px);
-  }
-
-  .p-token {
-    width: 46px;
-    height: 46px;
-    font-size: 12px;
-  }
-  .p-token:hover {
-    transform: translate(-50%, -50%) scale(1.1);
-    box-shadow: 0 0 20px rgba(251, 191, 36, 0.8);
-    z-index: 20;
-  }
-  
-  .p-name-label {
-    font-size: 10px;
-    bottom: -18px;
-  }
-
-  /* 9. تخصيص شكل شريط التمرير ليكون أنيقاً */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  
-  ::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.2);
-  }
-  
-  ::-webkit-scrollbar-thumb {
-    background: rgba(251, 191, 36, 0.5);
-    border-radius: 4px;
-  }
-  
-  ::-webkit-scrollbar-thumb:hover {
-    background: #fbbf24;
-  }
+  body { background: #020617; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+  #app { max-width: 1000px; height: 95vh; border-radius: 20px; box-shadow: 0 0 60px rgba(59, 130, 246, 0.2), inset 0 0 20px rgba(0,0,0,0.5); border: 1px solid rgba(251, 191, 36, 0.2); }
+  header { display: none; }
+  .bottom-nav { position: sticky; top: 0; bottom: auto; height: 64px; width: 100%; max-width: 100%; border-radius: 20px 20px 0 0; border-bottom: 2px solid rgba(251, 191, 36, 0.4); border-top: none; box-shadow: 0 4px 20px rgba(0,0,0,0.5); padding: 0; margin-bottom: 10px; }
+  .nav-item { flex-direction: row; gap: 10px; font-size: 14px; padding: 15px 25px; border-radius: 8px; transition: all 0.2s ease; }
+  .nav-item span { font-size: 18px; }
+  .nav-item:hover { background: rgba(255, 255, 255, 0.08); color: var(--gold); }
+  .nav-item.on { background: rgba(251, 191, 36, 0.15); border-bottom: 3px solid var(--gold); }
+  .g2 { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important; gap: 15px; }
+  .pitch-wrapper { max-width: 650px; margin: 0 auto 15px auto; border-radius: 20px; }
+  .md { align-items: center; padding: 20px; }
+  .mc { max-width: 650px; width: 100%; border-radius: 24px; padding: 30px; border: 1px solid rgba(251, 191, 36, 0.4); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8); }
+  .mc::before { display: none; }
+  .mc-close { top: 20px; left: 20px; }
+  #ms { align-items: center; justify-content: center; padding: 20px; }
+  #ms > div { width: 100%; max-width: 900px; border-radius: 20px; margin: 0; border: 1px solid rgba(251, 191, 36, 0.3); box-shadow: 0 0 40px rgba(0,0,0,0.8); overflow: hidden; }
+  #pc { border-radius: 0; }
+  .b:hover, .team-select-card:hover, .pl:hover, .card:hover, .role-card:hover, .sponsor-card:hover, .chip:hover:not(.on), .tl:hover, .press-option:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(251, 191, 36, 0.25); cursor: pointer; transition: all 0.2s ease; filter: brightness(1.1); }
+  .b:active, .tl:active { transform: translateY(1px); }
+  .p-token { width: 46px; height: 46px; font-size: 12px; }
+  .p-token:hover { transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 0 20px rgba(251, 191, 36, 0.8); z-index: 20; }
+  .p-name-label { font-size: 10px; bottom: -18px; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+  ::-webkit-scrollbar-thumb { background: rgba(251, 191, 36, 0.5); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #fbbf24; }
 }

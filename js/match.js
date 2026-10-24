@@ -660,7 +660,13 @@ function showPenaltyModal(r, hN, aN){
 
 function closePenaltyModal(){ $('pen-m').hidden = true; }
 
-// ✅ نضمن إن الدوال متاحة للـ onclick في الـ HTML
-['play','skip','pz','spd','subm','doSub','mtac','finish','closePenaltyModal'].forEach(n => {
-  try { window[n] = eval(n); } catch(e) { console.error('export failed:', n, e); }
-});
+// ✅ التصدير الصحيح: ربط الدوال مباشرة بـ window لضمان عمل onclick في الـ HTML
+window.play = play;
+window.skip = skip;
+window.pz = pz;
+window.spd = spd;
+window.subm = subm;
+window.doSub = doSub;
+window.mtac = mtac;
+window.finish = finish;
+window.closePenaltyModal = closePenaltyModal;

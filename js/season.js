@@ -890,14 +890,42 @@ function resolveSuperCups(){
   }
 }
 
+// ✅ الدالة المعدلة لحل مشكلة التعليق وتكرار المباريات
 function nxt(){
   try{
-    $('rs').hidden = true; $('ms').hidden = true; pendingLvl = []; Mt = null;
+    $('rs').hidden = true; $('ms').hidden = true; pendingLvl = []; 
+    
+    // 1. إجبار إنهاء المباراة الحالية إذا كانت عالقة
+    if (typeof Mt !== 'undefined' && Mt !== null) {
+        const currentMatch = G.season.userCalendar.find(m => !m.played);
+        if (currentMatch) {
+            currentMatch.played = true;
+            if(!currentMatch.result) {
+                const mg = Mt.s && Mt.s[Mt.hu] ? Mt.s[Mt.hu].g : 0;
+                const og = Mt.s && Mt.s[Mt.hu === 'home' ? 'away' : 'home'] ? Mt.s[Mt.hu === 'home' ? 'away' : 'home'].g : 0;
+                currentMatch.result = {myGoals: mg, oppGoals: og, won: mg > og, draw: mg === og};
+            }
+        }
+        Mt.fin = 1;
+        Mt = null;
+    }
+
     checkLegendsMarket(); checkPlayerOfMonth(); resolveSuperCups();
-    if(G.season.currentDay >= 360 || !getNextUserMatch()){ endSeason(); return; }
+    
+    // 2. البحث عن المباراة التالية
     const nm = getNextUserMatch();
-    if(nm) advanceToDay(nm.day);
+    if(!nm || G.season.currentDay >= 360){ endSeason(); return; }
+    
+    // 3. تقديم التاريخ لليوم التالي إذا لزم الأمر
+    if(nm.day > G.season.currentDay) {
+        advanceToDay(nm.day);
+    }
+    
     simulateLivingWorld(); save(); dash();
     if(G.pendingOffer) setTimeout(() => showOffer(), 300);
-  } catch(e){ console.error('nxt err:', e); alert('خطأ: '+e.message); }
+  } catch(e){ 
+    console.error('nxt err:', e); 
+    alert('حدث خطأ أثناء الانتقال لليوم التالي: ' + e.message); 
+    save();
+  }
 }

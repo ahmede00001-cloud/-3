@@ -1,5 +1,5 @@
 // ============================================
-// season.js - نظام المهمات المتسلسلة (بدون نظام وقت)
+// season.js - نظام المهمات + محرك الوقت المبني على الأحداث
 // ============================================
 
 function mk(){
@@ -1099,6 +1099,9 @@ function simulateCurrentRound(filterComp) {
     dash();
 }
 
+// ============================================
+// دالة الانتقال للمهمة التالية (محرك الوقت السريع)
+// ============================================
 function nxt(){
   try{
     $('rs').hidden = true;
@@ -1111,29 +1114,36 @@ function nxt(){
       Mt = null;
     }
 
-    // محاكاة أيام الدوري للوصول لليوم التالي مباشرة
+    // جلب المباراة القادمة
     const nextMatch = getNextUserMatch();
     if(!nextMatch || G.season.currentDay >= 360){
       endSeason();
       return;
     }
 
-    if(nextMatch.day > G.season.currentDay){
-      advanceToDay(nextMatch.day);
+    // بدء محرك الوقت السريع للوصول إلى يوم المباراة (سيتم استدعاء dash() في نهاية المحرك)
+    if(typeof startFastForward === 'function'){
+      startFastForward(nextMatch.day);
     } else {
-      G.season.currentDay = Math.max(G.season.currentDay, nextMatch.day);
+      // خطة بديلة في حال عدم تحميل ui.js بشكل صحيح
+      if(nextMatch.day > G.season.currentDay){
+        advanceToDay(nextMatch.day);
+      } else {
+        G.season.currentDay = Math.max(G.season.currentDay, nextMatch.day);
+      }
+
+      advanceCupBracket();
+      if(G.season.cafCL) advanceCafComp('cafCL');
+      if(G.season.cafCC) advanceCafComp('cafCC');
+      if(G.season.clubWC) advanceClubWC();
+
+      simulateLivingWorld();
+      save();
+      dash();
+      
+      if(G.pendingOffer) setTimeout(() => showOffer(), 300);
     }
 
-    advanceCupBracket();
-    if(G.season.cafCL) advanceCafComp('cafCL');
-    if(G.season.cafCC) advanceCafComp('cafCC');
-    if(G.season.clubWC) advanceClubWC();
-
-    simulateLivingWorld();
-    save();
-    dash();
-
-    if(G.pendingOffer) setTimeout(() => showOffer(), 300);
   } catch(e){
     console.error('nxt err:', e);
     alert('حدث خطأ: ' + e.message);

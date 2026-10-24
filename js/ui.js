@@ -268,6 +268,9 @@ function tbH(){
   </div>`;
 }
 
+// ============================================
+// شاشة البطولات (تم تحديثها لعرض التفاصيل)
+// ============================================
 function compH(){
   const t = T[G.my], s = G.season, st = tbl();
   const myPos = st.findIndex(x => x.id === G.my)+1;
@@ -282,10 +285,12 @@ function compH(){
   const projColor = projCL ? '#4ade80' : projCC ? '#60a5fa' : '#f87171';
 
   let h = `<div class="c"><div class="sec">🌳 خريطة البطولات والتأهل</div>`;
-  h += `<div style="background:linear-gradient(135deg,rgba(30,58,138,.6),rgba(15,34,56,.9));border:1px solid rgba(251,191,36,.4);border-radius:10px;padding:8px;margin-bottom:6px">
+  
+  // 🏆 الدوري المصري
+  h += `<div onclick="showTournamentDetails('league')" style="cursor:pointer;background:linear-gradient(135deg,rgba(30,58,138,.6),rgba(15,34,56,.9));border:1px solid rgba(251,191,36,.4);border-radius:10px;padding:8px;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <b style="color:#fbbf24;font-size:11px">🏆 الدوري المصري</b>
-      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">ج ${leagueRound}/${totalRounds} • مركزك ${myPos}</span>
+      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">ج ${leagueRound}/${totalRounds} • مركزك ${myPos} • 👆 التفاصيل</span>
     </div>
     <div style="font-size:9px;color:#e5e7eb;line-height:1.6;padding-right:8px;border-right:2px solid rgba(251,191,36,.3)">
       <div>🥇 1-2 ← <b style="color:#4ade80">🌍 أبطال أفريقيا</b></div>
@@ -293,44 +298,55 @@ function compH(){
       <div>👑 الفائز ← <b style="color:#fbbf24">⚡ السوبر المصري</b></div>
     </div>
   </div>`;
-  h += `<div style="background:linear-gradient(135deg,rgba(30,58,138,.6),rgba(15,34,56,.9));border:1px solid rgba(251,191,36,.4);border-radius:10px;padding:8px;margin-bottom:6px">
+  
+  // 🥇 كأس مصر
+  h += `<div onclick="showTournamentDetails('cup')" style="cursor:pointer;background:linear-gradient(135deg,rgba(30,58,138,.6),rgba(15,34,56,.9));border:1px solid rgba(251,191,36,.4);border-radius:10px;padding:8px;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <b style="color:#fbbf24;font-size:11px">🥇 كأس مصر</b>
-      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">${cupW ? '🏆 '+tName(cupW) : '⏳ جارية'}</span>
+      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">${cupW ? '🏆 '+tName(cupW) : '⏳ جارية'} • 👆 التفاصيل</span>
     </div>
     <div style="font-size:9px;color:#e5e7eb;line-height:1.6;padding-right:8px;border-right:2px solid rgba(251,191,36,.3)">
       <div>🏆 الفائز ← <b style="color:#60a5fa">🌍 الكونفدرالية</b></div>
       <div>👑 الفائز ← <b style="color:#fbbf24">⚡ السوبر المصري</b></div>
     </div>
   </div>`;
+  
   h += `<div style="text-align:center;font-size:10px;color:var(--m);margin:2px 0">↓</div>`;
-  h += `<div style="background:linear-gradient(135deg,rgba(34,211,238,.15),rgba(15,34,56,.9));border:1px solid rgba(34,211,238,.4);border-radius:10px;padding:8px;margin-bottom:6px">
+  
+  // ⚡ السوبر المصري
+  h += `<div onclick="showTournamentDetails('super')" style="cursor:pointer;background:linear-gradient(135deg,rgba(34,211,238,.15),rgba(15,34,56,.9));border:1px solid rgba(34,211,238,.4);border-radius:10px;padding:8px;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <b style="color:#22d3ee;font-size:11px">⚡ السوبر المصري</b>
-      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">${supW ? '🏆 '+tName(supW) : '⏳'}</span>
+      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">${supW ? '🏆 '+tName(supW) : '⏳'} • 👆 التفاصيل</span>
     </div>
     <div style="font-size:9px;color:#e5e7eb;margin-top:4px">بطل الدوري × بطل الكأس</div>
   </div>`;
+  
   h += `<div style="text-align:center;font-size:10px;color:var(--m);margin:2px 0">↓</div>`;
-  h += `<div style="background:linear-gradient(135deg,rgba(168,85,247,.2),rgba(15,34,56,.9));border:1px solid rgba(168,85,247,.4);border-radius:10px;padding:8px;margin-bottom:6px">
+  
+  // 🌍 أبطال أفريقيا
+  h += `<div onclick="showTournamentDetails('cafCL')" style="cursor:pointer;background:linear-gradient(135deg,rgba(168,85,247,.2),rgba(15,34,56,.9));border:1px solid rgba(168,85,247,.4);border-radius:10px;padding:8px;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <b style="color:#a855f7;font-size:11px">🌍 أبطال أفريقيا</b>
-      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">${clW ? '🏆 '+tName(clW) : s.cafCL ? '⏳ جارية' : '❌ لم تتأهل'}</span>
+      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">${clW ? '🏆 '+tName(clW) : s.cafCL ? '⏳ جارية' : '❌ لم تتأهل'} • 👆 التفاصيل</span>
     </div>
     <div style="font-size:9px;color:#e5e7eb;line-height:1.6;padding-right:8px;border-right:2px solid rgba(168,85,247,.3)">
       <div>🏆 الفائز ← <b style="color:#fbbf24">⚡ السوبر الأفريقي</b></div>
       <div>🌐 الفائز ← <b style="color:#22d3ee">كأس العالم للأندية</b></div>
     </div>
   </div>`;
-  h += `<div style="background:linear-gradient(135deg,rgba(96,165,250,.2),rgba(15,34,56,.9));border:1px solid rgba(96,165,250,.4);border-radius:10px;padding:8px;margin-bottom:6px">
+  
+  // 🌍 كأس الكونفدرالية
+  h += `<div onclick="showTournamentDetails('cafCC')" style="cursor:pointer;background:linear-gradient(135deg,rgba(96,165,250,.2),rgba(15,34,56,.9));border:1px solid rgba(96,165,250,.4);border-radius:10px;padding:8px;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <b style="color:#60a5fa;font-size:11px">🌍 كأس الكونفدرالية</b>
-      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">${ccW ? '🏆 '+tName(ccW) : s.cafCC ? '⏳ جارية' : '❌ لم تتأهل'}</span>
+      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">${ccW ? '🏆 '+tName(ccW) : s.cafCC ? '⏳ جارية' : '❌ لم تتأهل'} • 👆 التفاصيل</span>
     </div>
     <div style="font-size:9px;color:#e5e7eb;line-height:1.6;padding-right:8px;border-right:2px solid rgba(96,165,250,.3)">
       <div>🏆 الفائز ← <b style="color:#fbbf24">⚡ السوبر الأفريقي</b></div>
     </div>
   </div>`;
+  
   h += `</div>`;
 
   h += `<div class="c" style="border:2px solid ${projColor}">

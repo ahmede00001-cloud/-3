@@ -1,5 +1,5 @@
 // ============================================
-// season.js - النسخة النهائية (محرك الوقت + القضاء على توقف المباريات)
+// season.js - النسخة النهائية (تحديث جذري لمنع تكرار المباريات)
 // ============================================
 
 function mk(){
@@ -228,14 +228,24 @@ function generateSeason(myId, prev){
   return s;
 }
 
+// ✅ تحديث جذري: شبكة أمان تمنع تكرار أي مباراة تم لعبها حتى لو لم يتم حفظها بشكل صحيح
 function getNextUserMatch(filterComp){
   if(!G.season || !G.season.userCalendar) return null;
+  
+  // 1. إجبار أي مباراة لها نتيجة مسجلة على أنها "تم لعبها"
+  G.season.userCalendar.forEach(m => {
+    if(m.result) m.played = true;
+  });
+
+  // 2. فلترة المباريات التي لم تُلعب
   let matches = G.season.userCalendar.filter(m => !m.played);
+  
   if (filterComp === 'league') {
     matches = matches.filter(m => m.comp === 'league');
   } else if (filterComp === 'tournament') {
     matches = matches.filter(m => m.comp !== 'league');
   }
+  
   return matches[0] || null;
 }
 
@@ -1099,9 +1109,6 @@ function simulateCurrentRound(filterComp) {
     dash();
 }
 
-// ============================================
-// دالة الانتقال للمهمة التالية (محرك الوقت السريع)
-// ============================================
 function nxt(){
   try{
     $('rs').hidden = true;
@@ -1123,22 +1130,18 @@ function nxt(){
     if(typeof startFastForward === 'function'){
       startFastForward(nextMatch.day);
     } else {
-      // خطة بديلة في حال عدم تحميل ui.js بشكل صحيح
       if(nextMatch.day > G.season.currentDay){
         advanceToDay(nextMatch.day);
       } else {
         G.season.currentDay = Math.max(G.season.currentDay, nextMatch.day);
       }
-
       advanceCupBracket();
       if(G.season.cafCL) advanceCafComp('cafCL');
       if(G.season.cafCC) advanceCafComp('cafCC');
       if(G.season.clubWC) advanceClubWC();
-
       simulateLivingWorld();
       save();
       dash();
-      
       if(G.pendingOffer) setTimeout(() => showOffer(), 300);
     }
 

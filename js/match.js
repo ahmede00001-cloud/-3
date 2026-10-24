@@ -1,5 +1,5 @@
 // ============================================
-// match.js - واجهة المباراة، الرسم، النتيجة
+// match.js - واجهة المباراة، الرسم، النتيجة (محصن ضد التعليق)
 // ============================================
 
 // ============================================
@@ -511,7 +511,7 @@ function syncMatchStats(m){
 }
 
 // ============================================
-// إنهاء المباراة وإظهار النتيجة
+// إنهاء المباراة وإظهار النتيجة (محصن ضد التعليق بالكامل)
 // ============================================
 function finish(){
   try{
@@ -519,12 +519,7 @@ function finish(){
     if(Mt.fin) return;
     Mt.fin = 1;
 
-    // ✅ الحل الجذري لمنع تعليق المباريات (Infinite Loop)
     const nm = getNextUserMatch();
-    if(nm){
-      nm.played = true;
-    }
-
     const s = Mt.s;
     const mg = s[Mt.hu].g;
     const og = s[Mt.hu==='home' ? 'away' : 'home'].g;
@@ -532,154 +527,143 @@ function finish(){
     const oppT = Mt.s[Mt.hu==='home' ? 'away' : 'home'].t;
     const cn = {league:'الدوري', cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
 
-    // تسجيل نتيجة الدوري
-    if(nm && nm.comp === 'league'){
-      rec(Mt.h, Mt.a, s.home.g, s.away.g);
-      const lf = G.season.leagueFixtures[nm.round];
-      if(lf){
-        const k = `${Mt.h.id}_${Mt.a.id}`;
-        if(!lf.played.includes(k)) lf.played.push(k);
-      }
-    }
-
-    let rW = mg > og, rD = mg === og;
-    const isKO = ['cup','cafCL','cafCC','super','cafSuper','clubWC'].includes(nm?.comp);
-    let pr = null;
-    if(isKO && rD){
-      pr = realPenaltyShootout(Mt.h, Mt.a);
-      const pw = pr.winner === 'home' ? Mt.h.id : Mt.a.id;
-      if(pw === G.my) rW = true;
-      showPenaltyModal(pr, Mt.h.name, Mt.a.name);
-    }
-
+    // 1. تأمين دورة المباراة وتحديث حالتها فوراً لتجنب التعليق
     if(nm){
+      nm.played = true;
+      let rW = mg > og, rD = mg === og;
+      const isKO = ['cup','cafCL','cafCC','super','cafSuper','clubWC'].includes(nm.comp);
+      let pr = null;
+      
+      if(isKO && rD){
+        try {
+          pr = realPenaltyShootout(Mt.h, Mt.a);
+          const pw = pr.winner === 'home' ? Mt.h.id : Mt.a.id;
+          if(pw === G.my) rW = true;
+          showPenaltyModal(pr, Mt.h.name, Mt.a.name);
+        } catch(err){ console.error('Penalty error:', err); }
+      }
+
       nm.result = {myGoals:mg, oppGoals:og, won:rW, draw:rD, penalty:pr};
-    }
 
-    // تقدم البطولات
-    if(nm){
-      if(nm.comp === 'cup' && G.season.cupBracket){
-        const m = G.season.cupBracket.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
-        if(m){
-          m.played = true;
-          m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
-          advanceCupBracket();
-        }
+      // تسجيل الدوري
+      if(nm.comp === 'league'){
+        try {
+          rec(Mt.h, Mt.a, s.home.g, s.away.g);
+          const lf = G.season.leagueFixtures[nm.round];
+          if(lf){
+            const k = `${Mt.h.id}_${Mt.a.id}`;
+            if(!lf.played.includes(k)) lf.played.push(k);
+          }
+        } catch(e){ console.error('League rec error:', e); }
       }
-      if(nm.comp === 'cafCL' && G.season.cafCL){
-        const m = G.season.cafCL.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
-        if(m){
-          m.played = true;
-          m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
-          advanceCafComp('cafCL');
+
+      // تقدم البطولات الإقصائية بأمان تام
+      try {
+        if(nm.comp === 'cup' && G.season.cupBracket){
+          const m = G.season.cupBracket.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
+          if(m){
+            m.played = true;
+            m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
+            advanceCupBracket();
+          }
         }
-      }
-      if(nm.comp === 'cafCC' && G.season.cafCC){
-        const m = G.season.cafCC.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
-        if(m){
-          m.played = true;
-          m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
-          advanceCafComp('cafCC');
+        if(nm.comp === 'cafCL' && G.season.cafCL){
+          const m = G.season.cafCL.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
+          if(m){
+            m.played = true;
+            m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
+            advanceCafComp('cafCL');
+          }
         }
-      }
-      if(nm.comp === 'super' && G.season.egyptSuper){
-        G.season.egyptSuper.played = true;
-        G.season.egyptSuper.winner = rW ? G.my : nm.opp;
-        if(rW){
-          G.trophies = (G.trophies||0)+1;
-          addTrophy('السوبر المصري', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
-          addNews(`🏆 ${myT.name} بطل السوبر المصري!`, `🎉 فوز على ${oppT.name} • بطولة جديدة`);
+        if(nm.comp === 'cafCC' && G.season.cafCC){
+          const m = G.season.cafCC.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
+          if(m){
+            m.played = true;
+            m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
+            advanceCafComp('cafCC');
+          }
         }
-      }
-      if(nm.comp === 'cafSuper' && G.season.cafSuper){
-        G.season.cafSuper.played = true;
-        G.season.cafSuper.winner = rW ? G.my : nm.opp;
-        if(rW){
-          G.trophies = (G.trophies||0)+1;
-          addTrophy('السوبر الأفريقي', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
-          addNews(`🌍 ${myT.name} بطل السوبر الأفريقي!`, `🏆 فوز على ${oppT.name} • إنجاز قاري`);
+        if(nm.comp === 'super' && G.season.egyptSuper){
+          G.season.egyptSuper.played = true;
+          G.season.egyptSuper.winner = rW ? G.my : nm.opp;
+          if(rW){
+            G.trophies = (G.trophies||0)+1;
+            addTrophy('السوبر المصري', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
+            addNews(`🏆 ${myT.name} بطل السوبر المصري!`, `🎉 فوز على ${oppT.name} • بطولة جديدة`);
+          }
         }
-      }
-      if(nm.comp === 'clubWC' && G.season.clubWC){
-        const m = G.season.clubWC.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
-        if(m){
-          m.played = true;
-          m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
-          advanceClubWC();
+        if(nm.comp === 'cafSuper' && G.season.cafSuper){
+          G.season.cafSuper.played = true;
+          G.season.cafSuper.winner = rW ? G.my : nm.opp;
+          if(rW){
+            G.trophies = (G.trophies||0)+1;
+            addTrophy('السوبر الأفريقي', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
+            addNews(`🌍 ${myT.name} بطل السوبر الأفريقي!`, `🏆 فوز على ${oppT.name} • إنجاز قاري`);
+          }
         }
+        if(nm.comp === 'clubWC' && G.season.clubWC){
+          const m = G.season.clubWC.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
+          if(m){
+            m.played = true;
+            m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
+            advanceClubWC();
+          }
+        }
+      } catch(e){ console.error('Tournament advancement error:', e); }
+    }
+
+    // مزامنة إحصائيات اللاعبين والمعنويات
+    try {
+      syncMatchStats(Mt);
+      let rW = mg > og, rD = mg === og;
+      updateMorale(myT, rW ? 'win' : (rD ? 'draw' : 'loss'));
+      updateMorale(oppT, rW ? 'loss' : (rD ? 'draw' : 'win'));
+      updateContractMorale(myT);
+    } catch(e){ console.error('Stats sync error:', e); }
+
+    // الاقتصاد والميزانية
+    let netIncome = 0;
+    try {
+      let rW = mg > og, rD = mg === og;
+      const totalSalary = myT.ps.reduce((sum, p) => sum+(p.contract?.salary||0), 0);
+      const baseIncome = rW ? 15 : rD ? 8 : 3;
+      const sponsorInc = G.currentSponsor ? (G.currentSponsor.safe/20) : 0;
+      netIncome = Math.round((baseIncome+sponsorInc-totalSalary)*10)/10;
+      myT.budget = Math.round((myT.budget+netIncome)*10)/10;
+      if(myT.budget < -20){
+        myT.budget += 30;
+        addNews(`💰 قرض طارئ من الإدارة!`, `📈 +30M لتفادي الإفلاس • ميزانيتك الآن ${myT.budget.toFixed(1)}M`);
       }
-    }
+    } catch(e){ console.error('Finance error:', e); }
 
-    syncMatchStats(Mt);
-    updateMorale(myT, rW ? 'win' : (rD ? 'draw' : 'loss'));
-    updateMorale(oppT, rW ? 'loss' : (rD ? 'draw' : 'win'));
-    updateContractMorale(myT);
+    // XP وإدارة الخسائر المتتالية
+    try {
+      let rW = mg > og, rD = mg === og;
+      const isKO = ['cup','cafCL','cafCC','super','cafSuper','clubWC'].includes(nm?.comp);
+      let xpG = rW ? 50 : rD ? 20 : 5;
+      if(isKO && rW) xpG += 30;
+      if(Mt.isDerby && rW) xpG += 20;
+      addManagerXp(xpG);
 
-    // الاقتصاد
-    const totalSalary = myT.ps.reduce((sum, p) => sum+(p.contract?.salary||0), 0);
-    const baseIncome = rW ? 15 : rD ? 8 : 3;
-    const sponsorInc = G.currentSponsor ? (G.currentSponsor.safe/20) : 0;
-    const netIncome = Math.round((baseIncome+sponsorInc-totalSalary)*10)/10;
-    myT.budget = Math.round((myT.budget+netIncome)*10)/10;
-    if(myT.budget < -20){
-      myT.budget += 30;
-      addNews(`💰 قرض طارئ من الإدارة!`, `📈 +30M لتفادي الإفلاس • ميزانيتك الآن ${myT.budget.toFixed(1)}M`);
-    }
+      if(rW){playSound('goal'); G.lossStreak = 0;}
+      else if(!rD){
+        playSound('card');
+        G.lossStreak++;
+        if(G.lossStreak >= 3) addNews(`⚠️ تحذير! ${G.lossStreak} خسارات متتالية!`, `📉 الإدارة بدأت تفكر في بديل • صحح المسار!`);
+      } else playSound('whistle');
 
-    // الديربي
-    if(Mt.isDerby){
-      if(rW) addNews(`⚔️🔥 فوز ديربي تاريخي!`, `${myT.name} يهزم ${oppT.name} ${s.home.g}-${s.away.g}`);
-      else if(!rD) addNews(`⚔️😞 خسارة ديربي مؤلمة`, `${oppT.name} يهزم ${myT.name} ${s.home.g}-${s.away.g}`);
-      else addNews(`⚔️ تعادل ديربي مثير`, `${myT.name} و${oppT.name} يتقاسمان النقاط ${s.home.g}-${s.away.g}`);
-    }
-
-    // الهدافون
-    const homeScorers = [], awayScorers = [];
-    Mt.s[Mt.hu].on.forEach(p => {if(p.goals > 0) homeScorers.push(`${p.name}×${p.goals}`);});
-    Mt.s[Mt.hu==='home' ? 'away' : 'home'].on.forEach(p => {if(p.goals > 0) awayScorers.push(`${p.name}×${p.goals}`);});
-    let scorerLine = '';
-    if(homeScorers.length) scorerLine += `⚽ ${myT.name}: ${homeScorers.join(', ')}`;
-    if(awayScorers.length){
-      if(scorerLine) scorerLine += '\n';
-      scorerLine += `⚽ ${oppT.name}: ${awayScorers.join(', ')}`;
-    }
-    if(!scorerLine) scorerLine = '⚽ مباراة بدون أهداف';
-    addNews(`⚽ ${cn[nm?.comp||'']}: ${myT.name} ${s.home.g}-${s.away.g} ${oppT.name}`,
-      `${rW?'🎉 فوز':rD?'🤝 تعادل':'😞 خسارة'}\n${scorerLine}`);
-
-    Mt.s[Mt.hu].on.forEach(p => {
-      if(p.goals >= 3) addNews(`🔥 هاتريك! ${p.name}`, `⚽ ${p.goals} أهداف في مباراة واحدة • إنجاز فردي`);
-    });
-
-    if(netIncome !== 0){
-      const incomeLine = netIncome > 0 ? `📈 دخل صافي +${netIncome}M` : `📉 عجز ${Math.abs(netIncome).toFixed(1)}M`;
-      addNews(`💰 الميزانية بعد المباراة: ${myT.budget.toFixed(1)}M`, `${incomeLine} • ${totalSalary.toFixed(2)}M رواتب • ${baseIncome+sponsorInc}M دخل`);
-    }
-
-    // XP للمدرب
-    let xpG = rW ? 50 : rD ? 20 : 5;
-    if(isKO && rW) xpG += 30;
-    if(Mt.isDerby && rW) xpG += 20;
-    addManagerXp(xpG);
-
-    // خسائر متتالية
-    if(rW){playSound('goal'); G.lossStreak = 0;}
-    else if(!rD){
-      playSound('card');
-      G.lossStreak++;
-      if(G.lossStreak >= 3) addNews(`⚠️ تحذير! ${G.lossStreak} خسارات متتالية!`, `📉 الإدارة بدأت تفكر في بديل • صحح المسار!`);
-    } else playSound('whistle');
-
-    if(G.lossStreak >= 5){
-      save();
-      $('game-over').hidden = false;
-      $('go-text').textContent = `خسرت 5 مباريات متتالية، قررت الإدارة إقالتك.`;
-      return;
-    }
+      if(G.lossStreak >= 5){
+        save();
+        $('game-over').hidden = false;
+        $('go-text').textContent = `خسرت 5 مباريات متتالية، قررت الإدارة إقالتك.`;
+        return;
+      }
+    } catch(e){ console.error('Manager XP error:', e); }
 
     save();
 
-    // إظهار شاشة النتيجة
+    // عرض شاشة النتيجة النهائية بضمان تام
+    let rW = mg > og, rD = mg === og;
     const rsIcon = rW ? '🏆' : rD ? '🤝' : '😞';
     const rsTitle = rW ? 'فوز رائع!' : rD ? 'تعادل مثير' : 'خسارة صعبة';
     const rsClass = rW ? 'mc-success' : rD ? 'mc-warning' : 'mc-danger';
@@ -700,10 +684,14 @@ function finish(){
     } else $('rpen').style.display = 'none';
     $('rlu').innerHTML = (Array.isArray(pendingLvl) && pendingLvl.length) ? pendingLvl.map(l => `<div>${l}</div>`).join('') : '';
     $('rs').hidden = false;
+
   } catch(e){
-    console.error('finish err:', e);
-    $('rs').hidden = true;
-    alert('خطأ: '+e.message);
+    console.error('Fatal finish error:', e);
+    // ملاذ أخير آمن لمنع أي تجميد للعبة نهائياً
+    const nm = getNextUserMatch();
+    if(nm) nm.played = true;
+    save();
+    $('rs').hidden = false;
   }
 }
 

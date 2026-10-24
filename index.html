@@ -21,6 +21,26 @@
     <div class="app-logo">⚽ المدرب الأفضل <span style="font-size:9px;opacity:.6">v26</span></div>
     <div class="app-badge" id="header-badge">مصر</div>
   </header>
+  
+  <!-- شريط الوقت الجديد (Time Engine) -->
+  <div id="time-controls" style="display:flex; justify-content:space-between; padding:8px 12px; background:rgba(15,34,56,.95); border-bottom:1px solid rgba(251,191,36,.3); align-items:center; gap:10px; z-index:10;">
+    <div style="font-size:14px; font-weight:900; color:#fbbf24; min-width:70px; display:flex; align-items:center; gap:4px;">
+        📅 <span id="tb-day">1</span>
+    </div>
+    
+    <div style="flex:1; background:rgba(0,0,0,.6); height:22px; border-radius:11px; position:relative; overflow:hidden; border:1px solid #475569;">
+        <div id="tb-progress" style="position:absolute; top:0; left:0; height:100%; width:0%; background:linear-gradient(90deg,#3b82f6,#22d3ee); transition:width 0.3s linear;"></div>
+        <div style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; justify-content:center; align-items:center; font-size:12px; font-weight:900; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.8);">
+            ⏱️ <span id="tb-clock" style="direction:ltr;">00:00</span>
+        </div>
+    </div>
+
+    <div style="display:flex; gap:4px;">
+        <button class="b sm" id="tb-pause" style="padding:4px 8px; font-size:14px; width:32px; height:32px; border-radius:8px;" onclick="toggleTimeEngine()">⏸</button>
+        <button class="b sm" id="tb-speed" style="padding:4px 8px; font-size:12px; width:38px; height:32px; border-radius:8px; font-weight:900;" onclick="cycleTimeSpeed()">x1</button>
+    </div>
+  </div>
+
   <main id="main"></main>
   <nav class="bottom-nav" id="bottom-nav" hidden>
     <div class="nav-item" onclick="switchTab('lu')"><span>📋</span>التشكيلة</div>

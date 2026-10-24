@@ -55,10 +55,7 @@ const POS_WEIGHTS = {
   FWD: {shooting:.35, pace:.20, dribbling:.20, physical:.15, passing:.10, defending:.00}
 };
 
-// ============================================
-// قاعدة بيانات الدوريات (LEAGUES)
-// ============================================
-
+// قاعدة بيانات الدوريات
 const LEAGUES = {
   egypt: {
     name: '🇪🇬 الدوري المصري',
@@ -151,7 +148,6 @@ const LEAGUES = {
   }
 };
 
-// فرق القسم الثاني (تُستخدم في الكأس فقط)
 const DIV2 = ['اسماعيلي','حرس الحدود','الشرقية','بلدية المحلة','منتخب السويس','النساجون','دمنهور','طنطا','ألعاب دمنهور','الأوليمبي','نادي مصر','كوكاكولا'];
 
 const AFRICAN = [
@@ -162,14 +158,10 @@ const AFRICAN = [
 ];
 
 const WORLD = [
-  ['real_madrid','ريال مدريد',97,'#FFFFFF','#FEBE10'],
-  ['man_city','مانشستر سيتي',95,'#6CABDD','#FFFFFF'],
-  ['bayern','بايرن ميونخ',94,'#DC052D','#FFFFFF'],
-  ['psg','باريس سان جيرمان',93,'#004170','#DA291C'],
-  ['flamengo','فلامينجو',86,'#000000','#C52613'],
-  ['boca','بوكا جونيورز',84,'#0B1E3F','#F5BE11'],
-  ['hilal_sa','الهلال السعودي',86,'#0A6CB7','#FFFFFF'],
-  ['auckland','أوكلاند سيتي',65,'#1E40AF','#FFFFFF']
+  ['real_madrid','ريال مدريد',97,'#FFFFFF','#FEBE10'],['man_city','مانشستر سيتي',95,'#6CABDD','#FFFFFF'],
+  ['bayern','بايرن ميونخ',94,'#DC052D','#FFFFFF'],['psg','باريس سان جيرمان',93,'#004170','#DA291C'],
+  ['flamengo','فلامينجو',86,'#000000','#C52613'],['boca','بوكا جونيورز',84,'#0B1E3F','#F5BE11'],
+  ['hilal_sa','الهلال السعودي',86,'#0A6CB7','#FFFFFF'],['auckland','أوكلاند سيتي',65,'#1E40AF','#FFFFFF']
 ];
 
 const LEGEND_POOL = [
@@ -186,83 +178,53 @@ const LEGEND_POOL = [
 ];
 
 const INJURY_TYPES = [
-  {type:'كدمة خفيفة',matches:[1,2],emoji:'🤕'},
-  {type:'شد عضلي',matches:[2,4],emoji:'🩹'},
-  {type:'تمزق أربطة',matches:[4,8],emoji:'🚑'},
-  {type:'كسر في القدم',matches:[8,14],emoji:'🏥'}
+  {type:'كدمة خفيفة',matches:[1,2],emoji:'🤕'},{type:'شد عضلي',matches:[2,4],emoji:'🩹'},
+  {type:'تمزق أربطة',matches:[4,8],emoji:'🚑'},{type:'كسر في القدم',matches:[8,14],emoji:'🏥'}
 ];
 
 const DERBIES = [['ahly','zamalek'],['ahly','pyramids'],['zamalek','pyramids'],['masry','ittihad'],['man_city','man_united'],['liverpool','man_united'],['real_madrid','barcelona'],['hilal_sa','nassr']];
 
 const WEATHERS = [
-  {type:'مشمس',emoji:'☀️',accuracy:1.0,stamina:1.0},
-  {type:'غائم',emoji:'⛅',accuracy:0.97,stamina:1.0},
-  {type:'ممطر',emoji:'🌧️',accuracy:0.88,stamina:0.95},
-  {type:'حار',emoji:'🔥',accuracy:0.92,stamina:0.85}
+  {type:'مشمس',emoji:'☀️',accuracy:1.0,stamina:1.0},{type:'غائم',emoji:'⛅',accuracy:0.97,stamina:1.0},
+  {type:'ممطر',emoji:'🌧️',accuracy:0.88,stamina:0.95},{type:'حار',emoji:'🔥',accuracy:0.92,stamina:0.85}
 ];
 
 const PRESS_OPTIONS = [
-  {text:'سنقاتل حتى النهاية وسنفوز!',morale:5},
-  {text:'نحترم الخصم ونركز على أنفسنا',morale:0},
+  {text:'سنقاتل حتى النهاية وسنفوز!',morale:5},{text:'نحترم الخصم ونركز على أنفسنا',morale:0},
   {text:'الخصم أقوى منا بكثير...',morale:-4}
 ];
 
 const YOUTH_NAMES = ['أحمد صبري','محمد فتحي','كريم يوسف','عمر حسام','زياد سمير','يوسف طارق','مصطفى وليد','حسام الدين','سيف أشرف','طه إبراهيم','آدم جمال','نور الدين','مالك سامي','فيصل محمود'];
 
 const MGR_LEVELS = [
-  {xp:0,name:'مبتدئ',perk:'بداية المسيرة'},
-  {xp:100,name:'واعد',perk:'خصم 5%'},
-  {xp:300,name:'محترف',perk:'+10% XP'},
-  {xp:700,name:'خبير',perk:'+5% قوة'},
-  {xp:1200,name:'نخبة',perk:'خصم 10%'},
-  {xp:2000,name:'أسطورة',perk:'+15% XP'},
-  {xp:3200,name:'أسطورة خالدة',perk:'+10% قوة'},
-  {xp:5000,name:'خالد',perk:'معنويات +20'},
+  {xp:0,name:'مبتدئ',perk:'بداية المسيرة'},{xp:100,name:'واعد',perk:'خصم 5%'},
+  {xp:300,name:'محترف',perk:'+10% XP'},{xp:700,name:'خبير',perk:'+5% قوة'},
+  {xp:1200,name:'نخبة',perk:'خصم 10%'},{xp:2000,name:'أسطورة',perk:'+15% XP'},
+  {xp:3200,name:'أسطورة خالدة',perk:'+10% قوة'},{xp:5000,name:'خالد',perk:'معنويات +20'},
   {xp:8000,name:'إله الكرة',perk:'كل شيء مضاعف'}
 ];
 
 const SPONSORS = [
-  {name:'بيبسي',logo:'🥤',safe:60,bonus:'',type:'safe'},
-  {name:'نايكي',logo:'👟',safe:30,bonus:'+50M عند الفوز ببطولة',type:'medium'},
-  {name:'طيران الإمارات',logo:'✈️',safe:15,bonus:'+100M عند الفوز ببطولة',type:'risky'},
-  {name:'نايل سات',logo:'📡',safe:45,bonus:'+20M عند التأهل لأفريقيا',type:'medium'},
-  {name:'فودافون',logo:'📱',safe:70,bonus:'',type:'safe'},
-  {name:'أديداس',logo:'👕',safe:25,bonus:'+80M عند الفوز بالدوري',type:'risky'}
+  {name:'بيبسي',logo:'🥤',safe:60,bonus:'',type:'safe'},{name:'نايكي',logo:'👟',safe:30,bonus:'+50M عند الفوز ببطولة',type:'medium'},
+  {name:'طيران الإمارات',logo:'✈️',safe:15,bonus:'+100M عند الفوز ببطولة',type:'risky'},{name:'نايل سات',logo:'📡',safe:45,bonus:'+20M عند التأهل لأفريقيا',type:'medium'},
+  {name:'فودافون',logo:'📱',safe:70,bonus:'',type:'safe'},{name:'أديداس',logo:'👕',safe:25,bonus:'+80M عند الفوز بالدوري',type:'risky'}
 ];
 
 const NEWS_CATEGORIES = {
-  match:    {label:'مباريات', icon:'⚽', color:'#22c55e', bg:'rgba(34,197,94,.2)'},
-  transfer: {label:'انتقالات', icon:'💼', color:'#60a5fa', bg:'rgba(96,165,250,.2)'},
-  injury:   {label:'إصابات', icon:'🚑', color:'#ef4444', bg:'rgba(239,68,68,.2)'},
-  trophy:   {label:'بطولات', icon:'🏆', color:'#fbbf24', bg:'rgba(251,191,36,.2)'},
-  finance:  {label:'مالية', icon:'💰', color:'#10b981', bg:'rgba(16,185,129,.2)'},
-  contract: {label:'عقود', icon:'📋', color:'#a855f7', bg:'rgba(168,85,247,.2)'},
-  award:    {label:'جوائز', icon:'🎖️', color:'#f59e0b', bg:'rgba(245,158,11,.2)'},
-  tactical: {label:'تكتيك', icon:'🎯', color:'#06b6d4', bg:'rgba(6,182,212,.2)'},
-  general:  {label:'عام', icon:'📰', color:'#94a3b8', bg:'rgba(148,163,184,.2)'}
+  match: {label:'مباريات', icon:'⚽', color:'#22c55e', bg:'rgba(34,197,94,.2)'}, transfer: {label:'انتقالات', icon:'💼', color:'#60a5fa', bg:'rgba(96,165,250,.2)'},
+  injury: {label:'إصابات', icon:'🚑', color:'#ef4444', bg:'rgba(239,68,68,.2)'}, trophy: {label:'بطولات', icon:'🏆', color:'#fbbf24', bg:'rgba(251,191,36,.2)'},
+  finance: {label:'مالية', icon:'💰', color:'#10b981', bg:'rgba(16,185,129,.2)'}, contract: {label:'عقود', icon:'📋', color:'#a855f7', bg:'rgba(168,85,247,.2)'},
+  award: {label:'جوائز', icon:'🎖️', color:'#f59e0b', bg:'rgba(245,158,11,.2)'}, tactical: {label:'تكتيك', icon:'🎯', color:'#06b6d4', bg:'rgba(6,182,212,.2)'},
+  general: {label:'عام', icon:'📰', color:'#94a3b8', bg:'rgba(148,163,184,.2)'}
 };
 
-// مواعيد البطولات
 const CUP_DAYS = {R32:17, R16:49, QF:81, SF:113, F:145};
 const CAF_DAYS = {R16:90, QF:170, SF:230, F:290};
-const SUP_CUP_DAY = 310;
-const CAF_SUP_DAY = 330;
-const CLUB_WC_DAYS = {QF:340, SF:350, F:360};
-
-// إعدادات الدوري
-const SEASON_YEAR = 2026;
-const LEAGUE_START_DAY = 5;
-const LEAGUE_ROUND_INTERVAL = 4;
-
-// أبعاد الملعب
-const L = 105, WD = 68, GW = 7.32;
-const GKC = ['#f9a825','#2e7d32','#6a1b9a','#00acc1'];
-
-// ألوان الشخصيات
+const SUP_CUP_DAY = 310; const CAF_SUP_DAY = 330; const CLUB_WC_DAYS = {QF:340, SF:350, F:360};
+const SEASON_YEAR = 2026; const LEAGUE_START_DAY = 5; const LEAGUE_ROUND_INTERVAL = 4;
+const L = 105, WD = 68, GW = 7.32; const GKC = ['#f9a825','#2e7d32','#6a1b9a','#00acc1'];
 const SKN = ['#f1c27d','#e0ac69','#c68642','#d9a066','#8d5524','#ecbc8c','#b87a4b','#a0673a','#f0c8a0'];
 const HRC = ['#1a1209','#2b1b10','#3a2616','#111','#4a3320'];
-
-// قوالب التعليق
 const CMT = {
   pass: ['تمريرة دقيقة من {p}','{p} يمرر بذكاء','كرة جميلة من {p}','{p} يفتح اللعب'],
   shot: ['تسديدة من {p}!','{p} يهدد المرمى!','محاولة خطيرة من {p}!','{p} يسدد بقوة!'],

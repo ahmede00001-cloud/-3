@@ -1,5 +1,5 @@
 // ============================================
-// season.js - النسخة النهائية (فصل الدوري عن البطولات)
+// season.js - النسخة النهائية (فصل الدوري عن البطولات + محاكاة)
 // ============================================
 
 function mk(){
@@ -228,9 +228,6 @@ function generateSeason(myId, prev){
   return s;
 }
 
-// ============================================
-// دالة البحث عن المباريات (تم تعديلها للفلترة)
-// ============================================
 function getNextUserMatch(filterComp){
   if(!G.season || !G.season.userCalendar) return null;
   let matches = G.season.userCalendar.filter(m => !m.played);
@@ -295,9 +292,8 @@ function simulateAIUpToDay(td){
       if (um) {
           const pk = um[0] + '_' + um[1];
           if (!d.played.includes(pk)) {
-              if (d.day === td) {
-                  return;
-              } else {
+              if (d.day === td) return;
+              else {
                   const h = um[0], a = um[1];
                   const tH = T[h], tA = T[a];
                   if(tH && tA) {
@@ -337,7 +333,6 @@ function simulateAIUpToDay(td){
         const g2 = Math.max(0, Math.round(R()*1.8-df*.5));
         rec(tH, tA, g1, g2);
         d.played.push(pk);
-        
         d.results = d.results || {};
         d.results[pk] = [g1, g2];
       });
@@ -1013,7 +1008,7 @@ function resolveSuperCups(){
 }
 
 // ============================================
-// دالة محاكاة الجولة (تم تعديلها لتدعم الفصل)
+// دالة محاكاة الجولة (تدعم الفصل)
 // ============================================
 function simulateCurrentRound(filterComp) {
     const nm = getNextUserMatch(filterComp);
@@ -1112,7 +1107,7 @@ function nxt(){
     $('rs').hidden = true;
     $('ms').hidden = true;
     pendingLvl = [];
-    G.forcedMatchComp = null; // إعادة ضبط الفلتر
+    G.forcedMatchComp = null;
 
     if (typeof Mt !== 'undefined' && Mt !== null) {
       Mt.fin = 1;

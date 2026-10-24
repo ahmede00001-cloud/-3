@@ -1,5 +1,5 @@
 // ============================================
-// season.js - النسخة النهائية (عرض نتائج البطولات)
+// season.js - النسخة النهائية (عرض نتائج البطولات + محاكاة الجولة)
 // ============================================
 
 function mk(){
@@ -280,7 +280,15 @@ function applyTraining() {
 function simulateAIUpToDay(td){
   Object.entries(G.season.leagueFixtures).forEach(([rn, d]) => {
     if(d.day <= td && d.played.length < d.round.length){
+      // إصلاح: منع محاكاة مباريات الجولة الحالية إذا كانت مباراة المستخدم لم تُلعب بعد
       const um = d.round.find(m => m[0] === G.my || m[1] === G.my);
+      if (um) {
+          const pk = um[0] + '_' + um[1];
+          if (!d.played.includes(pk) && d.day === td) {
+              return; // انتظر حتى يلعب المستخدم
+          }
+      }
+
       d.round.forEach(([h,a]) => {
         if((h === G.my || a === G.my) && um) return;
         const pk = h+'_'+a;
@@ -1005,6 +1013,80 @@ function resolveSuperCups(){
   }
 }
 
+// ============================================
+// دالة محاكاة الجولة بالكامل (بما فيها مباراتك)
+// ============================================
+function simulateCurrentRound() {
+    const nm = getNextUserMatch();
+    if (!nm || nm.played) return;
+
+    // 1. محاكاة مباراة المستخدم
+    nm.played = true;
+    const myT = T[G.my];
+    const oppT = T[nm.opp] || createVirtualTeam(nm.opp, nm.opp, 75);
+    const myR = myT.R + (nm.home ? 2 : 0);
+    const oppR = oppT.R + (nm.home ? 0 : 2);
+    const df = (myR - oppR) / 15;
+    const mg = Math.max(0, Math.round(R()*1.5 + df*.4));
+    const og = Math.max(0, Math.round(R()*1.5 - df*.4));
+    nm.result = {myGoals:mg, oppGoals:og, won:mg>og, draw:mg===og};
+    
+    if(nm.comp === 'league'){
+        const d = G.season.leagueFixtures[nm.round];
+        const pk = nm.home ? `${G.my}_${nm.opp}` : `${nm.opp}_${G.my}`;
+        if(d && !d.played.includes(pk)){
+          d.played.push(pk);
+          d.results = d.results || {};
+          d.results[pk] = [nm.result.myGoals, nm.result.oppGoals];
+          const hT = nm.home ? myT : oppT;
+          const aT = nm.home ? oppT : myT;
+          const hG = nm.home ? nm.result.myGoals : nm.result.oppGoals;
+          const aG = nm.home ? nm.result.oppGoals : nm.result.myGoals;
+          rec(hT, aT, hG, aG);
+        }
+        
+        // 2. محاكاة باقي مباريات الذكاء الاصطناعي في هذه الجولة
+        d.round.forEach(([h,a]) => {
+            if(h === G.my || a === G.my) return;
+            const pk2 = h+'_'+a;
+            if(d.played.includes(pk2)) return;
+            const tH = T[h], tA = T[a];
+            if(!tH || !tA) return;
+            let p1 = tH.R, p2 = tA.R+2;
+            if(tH.tac === 'attack') p1 += 1; else if(tH.tac === 'defense') p1 += .5;
+            if(tA.tac === 'attack') p2 += 1; else if(tA.tac === 'defense') p2 += .5;
+            const df2 = (p1-p2)/15;
+            const g1 = Math.max(0, Math.round(R()*1.8+df2*.5));
+            const g2 = Math.max(0, Math.round(R()*1.8-df2*.5));
+            rec(tH, tA, g1, g2);
+            d.played.push(pk2);
+            d.results[pk2] = [g1, g2];
+            addNews(`📢 جولة ${nm.round}: ${tH.name} ${g1}-${g2} ${tA.name}`, `AI محاكاة`);
+        });
+    }
+
+    advanceCupBracket();
+    if(G.season.cafCL) advanceCafComp('cafCL');
+    if(G.season.cafCC) advanceCafComp('cafCC');
+    if(G.season.clubWC) advanceClubWC();
+    
+    checkLegendsMarket();
+    checkPlayerOfMonth();
+    resolveSuperCups();
+
+    const nextMatch = getNextUserMatch();
+    if(!nextMatch || G.season.currentDay >= 360){
+      endSeason();
+      return;
+    }
+    
+    G.season.currentDay = Math.max(G.season.currentDay, nextMatch.day);
+    
+    simulateLivingWorld();
+    save();
+    dash();
+}
+
 function nxt(){
   try{
     $('rs').hidden = true;
@@ -1112,9 +1194,6 @@ function nxt(){
   }
 }
 
-// ============================================
-// دالة عرض جدول ونتائج البطولات (تُستدعى عند الضغط على البطولة)
-// ============================================
 function showTournamentDetails(comp){
   let html = '';
   const cn = {league:'الدوري المصري', cup:'كأس مصر', cafCL:'دوري أبطال أفريقيا', cafCC:'كأس الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم للأندية'};

@@ -1,5 +1,107 @@
 // ============================================
-// ui.js - الشاشات والواجهة (محاكاة 60 ثانية + فصل البطولات)
+// ui.js - محرك الوقت + الواجهة (Football Manager Style)
+// ============================================
+
+// ============================================
+// محرك الوقت (Time Engine)
+// ============================================
+let timeInterval = null;
+
+function initTimeEngine() {
+  if(!G) return;
+  if(G.timeMinute === undefined) G.timeMinute = 0;
+  if(G.timeSpeed === undefined) G.timeSpeed = 1;
+  if(G.timePaused === undefined) G.timePaused = false;
+  
+  if(timeInterval) clearInterval(timeInterval);
+  timeInterval = setInterval(tickTime, 1000); // كل ثانية حقيقية
+  updateTimeBar();
+}
+
+function tickTime() {
+  if(!G || G.timePaused) return;
+  
+  // 1 ثانية = 10 دقائق داخل اللعبة
+  G.timeMinute += 10 * G.timeSpeed;
+  
+  // التحقق: هل هناك مباراة اليوم لم تُلعب؟
+  const todayMatches = G.season.userCalendar.filter(m => !m.played && m.day === G.season.currentDay);
+  
+  if(todayMatches.length > 0) {
+      // أوقف الوقت فوراً لأن هناك مباراة اليوم
+      G.timeMinute = 0;
+      G.timePaused = true;
+      updateTimeBar();
+      
+      // تحديث الشاشة لإظهار زر اللعب
+      if(G.tab === 'lu' || G.tab === 'comp') dash();
+      return;
+  }
+  
+  // التحقق: هل انتهى اليوم؟
+  if(G.timeMinute >= 1440) {
+      G.timeMinute = 0;
+      G.season.currentDay++;
+      
+      // محاكاة مباريات الذكاء الاصطناعي لهذا اليوم
+      advanceToDay(G.season.currentDay);
+      
+      // تحديث الشاشة
+      if(G.tab === 'lu' || G.tab === 'tb' || G.tab === 'comp') dash();
+  }
+  
+  updateTimeBar();
+}
+
+function updateTimeBar() {
+  if(!G || !document.getElementById('tb-day')) return;
+  
+  const dayEl = document.getElementById('tb-day');
+  const clockEl = document.getElementById('tb-clock');
+  const progressEl = document.getElementById('tb-progress');
+  const pauseBtn = document.getElementById('tb-pause');
+  const speedBtn = document.getElementById('tb-speed');
+  
+  if(!dayEl) return;
+
+  dayEl.textContent = G.season.currentDay;
+  
+  const hours = Math.floor(G.timeMinute / 60);
+  const mins = G.timeMinute % 60;
+  clockEl.textContent = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  
+  progressEl.style.width = ((G.timeMinute / 1440) * 100) + '%';
+  
+  if(pauseBtn) pauseBtn.innerHTML = G.timePaused ? '▶' : '⏸';
+  if(pauseBtn) pauseBtn.style.background = G.timePaused ? '#22c55e' : '';
+  
+  if(speedBtn) speedBtn.textContent = 'x' + G.timeSpeed;
+}
+
+function toggleTimeEngine() {
+  if(!G) return;
+  G.timePaused = !G.timePaused;
+  updateTimeBar();
+}
+
+function cycleTimeSpeed() {
+  if(!G) return;
+  const speeds = [1, 2, 5, 10];
+  const idx = speeds.indexOf(G.timeSpeed);
+  G.timeSpeed = speeds[(idx + 1) % speeds.length];
+  updateTimeBar();
+  save();
+}
+
+function resumeTimeIfNeeded() {
+  if(G) {
+    G.timePaused = false;
+    updateTimeBar();
+  }
+}
+
+// ============================================
+// الواجهة الأساسية
 // ============================================
 
 function switchTab(t){G.tab = t; dash();}
@@ -9,6 +111,9 @@ function dash(){
   const t = T[G.my];
   $('bottom-nav').hidden = false;
   $('header-badge').textContent = `يوم ${G.season.currentDay} • ${t.budget.toFixed(1)}M`;
+
+  // تحديث شريط الوقت في كل مرة يتم فيها رسم الشاشة
+  if(typeof updateTimeBar === 'function') updateTimeBar();
 
   document.querySelectorAll('.nav-item').forEach((el, idx) => {
     const tabs = ['lu','tb','comp','tr','cr','mgr','news'];
@@ -135,29 +240,31 @@ function luH(t){
   const hintsBox = hints.length ? `<div class="hints-container"><div class="hints-title">💡 اقتراحات ذكية</div>${hints.map(h => `<div class="hint-item"><span>${h.icon}</span><span style="color:${h.color}">${h.text}</span></span></div>`).join('')}</div>` : '';
 
   let pb = '';
-  if (absoluteNext && absoluteNext.comp !== 'league') {
-      const oppN = T[absoluteNext.opp]?.name || AFRICAN.find(a=>a[0]===absoluteNext.opp)?.[1] || absoluteNext.opp;
-      const cnT = {cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
-      pb = `<div style="background:rgba(251,191,36,.2); border:2px solid #fbbf24; padding:15px; border-radius:12px; text-align:center; margin-bottom:10px; box-shadow:0 0 15px rgba(251,191,36,.2)">
-          <div style="font-size:24px; margin-bottom:5px;">🏆</div>
-          <div style="font-weight:900; color:#fbbf24; font-size:16px; margin-bottom:5px;">${cnT[absoluteNext.comp] || absoluteNext.comp} • ${absoluteNext.round}</div>
-          <div style="font-size:14px; color:#fff; font-weight:bold; margin-bottom:10px;">${t.name} ${absoluteNext.home?'vs':'@'} ${oppN}</div>
-          <div style="font-size:11px; color:#cbd5e1; margin-bottom:12px;">يجب عليك لعبها من تبويب البطولات حتى لا تتأثر مباريات الدوري.</div>
-          <button class="b" style="background:#8b5cf6; border:none; padding:12px" onclick="switchTab('comp')">الذهاب للبطولات ⚽</button>
-      </div>`;
-  } else if (nmLeague) {
-      const cp = daysUntilMatch(nmLeague) <= 0;
-      if (cp) {
-          const df = isDerby(G.my, nmLeague.opp) ? '⚔️ ديربي! ' : ''; 
+  if (absoluteNext && absoluteNext.day === G.season.currentDay) {
+      // إذا حان موعد المباراة اليوم
+      if (absoluteNext.comp !== 'league') {
+          const oppN = T[absoluteNext.opp]?.name || AFRICAN.find(a=>a[0]===absoluteNext.opp)?.[1] || absoluteNext.opp;
+          const cnT = {cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
+          pb = `<div style="background:rgba(251,191,36,.2); border:2px solid #fbbf24; padding:15px; border-radius:12px; text-align:center; margin-bottom:10px; box-shadow:0 0 15px rgba(251,191,36,.2)">
+              <div style="font-size:24px; margin-bottom:5px;">🏆</div>
+              <div style="font-weight:900; color:#fbbf24; font-size:16px; margin-bottom:5px;">${cnT[absoluteNext.comp] || absoluteNext.comp} • ${absoluteNext.round}</div>
+              <div style="font-size:14px; color:#fff; font-weight:bold; margin-bottom:10px;">${t.name} ${absoluteNext.home?'vs':'@'} ${oppN}</div>
+              <button class="b" style="background:#8b5cf6; border:none; padding:12px" onclick="switchTab('comp')">الذهاب للبطولات ⚽</button>
+          </div>`;
+      } else {
+          const df = isDerby(G.my, absoluteNext.opp) ? '⚔️ ديربي! ' : ''; 
           pb = `<div style="display:flex;gap:6px;margin-bottom:8px">
             <button class="b g" style="flex:2;padding:14px;font-size:14px" onclick="playLeagueMatch()">${df}▶️ العب المباراة</button>
             <button class="b" style="flex:1;padding:14px;font-size:12px;background:#8b5cf6;color:#fff;border:none;border-radius:8px;font-weight:bold" onclick="startSimulationWithTimer('league')">⏩ محاكاة</button>
           </div>`; 
-      } else {
-          pb = `<button class="b a" style="width:100%;margin-bottom:8px;padding:12px;font-size:12px" onclick="advanceToNextMatch('league')">⏭️ تقدّم (${daysUntilMatch(nmLeague)} يوم)</button>`; 
       }
   } else {
-      pb = `<button class="b" style="width:100%;margin-bottom:8px;padding:12px;font-size:12px;background:#475569;color:#fff" onclick="endSeason()">🏁 انهاء الموسم</button>`;
+      // إذا لم يحن الوقت بعد، إخفاء زر اللعب
+      pb = `<div style="background:rgba(15,34,56,.8); border:1px solid #475569; padding:15px; border-radius:12px; text-align:center; margin-bottom:10px;">
+          <div style="font-size:20px; margin-bottom:5px;">⏳</div>
+          <div style="font-weight:900; color:#94a3b8; font-size:14px; margin-bottom:5px;">لا توجد مباراة اليوم</div>
+          <div style="font-size:11px; color:#cbd5e1;">سيستمر الوقت بالمرور حتى يحين موعد المباراة القادمة.</div>
+      </div>`;
   }
 
   let matchCard = '';
@@ -306,10 +413,8 @@ function compH(){
 
   const nextTourn = getNextUserMatch('tournament');
   let tournActionHTML = '';
-  if (nextTourn) {
+  if (nextTourn && nextTourn.day === G.season.currentDay) {
       const oppName = T[nextTourn.opp]?.name || AFRICAN.find(a=>a[0]===nextTourn.opp)?.[1] || WORLD.find(w=>w[0]===nextTourn.opp)?.[1] || nextTourn.opp;
-      const daysLeft = daysUntilMatch(nextTourn);
-      const cp = daysLeft <= 0;
       const cn = {cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
       
       tournActionHTML = `
@@ -321,13 +426,19 @@ function compH(){
           <div style="font-size:11px;color:#4ade80; margin-top:8px; background:rgba(74,222,128,.1); display:inline-block; padding:4px 10px; border-radius:8px;">📅 ${dayToDate(nextTourn.day)}</div>
         </div>
         
-        ${cp ? 
-          `<div style="display:flex;gap:8px">
-             <button class="b g" style="flex:1;padding:14px;font-size:14px" onclick="playTournamentMatch()">▶️ العب المباراة</button>
-             <button class="b" style="flex:1;padding:14px;font-size:14px;background:#8b5cf6;color:#fff;border:none" onclick="startSimulationWithTimer('tournament')">⏩ محاكاة المباراة</button>
-           </div>` : 
-          `<button class="b a" style="width:100%;padding:14px;font-size:14px" onclick="advanceToNextMatch('tournament')">⏭️ تقدّم (${daysLeft} يوم)</button>`
-        }
+        <div style="display:flex;gap:8px">
+           <button class="b g" style="flex:1;padding:14px;font-size:14px" onclick="playTournamentMatch()">▶️ العب المباراة</button>
+           <button class="b" style="flex:1;padding:14px;font-size:14px;background:#8b5cf6;color:#fff;border:none" onclick="startSimulationWithTimer('tournament')">⏩ محاكاة المباراة</button>
+        </div>
+      </div>`;
+  } else if (nextTourn) {
+      tournActionHTML = `
+      <div class="c" style="border:1px solid #475569; background:rgba(15,34,56,.8); margin-bottom:15px;">
+        <div style="font-size:12px;color:#94a3b8;font-weight:900;margin-bottom:8px;text-align:center;">⏳ مباراتك القادمة في البطولات</div>
+        <div style="text-align:center;font-size:11px; color:#cbd5e1;">
+          ${T[G.my].name} ضد ${T[nextTourn.opp]?.name || nextTourn.opp}<br>
+          <b style="color:#fbbf24;">يوم ${nextTourn.day}</b> (لم يحن الموعد بعد)
+        </div>
       </div>`;
   }
 
@@ -709,64 +820,6 @@ function upgradeFacility(type) {
 }
 
 // ============================================
-// دالة عداد الأيام التفاعلي
-// ============================================
-function advanceToNextMatch(filterComp){
-  const nm = getNextUserMatch(filterComp);
-  if(!nm) return;
-  
-  if(G.season.currentDay >= nm.day) {
-    return alert("⚠️ يجب عليك لعب المباراة الحالية أولاً! (لا يمكنك تخطي المباريات)");
-  }
-
-  if(window.isAdvancing) return;
-  window.isAdvancing = true;
-
-  const targetDay = nm.day;
-  const totalDays = targetDay - G.season.currentDay;
-  const steps = Math.min(15, totalDays);
-  const daysPerTick = Math.ceil(totalDays / steps);
-
-  const btns = document.querySelectorAll('button[onclick^="advanceToNextMatch"]');
-  btns.forEach(b => { 
-    b.innerHTML = "⏳ جاري تقديم الأيام..."; 
-    b.style.opacity = '0.7'; 
-    b.style.pointerEvents = 'none';
-  });
-
-  const ticker = setInterval(() => {
-    G.season.currentDay += daysPerTick;
-    if (G.season.currentDay >= targetDay) {
-      G.season.currentDay = targetDay;
-    }
-    
-    const t = T[G.my];
-    $('header-badge').textContent = `يوم ${G.season.currentDay} • ${t.budget.toFixed(1)}M`;
-    $('header-badge').style.transform = 'scale(1.15)';
-    $('header-badge').style.background = 'linear-gradient(135deg, #fbbf24, #f59e0b)';
-    
-    setTimeout(() => {
-      $('header-badge').style.transform = 'scale(1)';
-      $('header-badge').style.background = 'linear-gradient(135deg,#fbbf24,#d97706)';
-    }, 80);
-
-    if (G.season.currentDay >= targetDay) {
-      clearInterval(ticker);
-      window.isAdvancing = false;
-      
-      advanceToDay(targetDay);
-      
-      if(nm.comp !== 'cup' && (nm.comp !== 'league' || isDerby(G.my, nm.opp))){
-        const ds = G.season.currentDay-(G.lastPressDay||0);
-        if(ds >= 5){ G.lastPressDay = G.season.currentDay; setTimeout(() => showPressConference(nm), 600); }
-      }
-      
-      dash();
-    }
-  }, 100);
-}
-
-// ============================================
 // محاكاة المباراة مع عداد 60 ثانية احترافي
 // ============================================
 function startSimulationWithTimer(filterComp) {
@@ -774,6 +827,7 @@ function startSimulationWithTimer(filterComp) {
   
   const nm = getNextUserMatch(filterComp);
   if (!nm) return alert("لا توجد مباراة لمحاكاتها حالياً!");
+  if (nm.day !== G.season.currentDay) return alert("لم يحن موعد هذه المباراة بعد!");
   
   window.isSimulating = true;
   
@@ -1143,12 +1197,16 @@ function choose(id){
     lastPOTM:0, currentSponsor:null, lossStreak:0, boardAnger:0, captain:null, 
     penaltyTaker:null, freeKickTaker:null, cornerTaker:null,
     training: { focus: 'balanced', intensity: 'normal' },
-    facilities: { stadium: 1, training: 1, youth: 1 }
+    facilities: { stadium: 1, training: 1, youth: 1 },
+    timeMinute: 0, timeSpeed: 1, timePaused: false
   };
   G.season = generateSeason(id, null); G.boardObjectives = setBoardObjectives(T[id]);
   G.youthPlayers = [generateYouthPlayer(T[id]), generateYouthPlayer(T[id])];
   G.lu = autoFillLineup(T[id], G.form); autoAssignRoles();
   addNews(`🏆 يبدأ الموسم ${SEASON_YEAR}/${SEASON_YEAR+1}!`, `👨‍💼 ${G.managerName} يقود ${T[id].name}`);
+  
+  if(typeof initTimeEngine === 'function') initTimeEngine();
+  
   save(); dash(); setTimeout(() => showSponsorOffers(), 500);
 }
 
@@ -1160,6 +1218,9 @@ function migrateSave(){
   if(G.captain === undefined) G.captain = null;
   if(!G.training) G.training = { focus: 'balanced', intensity: 'normal' };
   if(!G.facilities) G.facilities = {stadium: 1, training: 1, youth: 1};
+  if(G.timeMinute === undefined) G.timeMinute = 0;
+  if(G.timeSpeed === undefined) G.timeSpeed = 1;
+  if(G.timePaused === undefined) G.timePaused = false;
 }
 
 function cont(){
@@ -1167,7 +1228,11 @@ function cont(){
   T = d.T; G = d.G;
   if(!G.news) G.news = []; if(!G.inst) G.inst = []; if(!G.legendsMarket) G.legendsMarket = [];
   if(!G.lu || G.lu.length !== 11) G.lu = autoFillLineup(T[G.my], G.form);
-  migrateSave(); autoAssignRoles(); dash();
+  migrateSave(); autoAssignRoles(); 
+  
+  if(typeof initTimeEngine === 'function') initTimeEngine();
+  
+  dash();
 }
 
 function showLegendCard(pid){

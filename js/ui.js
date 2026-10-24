@@ -1,5 +1,5 @@
 // ============================================
-// ui.js - نظام المهمات + محرك الوقت المبني على الأحداث
+// ui.js - واجهة المستخدم الكاملة
 // ============================================
 
 function switchTab(t){G.tab = t; dash();}
@@ -28,12 +28,7 @@ function dash(){
   setTimeout(checkCupNotification, 100);
 }
 
-// ============================================
-// محرك الوقت السريع (Event-Driven Fast Forward)
-// ============================================
-
 function startFastForward(targetDay) {
-    // إظهار شاشة محاكاة الوقت
     let ffModal = document.getElementById('ff-modal');
     if (!ffModal) {
         ffModal = document.createElement('div');
@@ -58,8 +53,6 @@ function startFastForward(targetDay) {
 
     const interval = setInterval(() => {
         simDay++;
-        
-        // إذا وصلنا ليوم المباراة أو تجاوزناه
         if (simDay > targetDay) {
             clearInterval(interval);
             ffModal.hidden = true;
@@ -67,104 +60,67 @@ function startFastForward(targetDay) {
             return;
         }
 
-        // تحديث العرض المرئي لليوم
         dayDisplay.textContent = `اليوم ${simDay}`;
         dayDisplay.style.transform = 'scale(1.2)';
         setTimeout(() => { dayDisplay.style.transform = 'scale(1)'; }, 150);
 
-        // تنفيذ محاكاة اليوم الواحد (في season.js)
         advanceToDay(simDay);
         simulateLivingWorld();
         checkLegendsMarket();
         checkPlayerOfMonth();
 
-        // فحص الأحداث المهمة (Event Checker)
         const eventPaused = processTimeEvents(simDay);
 
         if (eventPaused) {
-            // إذا حدث شيء مهم، توقف عن التقدم!
             clearInterval(interval);
             ffModal.hidden = true;
         }
-
-    }, 350); // 350ms لكل يوم
+    }, 350);
 }
 
 function processTimeEvents(simDay) {
-    // 1. عرض انتقال (Transfer Offer)
     if (G.pendingOffer) {
-        showTimeEventModal(
-            '💰', 
-            'عرض انتقال جديد!', 
-            `تلقيت عرضاً لضم لاعب من فريقك.`,
-            () => { showOffer(); }
-        );
+        showTimeEventModal('💰', 'عرض انتقال جديد!', `تلقيت عرضاً لضم لاعب من فريقك.`, () => { showOffer(); });
         return true;
     }
-
-    // 2. أسطورة في السوق (Legend in Market)
     if (G.legendsMarket && G.legendsMarket.length > 0 && !G._legendNotified) {
         const legend = G.legendsMarket[0];
-        G._legendNotified = true; // منع التكرار في نفس اليوم
-        showTimeEventModal(
-            '🌟', 
-            'أسطورة في السوق!', 
-            `اللاعب ${legend.name} متاح للتعاقد الآن.`,
-            () => { switchTab('tr'); }
-        );
+        G._legendNotified = true;
+        showTimeEventModal('🌟', 'أسطورة في السوق!', `اللاعب ${legend.name} متاح للتعاقد الآن.`, () => { switchTab('tr'); });
         return true;
     }
-
-    // 3. إصابة خطيرة (Major Injury) 
     const injuredStarter = T[G.my].ps.find(p => p.injury && p.injury.matches > 3 && G.lu.includes(p.id) && !p._injuryNotified);
     if (injuredStarter) {
-        injuredStarter._injuryNotified = true; // منع التكرار
-        showTimeEventModal(
-            '🚑', 
-            'إصابة خطيرة!', 
-            `اللاعب ${injuredStarter.name} تعرض لإصابة سيغيب على إثرها لعدة مباريات.`,
-            () => { switchTab('lu'); }
-        );
+        injuredStarter._injuryNotified = true;
+        showTimeEventModal('🚑', 'إصابة خطيرة!', `اللاعب ${injuredStarter.name} تعرض لإصابة سيغيب على إثرها لعدة مباريات.`, () => { switchTab('lu'); });
         return true;
     }
-
     return false;
 }
 
 function showTimeEventModal(icon, title, desc, actionCallback) {
-    // إظهار نافذة الحدث
     $('cmc').innerHTML = `<div class="mc mc-warning modal-bg-anim" style="text-align:center;">
         <div class="mc-icon" style="font-size:60px; filter:drop-shadow(0 0 15px rgba(251,191,36,.6));">${icon}</div>
         <div class="mc-title" style="color:#fbbf24; font-size:22px;">${title}</div>
         <div class="mc-sub" style="font-size:14px; color:#cbd5e1; margin:10px 0; line-height:1.6;">${desc}</div>
-        <div class="mc-actions">
-            <button class="b full" style="padding:14px; font-size:14px;" onclick="resumeTimeAfterEvent()">▶ متابعة</button>
-        </div>
+        <div class="mc-actions"><button class="b full" style="padding:14px; font-size:14px;" onclick="resumeTimeAfterEvent()">▶ متابعة</button></div>
     </div>`;
     $('cm').hidden = false;
-
-    // حفظ الدالة التي ستُنفذ عند الإغلاق
     window.pendingEventAction = actionCallback;
 }
 
 function resumeTimeAfterEvent() {
     $('cm').hidden = true;
-    
-    // تنفيذ الإجراء (مثلاً فتح السوق)
     if (window.pendingEventAction) {
         window.pendingEventAction();
         window.pendingEventAction = null;
     }
-
-    // إعادة تصفير الفلاجات الخاصة بالإشعارات
     setTimeout(() => {
         G._legendNotified = false;
         T[G.my].ps.forEach(p => p._injuryNotified = false);
     }, 2000);
 
-    // ننتظر قليلاً حتى يتم إغلاق أي شاشة فرعية، ثم نستأنف الوقت
     setTimeout(() => {
-        // التحقق من أن المستخدم ليس في شاشة لعب مباراة أو نتيجة
         if ($('ms').hidden && $('rs').hidden && $('cm').hidden && !window.isSimulating) {
             const nextMatch = getNextUserMatch();
             if (nextMatch && G.season.currentDay < nextMatch.day) {
@@ -176,16 +132,10 @@ function resumeTimeAfterEvent() {
     }, 800);
 }
 
-
-// ============================================
-// الوظائف الأساسية للواجهة (تم نقلها كما هي)
-// ============================================
-
 function autoAssignRoles(){
   const t = T[G.my]; if(!t) return;
   const starters = G.lu.map(id => t.ps.find(p => p.id === id)).filter(p => p && !p.injury);
   const nonGK = starters.filter(p => p.pos !== 'GK');
-
   if(!G.captain || !starters.find(p => p.id === G.captain)){
     const bestCap = [...starters].sort((a,b) => (b.r+b.lvl*2+(b.morale||70)*0.15+(b.physical||70)*0.1) - (a.r+a.lvl*2+(a.morale||70)*0.15+(a.physical||70)*0.1))[0];
     G.captain = bestCap ? bestCap.id : null;
@@ -204,10 +154,7 @@ function autoAssignRoles(){
   }
 }
 
-function setRole(role, playerId){
-  G[role] = playerId || null; save(); dash();
-  if(navigator.vibrate) try{navigator.vibrate(20);}catch(e){}
-}
+function setRole(role, playerId){ G[role] = playerId || null; save(); dash(); if(navigator.vibrate) try{navigator.vibrate(20);}catch(e){} }
 
 function buildRoleSelect(role){
   const t = T[G.my]; if(!t) return '';
@@ -234,7 +181,6 @@ function luH(t){
   if(!G.captain || !starters.find(p => p.id === G.captain)) autoAssignRoles();
 
   const slots = getSlots(G.form);
-  
   const absoluteNext = getNextUserMatch();
   const nm = absoluteNext;
 
@@ -261,7 +207,7 @@ function luH(t){
   </div>`;
 
   const form = calcUserForm();
-  const formPills = form.length ? form.map(r => `<div class="form-pill ${r}">${r==='W'?'ف':r==='D'?'ت':'خ'}</div>`).join('') : '<div class="form-pill none">لا مباريات</div>';
+  const formPills = form.length ? form.map(r => `<div class="form-pill ${r}">${r==='W'?'ف':r==='D'?'ت':'خ'}</div>`).join('') : '<div class="form-pill none">🚀 بداية</div>';
 
   const warnings = calcWarnings();
   const warningsBar = warnings.length ? `<div class="warnings-bar">${warnings.map(w => `<div class="warning-pill" style="color:${w.color}">${w.icon} ${w.text}</div>`).join('')}</div>` : '';
@@ -286,11 +232,10 @@ function luH(t){
   const hints = buildHints();
   const hintsBox = hints.length ? `<div class="hints-container"><div class="hints-title">💡 اقتراحات ذكية</div>${hints.map(h => `<div class="hint-item"><span>${h.icon}</span><span style="color:${h.color}">${h.text}</span></span></div>`).join('')}</div>` : '';
 
-  // 🎯 بطاقة المهمة الحالية (Mission Card)
   let missionCard = '';
   if (nm) {
       const isTournament = nm.comp !== 'league';
-      const cn = {league:'الدوري المصري', cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
+      const cn = {league:'الدوري', cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
       const compName = cn[nm.comp] || nm.comp;
       const btnColor = isTournament ? '#8b5cf6' : '#22c55e';
       const btnText = isTournament ? '▶️ العب مباراة البطولة' : '▶️ العب المباراة';
@@ -1211,16 +1156,33 @@ function startNewCareer(){
 }
 
 function selTeam(){
-  $('main').innerHTML = `<h2 style="text-align:center;color:var(--gold);margin:10px 0;font-size:15px">🏟️ اختر ناديك</h2>
-    <div class="g2">${Object.values(T).map(t => `<div class="team-select-card" onclick="choose('${t.id}')">
-      <div class="bd" style="background:${t.c1};color:${t.c2==='#FFFFFF'?'#000':t.c2}">${t.name[0]}</div>
-      <b style="font-size:12px">${t.name}</b><div style="color:var(--gold);font-size:11px;margin-top:4px">⭐${t.R}</div>
-    </div>`).join('')}</div>`;
+  $('main').innerHTML = `<h2 style="text-align:center;color:var(--gold);margin:20px 0;font-size:18px">🌍 اختر الدوري</h2>
+    <div class="g2" style="grid-template-columns: 1fr;">
+      ${Object.entries(LEAGUES).map(([key, league]) => `
+        <div class="team-select-card" onclick="showLeagueTeams('${key}')" style="margin-bottom:10px; padding:20px;">
+          <b style="font-size:16px">${league.name}</b>
+          <div style="color:var(--gold);font-size:12px;margin-top:4px">اضغط لاختيار فريقك</div>
+        </div>
+      `).join('')}
+    </div>`;
 }
 
-function choose(id){
+function showLeagueTeams(leagueId){
+  const league = LEAGUES[leagueId];
+  $('main').innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <button class="b sm" onclick="selTeam()" style="padding:4px 10px; font-size:10px;">⬅ عودة</button>
+    <h2 style="color:var(--gold);margin:0;font-size:15px">🏟️ ${league.name}</h2>
+  </div>
+  <div class="g2">${league.teams.map(t => `<div class="team-select-card" onclick="choose('${t[0]}', '${leagueId}')">
+    <div class="bd" style="background:${t[3]};color:${t[4]==='#FFFFFF'?'#000':t[4]}">${t[1][0]}</div>
+    <b style="font-size:12px">${t[1]}</b><div style="color:var(--gold);font-size:11px;margin-top:4px">⭐${t[2]}</div>
+  </div>`).join('')}</div>`;
+}
+
+function choose(id, leagueId = 'egypt'){
+  mk(leagueId);
   G = { 
-    my: id, form:'4-3-3', tac:'balanced', tab:'lu', 
+    my: id, league: leagueId, form:'4-3-3', tac:'balanced', tab:'lu', 
     username: tempUserData.username, managerName: tempUserData.managerName, 
     trophies:0, news:[], inst:{}, legendsMarket:[], usedLegends:[], lastLegendRound:0, 
     seasonNumber:1, history:[], trophyCabinet:[], youthPlayers:[], pendingOffer:null, 

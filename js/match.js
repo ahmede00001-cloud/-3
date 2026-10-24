@@ -1,5 +1,5 @@
 // ============================================
-// match.js - واجهة المباراة (نظام المهمات)
+// match.js - واجهة المباراة (نظام المهمات - معدل لضمان عدم التكرار)
 // ============================================
 
 function playTournamentMatch() { G.forcedMatchComp = 'tournament'; play(); }
@@ -11,6 +11,12 @@ function play(){
   }
   const nm = getNextUserMatch(G.forcedMatchComp || null);
   if(!nm) return alert('لا مباراة!');
+  
+  // حماية إضافية: إذا كانت المباراة ملعوبة بالخطأ، تجاوزها فوراً
+  if(nm.played) {
+      if(typeof nxt === 'function') return nxt();
+  }
+
   if(daysUntilMatch(nm) > 0) return alert(`بعد ${daysUntilMatch(nm)} يوم!`);
 
   const hm = nm.home;
@@ -517,6 +523,9 @@ function finish(){
 
       nm.result = {myGoals:mg, oppGoals:og, won:rW, draw:rD, penalty:pr};
 
+      // ✅ الإصلاح الجذري: حفظ اللعبة فوراً هنا قبل أي عملية أخرى!
+      save(); 
+
       // تسجيل الدوري
       if(nm.comp === 'league'){
         try {
@@ -655,7 +664,7 @@ function finish(){
       }
     } catch(e){ console.error('Manager XP error:', e); }
 
-    save();
+    save(); // حفظ إضافي لضمان تحديث الميزانية والإحصائيات
 
     let rW = mg > og, rD = mg === og;
     const rsIcon = rW ? '🏆' : rD ? '🤝' : '😞';
@@ -683,8 +692,12 @@ function finish(){
 
   } catch(e){
     console.error('Fatal finish error:', e);
+    // ✅ شبكة أمان: إذا حدث أي خطأ، نعتبر المباراة ملعوبة ونحفظها حتى لا تعلق اللعبة
     const nm = getNextUserMatch(G.forcedMatchComp || null);
-    if(nm) nm.played = true;
+    if(nm) {
+        nm.played = true;
+        nm.result = {myGoals:0, oppGoals:0, won:false, draw:true}; // نتيجة وهمية لتخطي المباراة
+    }
     G.forcedMatchComp = null;
     save();
     $('rs').hidden = false;

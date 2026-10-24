@@ -1,5 +1,5 @@
 // ============================================
-// ui.js - نظام المهمات (Mission System)
+// ui.js - نظام المهمات + محرك الوقت المبني على الأحداث
 // ============================================
 
 function switchTab(t){G.tab = t; dash();}
@@ -27,6 +27,159 @@ function dash(){
   $('main').innerHTML = content;
   setTimeout(checkCupNotification, 100);
 }
+
+// ============================================
+// محرك الوقت السريع (Event-Driven Fast Forward)
+// ============================================
+
+function startFastForward(targetDay) {
+    // إظهار شاشة محاكاة الوقت
+    let ffModal = document.getElementById('ff-modal');
+    if (!ffModal) {
+        ffModal = document.createElement('div');
+        ffModal.id = 'ff-modal';
+        ffModal.className = 'md';
+        ffModal.style.zIndex = 3000;
+        ffModal.style.background = 'rgba(3,7,18,.95)';
+        ffModal.innerHTML = `
+            <div style="text-align:center; animation: bgPulse 2s infinite alternate; padding: 20px;">
+                <div style="font-size:60px; margin-bottom:20px; filter:drop-shadow(0 0 20px #22d3ee);">⏳</div>
+                <div style="font-size:24px; font-weight:900; color:#fff; margin-bottom:10px;">جاري مرور الأيام...</div>
+                <div id="ff-day-display" style="font-size:40px; font-weight:900; color:#fbbf24; text-shadow:0 0 15px rgba(251,191,36,.8); margin:20px 0;">اليوم ${G.season.currentDay}</div>
+                <div style="font-size:12px; color:#94a3b8;">يتم محاكاة التدريبات وأحداث اللعبة...</div>
+            </div>
+        `;
+        document.body.appendChild(ffModal);
+    }
+    ffModal.hidden = false;
+
+    const dayDisplay = document.getElementById('ff-day-display');
+    let simDay = G.season.currentDay;
+
+    const interval = setInterval(() => {
+        simDay++;
+        
+        // إذا وصلنا ليوم المباراة أو تجاوزناه
+        if (simDay > targetDay) {
+            clearInterval(interval);
+            ffModal.hidden = true;
+            dash();
+            return;
+        }
+
+        // تحديث العرض المرئي لليوم
+        dayDisplay.textContent = `اليوم ${simDay}`;
+        dayDisplay.style.transform = 'scale(1.2)';
+        setTimeout(() => { dayDisplay.style.transform = 'scale(1)'; }, 150);
+
+        // تنفيذ محاكاة اليوم الواحد (في season.js)
+        advanceToDay(simDay);
+        simulateLivingWorld();
+        checkLegendsMarket();
+        checkPlayerOfMonth();
+
+        // فحص الأحداث المهمة (Event Checker)
+        const eventPaused = processTimeEvents(simDay);
+
+        if (eventPaused) {
+            // إذا حدث شيء مهم، توقف عن التقدم!
+            clearInterval(interval);
+            ffModal.hidden = true;
+        }
+
+    }, 350); // 350ms لكل يوم
+}
+
+function processTimeEvents(simDay) {
+    // 1. عرض انتقال (Transfer Offer)
+    if (G.pendingOffer) {
+        showTimeEventModal(
+            '💰', 
+            'عرض انتقال جديد!', 
+            `تلقيت عرضاً لضم لاعب من فريقك.`,
+            () => { showOffer(); }
+        );
+        return true;
+    }
+
+    // 2. أسطورة في السوق (Legend in Market)
+    if (G.legendsMarket && G.legendsMarket.length > 0 && !G._legendNotified) {
+        const legend = G.legendsMarket[0];
+        G._legendNotified = true; // منع التكرار في نفس اليوم
+        showTimeEventModal(
+            '🌟', 
+            'أسطورة في السوق!', 
+            `اللاعب ${legend.name} متاح للتعاقد الآن.`,
+            () => { switchTab('tr'); }
+        );
+        return true;
+    }
+
+    // 3. إصابة خطيرة (Major Injury) 
+    const injuredStarter = T[G.my].ps.find(p => p.injury && p.injury.matches > 3 && G.lu.includes(p.id) && !p._injuryNotified);
+    if (injuredStarter) {
+        injuredStarter._injuryNotified = true; // منع التكرار
+        showTimeEventModal(
+            '🚑', 
+            'إصابة خطيرة!', 
+            `اللاعب ${injuredStarter.name} تعرض لإصابة سيغيب على إثرها لعدة مباريات.`,
+            () => { switchTab('lu'); }
+        );
+        return true;
+    }
+
+    return false;
+}
+
+function showTimeEventModal(icon, title, desc, actionCallback) {
+    // إظهار نافذة الحدث
+    $('cmc').innerHTML = `<div class="mc mc-warning modal-bg-anim" style="text-align:center;">
+        <div class="mc-icon" style="font-size:60px; filter:drop-shadow(0 0 15px rgba(251,191,36,.6));">${icon}</div>
+        <div class="mc-title" style="color:#fbbf24; font-size:22px;">${title}</div>
+        <div class="mc-sub" style="font-size:14px; color:#cbd5e1; margin:10px 0; line-height:1.6;">${desc}</div>
+        <div class="mc-actions">
+            <button class="b full" style="padding:14px; font-size:14px;" onclick="resumeTimeAfterEvent()">▶ متابعة</button>
+        </div>
+    </div>`;
+    $('cm').hidden = false;
+
+    // حفظ الدالة التي ستُنفذ عند الإغلاق
+    window.pendingEventAction = actionCallback;
+}
+
+function resumeTimeAfterEvent() {
+    $('cm').hidden = true;
+    
+    // تنفيذ الإجراء (مثلاً فتح السوق)
+    if (window.pendingEventAction) {
+        window.pendingEventAction();
+        window.pendingEventAction = null;
+    }
+
+    // إعادة تصفير الفلاجات الخاصة بالإشعارات
+    setTimeout(() => {
+        G._legendNotified = false;
+        T[G.my].ps.forEach(p => p._injuryNotified = false);
+    }, 2000);
+
+    // ننتظر قليلاً حتى يتم إغلاق أي شاشة فرعية، ثم نستأنف الوقت
+    setTimeout(() => {
+        // التحقق من أن المستخدم ليس في شاشة لعب مباراة أو نتيجة
+        if ($('ms').hidden && $('rs').hidden && $('cm').hidden && !window.isSimulating) {
+            const nextMatch = getNextUserMatch();
+            if (nextMatch && G.season.currentDay < nextMatch.day) {
+                startFastForward(nextMatch.day);
+            } else {
+                dash();
+            }
+        }
+    }, 800);
+}
+
+
+// ============================================
+// الوظائف الأساسية للواجهة (تم نقلها كما هي)
+// ============================================
 
 function autoAssignRoles(){
   const t = T[G.my]; if(!t) return;

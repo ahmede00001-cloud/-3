@@ -435,7 +435,6 @@ function finish(){
     const mg = s[Mt.hu].g;
     const og = s[Mt.hu==='home' ? 'away' : 'home'].g;
     
-    // ✅ الحل الأكيد: سحب واستبعاد المباراة الحالية تماماً من جدول الترتيب والتقويم لمنع تكرارها
     let nm = (Mt && Mt.calendarItem) ? Mt.calendarItem : null;
     if(!nm && G && G.season && G.season.userCalendar){
       nm = G.season.userCalendar.find(m => !m.played);
@@ -578,7 +577,6 @@ function finish(){
       if(G && G.season && G.season.userCalendar){
         const nm = G.season.userCalendar.find(m => !m.played);
         if(nm){ 
-            nm.played = true; 
             G.season.userCalendar = G.season.userCalendar.filter(m => m !== nm);
             save(); 
         }

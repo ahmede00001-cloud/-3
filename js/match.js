@@ -2,9 +2,6 @@
 // match.js - واجهة المباراة، الرسم، النتيجة (محصن ضد التعليق)
 // ============================================
 
-// ============================================
-// بدء المباراة
-// ============================================
 function play(){
   if(!G.lu || G.lu.length !== 11 || G.lu.includes(null) || G.lu.some(id => !T[G.my].ps.find(p => p.id === id))){
     return alert('التشكيلة غير مكتملة!');
@@ -67,9 +64,6 @@ function play(){
   raf = requestAnimationFrame(loop);
 }
 
-// ============================================
-// فريق افتراضي للخصوم (الأفريقي، العالمي، DIV2)
-// ============================================
 function createVirtualTeam(id, name, rating, c1, c2){
   const ps = [];
   const positions = ['GK','GK','DEF','DEF','DEF','DEF','MID','MID','MID','FWD','FWD','FWD'];
@@ -86,9 +80,6 @@ function createVirtualTeam(id, name, rating, c1, c2){
   };
 }
 
-// ============================================
-// حلقة المباراة
-// ============================================
 function loop(n){
   last = n;
   if(!paused && !Mt.done && Mt.hold <= 0){
@@ -102,9 +93,6 @@ function loop(n){
   raf = requestAnimationFrame(loop);
 }
 
-// ============================================
-// تحديث واجهة المباراة
-// ============================================
 function ui(){
   const s = Mt.s;
   $('sc').textContent = `${s.home.g} - ${s.away.g}`;
@@ -149,9 +137,6 @@ function ui(){
   $('bp').textContent = paused ? '▶' : '⏸';
 }
 
-// ============================================
-// رسم اللاعب على الملعب
-// ============================================
 function man(x, p, px, py, t, gk, car, num, isRef = false){
   const f = p.fc || 1;
   const mv = Math.min(1, p.mv||0);
@@ -277,9 +262,6 @@ function man(x, p, px, py, t, gk, car, num, isRef = false){
   x.restore();
 }
 
-// ============================================
-// رسم الملعب (مع cache)
-// ============================================
 let _pitch = null, _pW = 0, _pH = 0;
 
 function drawPitch(x, W, H, P, u){
@@ -332,9 +314,6 @@ function drawPitch(x, W, H, P, u){
   x.drawImage(c, 0, 0);
 }
 
-// ============================================
-// الرسم الرئيسي
-// ============================================
 function draw(){
   const c = $('pc'), x = c.getContext('2d'), W = c.width, H = c.height, P = 14;
   const u = (W-2*P)/L;
@@ -402,9 +381,6 @@ function draw(){
   }
 }
 
-// ============================================
-// أزرار التحكم أثناء المباراة
-// ============================================
 function mtac(k){
   if(!Mt) return;
   Mt.s[Mt.hu].tc = k;
@@ -459,9 +435,6 @@ function skip(){
   doBatch();
 }
 
-// ============================================
-// مزامنة إحصائيات المباراة بعد الانتهاء
-// ============================================
 function syncMatchStats(m){
   try{
     ['home','away'].forEach(k => {
@@ -510,9 +483,6 @@ function syncMatchStats(m){
   }
 }
 
-// ============================================
-// إنهاء المباراة وإظهار النتيجة (محصن ضد التعليق بالكامل)
-// ============================================
 function finish(){
   try{
     cancelAnimationFrame(raf);
@@ -527,7 +497,6 @@ function finish(){
     const oppT = Mt.s[Mt.hu==='home' ? 'away' : 'home'].t;
     const cn = {league:'الدوري', cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
 
-    // 1. تأمين دورة المباراة وتحديث حالتها فوراً لتجنب التعليق
     if(nm){
       nm.played = true;
       let rW = mg > og, rD = mg === og;
@@ -545,7 +514,7 @@ function finish(){
 
       nm.result = {myGoals:mg, oppGoals:og, won:rW, draw:rD, penalty:pr};
 
-      // تسجيل الدوري
+      // تسجيل الدوري (مع حفظ النتيجة)
       if(nm.comp === 'league'){
         try {
           rec(Mt.h, Mt.a, s.home.g, s.away.g);
@@ -553,17 +522,20 @@ function finish(){
           if(lf){
             const k = `${Mt.h.id}_${Mt.a.id}`;
             if(!lf.played.includes(k)) lf.played.push(k);
+            lf.results = lf.results || {};
+            lf.results[k] = [s.home.g, s.away.g]; // حفظ النتيجة
           }
         } catch(e){ console.error('League rec error:', e); }
       }
 
-      // تقدم البطولات الإقصائية بأمان تام
+      // تقدم البطولات الإقصائية بأمان تام (مع حفظ النتيجة)
       try {
         if(nm.comp === 'cup' && G.season.cupBracket){
           const m = G.season.cupBracket.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
           if(m){
             m.played = true;
             m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
+            m.score = [s.home.g, s.away.g]; // حفظ النتيجة
             advanceCupBracket();
           }
         }
@@ -572,6 +544,7 @@ function finish(){
           if(m){
             m.played = true;
             m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
+            m.score = [s.home.g, s.away.g];
             advanceCafComp('cafCL');
           }
         }
@@ -580,12 +553,14 @@ function finish(){
           if(m){
             m.played = true;
             m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
+            m.score = [s.home.g, s.away.g];
             advanceCafComp('cafCC');
           }
         }
         if(nm.comp === 'super' && G.season.egyptSuper){
           G.season.egyptSuper.played = true;
           G.season.egyptSuper.winner = rW ? G.my : nm.opp;
+          G.season.egyptSuper.score = [mg, og];
           if(rW){
             G.trophies = (G.trophies||0)+1;
             addTrophy('السوبر المصري', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
@@ -595,6 +570,7 @@ function finish(){
         if(nm.comp === 'cafSuper' && G.season.cafSuper){
           G.season.cafSuper.played = true;
           G.season.cafSuper.winner = rW ? G.my : nm.opp;
+          G.season.cafSuper.score = [mg, og];
           if(rW){
             G.trophies = (G.trophies||0)+1;
             addTrophy('السوبر الأفريقي', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
@@ -606,13 +582,13 @@ function finish(){
           if(m){
             m.played = true;
             m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
+            m.score = [s.home.g, s.away.g];
             advanceClubWC();
           }
         }
       } catch(e){ console.error('Tournament advancement error:', e); }
     }
 
-    // مزامنة إحصائيات اللاعبين والمعنويات
     try {
       syncMatchStats(Mt);
       let rW = mg > og, rD = mg === og;
@@ -621,7 +597,6 @@ function finish(){
       updateContractMorale(myT);
     } catch(e){ console.error('Stats sync error:', e); }
 
-    // الاقتصاد والميزانية
     let netIncome = 0;
     try {
       let rW = mg > og, rD = mg === og;
@@ -636,7 +611,6 @@ function finish(){
       }
     } catch(e){ console.error('Finance error:', e); }
 
-    // XP وإدارة الخسائر المتتالية
     try {
       let rW = mg > og, rD = mg === og;
       const isKO = ['cup','cafCL','cafCC','super','cafSuper','clubWC'].includes(nm?.comp);
@@ -662,7 +636,6 @@ function finish(){
 
     save();
 
-    // عرض شاشة النتيجة النهائية بضمان تام
     let rW = mg > og, rD = mg === og;
     const rsIcon = rW ? '🏆' : rD ? '🤝' : '😞';
     const rsTitle = rW ? 'فوز رائع!' : rD ? 'تعادل مثير' : 'خسارة صعبة';
@@ -687,7 +660,6 @@ function finish(){
 
   } catch(e){
     console.error('Fatal finish error:', e);
-    // ملاذ أخير آمن لمنع أي تجميد للعبة نهائياً
     const nm = getNextUserMatch();
     if(nm) nm.played = true;
     save();
@@ -695,9 +667,6 @@ function finish(){
   }
 }
 
-// ============================================
-// ركلات الترجيح (نافذة)
-// ============================================
 function showPenaltyModal(r, hN, aN){
   $('pen-score').textContent = `${hN} ${r.scoreA} - ${r.scoreB} ${aN}`;
   $('pen-log').innerHTML = r.log.map(l => `<div>${l}</div>`).join('');

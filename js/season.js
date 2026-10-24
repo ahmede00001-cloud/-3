@@ -1,5 +1,5 @@
 // ============================================
-// season.js - النسخة النهائية (عرض نتائج البطولات + محاكاة الجولة)
+// season.js - النسخة النهائية (تساوي عدد المباريات لجميع الفرق)
 // ============================================
 
 function mk(){
@@ -280,12 +280,38 @@ function applyTraining() {
 function simulateAIUpToDay(td){
   Object.entries(G.season.leagueFixtures).forEach(([rn, d]) => {
     if(d.day <= td && d.played.length < d.round.length){
-      // إصلاح: منع محاكاة مباريات الجولة الحالية إذا كانت مباراة المستخدم لم تُلعب بعد
       const um = d.round.find(m => m[0] === G.my || m[1] === G.my);
+      
+      // إصلاح: إذا كانت مباراة المستخدم في يوم سابق، يتم محاكاتها تلقائياً حتى لا يتأخر الخصم
       if (um) {
           const pk = um[0] + '_' + um[1];
-          if (!d.played.includes(pk) && d.day === td) {
-              return; // انتظر حتى يلعب المستخدم
+          if (!d.played.includes(pk)) {
+              if (d.day === td) {
+                  return; // إذا كانت المباراة اليوم، انتظر المستخدم ليلعبها
+              } else {
+                  // المباراة في يوم سابق ولم تُلعب -> محاكاة تلقائية
+                  const h = um[0], a = um[1];
+                  const tH = T[h], tA = T[a];
+                  if(tH && tA) {
+                      let p1 = tH.R, p2 = tA.R+2;
+                      if(tH.tac === 'attack') p1 += 1; else if(tH.tac === 'defense') p1 += .5;
+                      if(tA.tac === 'attack') p2 += 1; else if(tA.tac === 'defense') p2 += .5;
+                      const df = (p1-p2)/15;
+                      const g1 = Math.max(0, Math.round(R()*1.8+df*.5));
+                      const g2 = Math.max(0, Math.round(R()*1.8-df*.5));
+                      rec(tH, tA, g1, g2);
+                      d.played.push(pk);
+                      d.results = d.results || {};
+                      d.results[pk] = [g1, g2];
+                      
+                      const userMatch = G.season.userCalendar.find(m => m.comp === 'league' && m.round === rn && !m.played);
+                      if (userMatch) {
+                          userMatch.played = true;
+                          userMatch.result = { myGoals: h === G.my ? g1 : g2, oppGoals: h === G.my ? g2 : g1, won: (h === G.my ? g1 > g2 : g2 > g1), draw: g1 === g2 };
+                      }
+                      addNews(`📢 جولة ${rn}: ${tH.name} ${g1}-${g2} ${tA.name}`, `محاكاة تلقائية (تخطي)`);
+                  }
+              }
           }
       }
 
@@ -1013,14 +1039,10 @@ function resolveSuperCups(){
   }
 }
 
-// ============================================
-// دالة محاكاة الجولة بالكامل (بما فيها مباراتك)
-// ============================================
 function simulateCurrentRound() {
     const nm = getNextUserMatch();
     if (!nm || nm.played) return;
 
-    // 1. محاكاة مباراة المستخدم
     nm.played = true;
     const myT = T[G.my];
     const oppT = T[nm.opp] || createVirtualTeam(nm.opp, nm.opp, 75);
@@ -1045,7 +1067,6 @@ function simulateCurrentRound() {
           rec(hT, aT, hG, aG);
         }
         
-        // 2. محاكاة باقي مباريات الذكاء الاصطناعي في هذه الجولة
         d.round.forEach(([h,a]) => {
             if(h === G.my || a === G.my) return;
             const pk2 = h+'_'+a;

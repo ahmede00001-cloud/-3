@@ -1,15 +1,22 @@
 // ============================================
-// match.js - واجهة المباراة، الرسم، النتيجة (محصن ضد التعليق)
+// match.js - واجهة المباراة (تدعم الفصل بين الدوري والبطولات)
 // ============================================
 
-// ============================================
-// بدء المباراة
-// ============================================
+function playTournamentMatch() {
+  G.forcedMatchComp = 'tournament';
+  play();
+}
+
+function playLeagueMatch() {
+  G.forcedMatchComp = 'league';
+  play();
+}
+
 function play(){
   if(!G.lu || G.lu.length !== 11 || G.lu.includes(null) || G.lu.some(id => !T[G.my].ps.find(p => p.id === id))){
     return alert('التشكيلة غير مكتملة!');
   }
-  const nm = getNextUserMatch();
+  const nm = getNextUserMatch(G.forcedMatchComp || null);
   if(!nm) return alert('لا مباراة!');
   if(daysUntilMatch(nm) > 0) return alert(`بعد ${daysUntilMatch(nm)} يوم!`);
 
@@ -67,9 +74,6 @@ function play(){
   raf = requestAnimationFrame(loop);
 }
 
-// ============================================
-// فريق افتراضي للخصوم (الأفريقي، العالمي، DIV2)
-// ============================================
 function createVirtualTeam(id, name, rating, c1, c2){
   const ps = [];
   const positions = ['GK','GK','DEF','DEF','DEF','DEF','MID','MID','MID','FWD','FWD','FWD'];
@@ -86,9 +90,6 @@ function createVirtualTeam(id, name, rating, c1, c2){
   };
 }
 
-// ============================================
-// حلقة المباراة
-// ============================================
 function loop(n){
   last = n;
   if(!paused && !Mt.done && Mt.hold <= 0){
@@ -102,9 +103,6 @@ function loop(n){
   raf = requestAnimationFrame(loop);
 }
 
-// ============================================
-// تحديث واجهة المباراة
-// ============================================
 function ui(){
   const s = Mt.s;
   $('sc').textContent = `${s.home.g} - ${s.away.g}`;
@@ -149,9 +147,6 @@ function ui(){
   $('bp').textContent = paused ? '▶' : '⏸';
 }
 
-// ============================================
-// رسم اللاعب على الملعب
-// ============================================
 function man(x, p, px, py, t, gk, car, num, isRef = false){
   const f = p.fc || 1;
   const mv = Math.min(1, p.mv||0);
@@ -277,9 +272,6 @@ function man(x, p, px, py, t, gk, car, num, isRef = false){
   x.restore();
 }
 
-// ============================================
-// رسم الملعب (مع cache)
-// ============================================
 let _pitch = null, _pW = 0, _pH = 0;
 
 function drawPitch(x, W, H, P, u){
@@ -332,9 +324,6 @@ function drawPitch(x, W, H, P, u){
   x.drawImage(c, 0, 0);
 }
 
-// ============================================
-// الرسم الرئيسي
-// ============================================
 function draw(){
   const c = $('pc'), x = c.getContext('2d'), W = c.width, H = c.height, P = 14;
   const u = (W-2*P)/L;
@@ -402,9 +391,6 @@ function draw(){
   }
 }
 
-// ============================================
-// أزرار التحكم أثناء المباراة
-// ============================================
 function mtac(k){
   if(!Mt) return;
   Mt.s[Mt.hu].tc = k;
@@ -459,9 +445,6 @@ function skip(){
   doBatch();
 }
 
-// ============================================
-// مزامنة إحصائيات المباراة بعد الانتهاء
-// ============================================
 function syncMatchStats(m){
   try{
     ['home','away'].forEach(k => {
@@ -510,16 +493,13 @@ function syncMatchStats(m){
   }
 }
 
-// ============================================
-// إنهاء المباراة وإظهار النتيجة (محصن ضد التعليق بالكامل)
-// ============================================
 function finish(){
   try{
     cancelAnimationFrame(raf);
     if(Mt.fin) return;
     Mt.fin = 1;
 
-    const nm = getNextUserMatch();
+    const nm = getNextUserMatch(G.forcedMatchComp || null);
     const s = Mt.s;
     const mg = s[Mt.hu].g;
     const og = s[Mt.hu==='home' ? 'away' : 'home'].g;
@@ -544,7 +524,6 @@ function finish(){
 
       nm.result = {myGoals:mg, oppGoals:og, won:rW, draw:rD, penalty:pr};
 
-      // تسجيل الدوري (مع حفظ النتيجة ومحاكاة باقي الجولة فوراً)
       if(nm.comp === 'league'){
         try {
           rec(Mt.h, Mt.a, s.home.g, s.away.g);
@@ -553,9 +532,8 @@ function finish(){
             const k = `${Mt.h.id}_${Mt.a.id}`;
             if(!lf.played.includes(k)) lf.played.push(k);
             lf.results = lf.results || {};
-            lf.results[k] = [s.home.g, s.away.g]; // حفظ النتيجة
+            lf.results[k] = [s.home.g, s.away.g];
             
-            // محاكاة باقي مباريات الجولة فوراً ليتساوى الجميع
             lf.round.forEach(([h,a]) => {
               if(h === G.my || a === G.my) return;
               const pk2 = h+'_'+a;
@@ -576,14 +554,13 @@ function finish(){
         } catch(e){ console.error('League rec error:', e); }
       }
 
-      // تقدم البطولات الإقصائية بأمان تام
       try {
         if(nm.comp === 'cup' && G.season.cupBracket){
           const m = G.season.cupBracket.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
           if(m){
             m.played = true;
             m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
-            m.score = [s.home.g, s.away.g]; // حفظ النتيجة
+            m.score = [s.home.g, s.away.g];
             advanceCupBracket();
           }
         }
@@ -708,7 +685,7 @@ function finish(){
 
   } catch(e){
     console.error('Fatal finish error:', e);
-    const nm = getNextUserMatch();
+    const nm = getNextUserMatch(G.forcedMatchComp || null);
     if(nm) nm.played = true;
     save();
     $('rs').hidden = false;

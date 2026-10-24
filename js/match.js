@@ -1,16 +1,9 @@
 // ============================================
-// match.js - واجهة المباراة (تدعم الفصل بين الدوري والبطولات)
+// match.js - واجهة المباراة
 // ============================================
 
-function playTournamentMatch() {
-  G.forcedMatchComp = 'tournament';
-  play();
-}
-
-function playLeagueMatch() {
-  G.forcedMatchComp = 'league';
-  play();
-}
+function playTournamentMatch() { G.forcedMatchComp = 'tournament'; play(); }
+function playLeagueMatch() { G.forcedMatchComp = 'league'; play(); }
 
 function play(){
   if(!G.lu || G.lu.length !== 11 || G.lu.includes(null) || G.lu.some(id => !T[G.my].ps.find(p => p.id === id))){

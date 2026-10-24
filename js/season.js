@@ -1,5 +1,5 @@
 // ============================================
-// season.js - نظام المهمات + محرك الوقت المبني على الأحداث
+// season.js - النسخة النهائية (محرك الوقت + القضاء على توقف المباريات)
 // ============================================
 
 function mk(){
@@ -1114,14 +1114,12 @@ function nxt(){
       Mt = null;
     }
 
-    // جلب المباراة القادمة
     const nextMatch = getNextUserMatch();
     if(!nextMatch || G.season.currentDay >= 360){
       endSeason();
       return;
     }
 
-    // بدء محرك الوقت السريع للوصول إلى يوم المباراة (سيتم استدعاء dash() في نهاية المحرك)
     if(typeof startFastForward === 'function'){
       startFastForward(nextMatch.day);
     } else {

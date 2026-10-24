@@ -11,7 +11,7 @@ function play(){
   if(!nm) return alert('لا مباراة!');
 
   if(daysUntilMatch(nm) > 0) {
-    advanceToDay(nm.day); 
+    try { advanceToDay(nm.day); } catch(e) { console.error("Advance error:", e); }
   }
 
   document.querySelectorAll('.md').forEach(el => el.hidden = true);
@@ -51,7 +51,6 @@ function play(){
     weather: w
   });
 
-  // ✅ حفظ مرجع المباراة الحالية لتجنب أخطاء تكرارها عند النهاية
   Mt.calendarItem = nm;
 
   $('mh').textContent = Mt.h.name;
@@ -422,7 +421,6 @@ function finish(){
     const mg = s[Mt.hu].g;
     const og = s[Mt.hu==='home' ? 'away' : 'home'].g;
     
-    // ✅ حفظ حالة انتهاء المباراة في أول سطر لضمان عدم تكرارها نهائياً
     const nm = (Mt && Mt.calendarItem) ? Mt.calendarItem : getNextUserMatch();
     let rW = mg > og, rD = mg === og;
     const isKO = ['cup','cafCL','cafCC','super','cafSuper','clubWC'].includes(nm?.comp);
@@ -435,10 +433,14 @@ function finish(){
       showPenaltyModal(pr, Mt.h.name, Mt.a.name);
     }
 
+    // 💥 الحل الجذري: إزالة المباراة من التقويم نهائياً بدلاً من تعليمها فقط
     if(nm){ 
       nm.played = true; 
       nm.result = {myGoals:mg, oppGoals:og, won:rW, draw:rD, penalty:pr}; 
-      save(); // 💾 الحفظ الفوري هنا يمنع تكرار المباراة نهائياً
+      if(G.season && G.season.userCalendar) {
+          G.season.userCalendar = G.season.userCalendar.filter(m => m !== nm);
+      }
+      save(); // 💾 حفظ فوري لمنع أي تكرار
     }
 
     const myT = Mt.s[Mt.hu].t;
@@ -548,9 +550,16 @@ function finish(){
     console.error('finish err:', e); 
     try {
       const nm = (Mt && Mt.calendarItem) ? Mt.calendarItem : getNextUserMatch();
-      if(nm){ nm.played = true; save(); }
+      if(nm){ 
+          nm.played = true; 
+          if(G.season && G.season.userCalendar) {
+              G.season.userCalendar = G.season.userCalendar.filter(m => m !== nm);
+          }
+          save(); 
+      }
     } catch(err){}
     $('rs').hidden = true;
+    if(typeof dash === 'function') dash();
   }
 }
 

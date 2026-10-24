@@ -1,5 +1,5 @@
 // ============================================
-// ui.js - الشاشات والواجهة
+// ui.js - الشاشات والواجهة (عداد أيام تفاعلي)
 // ============================================
 
 function switchTab(t){G.tab = t; dash();}
@@ -140,8 +140,12 @@ function luH(t){
       <button class="b" style="flex:1;padding:14px;font-size:12px;background:#8b5cf6;color:#fff;border:none;border-radius:8px;font-weight:bold" onclick="if(confirm('محاكاة الجولة بالكامل؟ (سيتم محاكاة مباراتك أيضاً)'))simulateCurrentRound()">⏩ محاكاة الجولة</button>
     </div>`; 
   }
-  else if(nm){ pb = `<button class="b a" style="width:100%;margin-bottom:8px;padding:12px;font-size:12px" onclick="advanceToNextMatch()">⏭️ تقدّم (${daysUntilMatch(nm)} يوم)</button>`; }
-  else { pb = `<button class="b" style="width:100%;margin-bottom:8px;padding:12px;font-size:12px;background:#475569;color:#fff" onclick="endSeason()">🏁 انهاء الموسم</button>`; }
+  else if(nm){ 
+    pb = `<button class="b a" style="width:100%;margin-bottom:8px;padding:12px;font-size:12px" onclick="advanceToNextMatch()">⏭️ تقدّم (${daysUntilMatch(nm)} يوم)</button>`; 
+  }
+  else { 
+    pb = `<button class="b" style="width:100%;margin-bottom:8px;padding:12px;font-size:12px;background:#475569;color:#fff" onclick="endSeason()">🏁 انهاء الموسم</button>`; 
+  }
 
   let matchCard = '';
   if(nm){
@@ -289,7 +293,6 @@ function compH(){
 
   let h = `<div class="c"><div class="sec">🌳 خريطة البطولات والتأهل</div>`;
   
-  // 🏆 الدوري المصري
   h += `<div onclick="showTournamentDetails('league')" style="cursor:pointer;background:linear-gradient(135deg,rgba(30,58,138,.6),rgba(15,34,56,.9));border:1px solid rgba(251,191,36,.4);border-radius:10px;padding:8px;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <b style="color:#fbbf24;font-size:11px">🏆 الدوري المصري</b>
@@ -302,7 +305,6 @@ function compH(){
     </div>
   </div>`;
   
-  // 🥇 كأس مصر
   h += `<div onclick="showTournamentDetails('cup')" style="cursor:pointer;background:linear-gradient(135deg,rgba(30,58,138,.6),rgba(15,34,56,.9));border:1px solid rgba(251,191,36,.4);border-radius:10px;padding:8px;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <b style="color:#fbbf24;font-size:11px">🥇 كأس مصر</b>
@@ -316,7 +318,6 @@ function compH(){
   
   h += `<div style="text-align:center;font-size:10px;color:var(--m);margin:2px 0">↓</div>`;
   
-  // ⚡ السوبر المصري
   h += `<div onclick="showTournamentDetails('super')" style="cursor:pointer;background:linear-gradient(135deg,rgba(34,211,238,.15),rgba(15,34,56,.9));border:1px solid rgba(34,211,238,.4);border-radius:10px;padding:8px;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <b style="color:#22d3ee;font-size:11px">⚡ السوبر المصري</b>
@@ -327,7 +328,6 @@ function compH(){
   
   h += `<div style="text-align:center;font-size:10px;color:var(--m);margin:2px 0">↓</div>`;
   
-  // 🌍 أبطال أفريقيا
   h += `<div onclick="showTournamentDetails('cafCL')" style="cursor:pointer;background:linear-gradient(135deg,rgba(168,85,247,.2),rgba(15,34,56,.9));border:1px solid rgba(168,85,247,.4);border-radius:10px;padding:8px;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <b style="color:#a855f7;font-size:11px">🌍 أبطال أفريقيا</b>
@@ -339,7 +339,6 @@ function compH(){
     </div>
   </div>`;
   
-  // 🌍 كأس الكونفدرالية
   h += `<div onclick="showTournamentDetails('cafCC')" style="cursor:pointer;background:linear-gradient(135deg,rgba(96,165,250,.2),rgba(15,34,56,.9));border:1px solid rgba(96,165,250,.4);border-radius:10px;padding:8px;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
       <b style="color:#60a5fa;font-size:11px">🌍 كأس الكونفدرالية</b>
@@ -669,15 +668,66 @@ function upgradeFacility(type) {
   save(); dash();
 }
 
+// ============================================
+// دالة عداد الأيام التفاعلي
+// ============================================
 function advanceToNextMatch(){
   const nm = getNextUserMatch();
   if(!nm) return;
-  advanceToDay(nm.day);
-  if(nm.comp !== 'cup' && (nm.comp !== 'league' || isDerby(G.my, nm.opp))){
-    const ds = G.season.currentDay-(G.lastPressDay||0);
-    if(ds >= 5){ G.lastPressDay = G.season.currentDay; setTimeout(() => showPressConference(nm), 600); }
+  
+  // منع تخطي المباراة
+  if(G.season.currentDay >= nm.day) {
+    return alert("⚠️ يجب عليك لعب المباراة الحالية أولاً! (لا يمكنك تخطي المباريات)");
   }
-  dash();
+
+  // منع التكرار أثناء العد
+  if(window.isAdvancing) return;
+  window.isAdvancing = true;
+
+  const targetDay = nm.day;
+  const totalDays = targetDay - G.season.currentDay;
+  const steps = Math.min(15, totalDays);
+  const daysPerTick = Math.ceil(totalDays / steps);
+
+  const btns = document.querySelectorAll('button[onclick="advanceToNextMatch()"]');
+  btns.forEach(b => { 
+    b.innerHTML = "⏳ جاري تقديم الأيام..."; 
+    b.style.opacity = '0.7'; 
+    b.style.pointerEvents = 'none';
+  });
+
+  const ticker = setInterval(() => {
+    G.season.currentDay += daysPerTick;
+    if (G.season.currentDay >= targetDay) {
+      G.season.currentDay = targetDay;
+    }
+    
+    const t = T[G.my];
+    // تحديث العداد في الأعلى مع تأثير وميض
+    $('header-badge').textContent = `يوم ${G.season.currentDay} • ${t.budget.toFixed(1)}M`;
+    $('header-badge').style.transform = 'scale(1.15)';
+    $('header-badge').style.background = 'linear-gradient(135deg, #fbbf24, #f59e0b)';
+    
+    setTimeout(() => {
+      $('header-badge').style.transform = 'scale(1)';
+      $('header-badge').style.background = 'linear-gradient(135deg,#fbbf24,#d97706)';
+    }, 80);
+
+    if (G.season.currentDay >= targetDay) {
+      clearInterval(ticker);
+      window.isAdvancing = false;
+      
+      // إنهاء تقدم اليوم (محاكاة الذكاء الاصطناعي، التدريب، إلخ)
+      advanceToDay(targetDay);
+      
+      if(nm.comp !== 'cup' && (nm.comp !== 'league' || isDerby(G.my, nm.opp))){
+        const ds = G.season.currentDay-(G.lastPressDay||0);
+        if(ds >= 5){ G.lastPressDay = G.season.currentDay; setTimeout(() => showPressConference(nm), 600); }
+      }
+      
+      dash();
+    }
+  }, 100); // 100ms لكل خطوة
 }
 
 function checkCupNotification(){

@@ -1,5 +1,5 @@
 // ============================================
-// season.js - النسخة النهائية (تساوي عدد المباريات لجميع الفرق)
+// season.js - النسخة النهائية (عداد أيام + بداية فورية)
 // ============================================
 
 function mk(){
@@ -60,7 +60,8 @@ function generateSeason(myId, prev){
   let cumulativeDelay = 0;
 
   rounds.forEach((round, ri) => {
-    const baseDay = LEAGUE_START_DAY + ri*LEAGUE_ROUND_INTERVAL;
+    // تعديل: بدء الجولة الأولى في اليوم 1 مباشرة
+    const baseDay = 1 + ri*LEAGUE_ROUND_INTERVAL; 
     let day = baseDay + cumulativeDelay;
     let previousDay = day;
 
@@ -282,14 +283,12 @@ function simulateAIUpToDay(td){
     if(d.day <= td && d.played.length < d.round.length){
       const um = d.round.find(m => m[0] === G.my || m[1] === G.my);
       
-      // إصلاح: إذا كانت مباراة المستخدم في يوم سابق، يتم محاكاتها تلقائياً حتى لا يتأخر الخصم
       if (um) {
           const pk = um[0] + '_' + um[1];
           if (!d.played.includes(pk)) {
               if (d.day === td) {
-                  return; // إذا كانت المباراة اليوم، انتظر المستخدم ليلعبها
+                  return;
               } else {
-                  // المباراة في يوم سابق ولم تُلعب -> محاكاة تلقائية
                   const h = um[0], a = um[1];
                   const tH = T[h], tA = T[a];
                   if(tH && tA) {

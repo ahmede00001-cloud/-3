@@ -14,7 +14,11 @@ function play(){
     try { advanceToDay(nm.day); } catch(e) { console.error("Advance error:", e); }
   }
 
-  document.querySelectorAll('.md').forEach(el => el.hidden = true);
+  // ✅ إخفاء جميع النوافذ المنبثقة بقوة
+  document.querySelectorAll('.md, .ov').forEach(el => {
+      el.hidden = true;
+      el.style.display = 'none';
+  });
 
   if(raf) cancelAnimationFrame(raf);
 
@@ -65,7 +69,12 @@ function play(){
   $('live-commentary').style.display = 'none';
   $('momentum-pointer').style.left = '50%';
   mtac(G.tac);
-  $('ms').hidden = false;
+  
+  // ✅ إظهار شاشة الملعب بقوة
+  const msEl = $('ms');
+  msEl.hidden = false;
+  msEl.style.display = 'flex';
+
   last = performance.now();
   raf = requestAnimationFrame(loop);
 }
@@ -332,24 +341,26 @@ function doSub(){ if(Mt.sub(Mt.hu, $('so').value, $('si').value)) $('sm').hidden
 
 function skip(){
   if(!Mt || Mt.done) return;
-  if(!confirm('هل أنت متأكد من تخطي باقي المباراة وإنهائها فوراً؟')) return;
-
+  // تم إزالة نافذة التأكيد لتجنب التعليق
   try {
+    // 1. إخفاء شاشة الملعب فوراً وبقوة
+    const msEl = $('ms');
+    msEl.hidden = true;
+    msEl.style.display = 'none';
+
     cancelAnimationFrame(raf);
-    // إحصائية سريعة وبسيطة بدلاً من الحلقة المعقدة التي قد تسبب تجمد
+    
+    // 2. حساب سريع
     const hp = Mt.teamPower('home');
     const ap = Mt.teamPower('away');
     const currentMin = Math.floor(Mt.min);
     const remainingMin = Math.max(0, 90 - currentMin);
     
-    const homeGoalChance = hp * 0.015 * remainingMin;
-    const awayGoalChance = ap * 0.015 * remainingMin;
-    
-    if(R() < homeGoalChance) { 
+    if(R() < hp * 0.015 * remainingMin) { 
         Mt.s.home.g++; 
         Mt.say(90, 'goal', `⚽ هدف متأخر لـ ${Mt.s.home.t.name}`); 
     }
-    if(R() < awayGoalChance) { 
+    if(R() < ap * 0.015 * remainingMin) { 
         Mt.s.away.g++; 
         Mt.say(90, 'goal', `⚽ هدف متأخر لـ ${Mt.s.away.t.name}`); 
     }
@@ -358,9 +369,11 @@ function skip(){
     Mt.done = true;
     Mt.say(90, 'info', '🏁 نهاية المباراة');
     
+    // 3. عرض النتيجة
     finish();
   } catch(e) {
     console.error('Skip Error:', e);
+    $('ms').style.display = 'none'; // إخفاء إجباري في حالة حدوث خطأ
     Mt.done = true;
     finish();
   }
@@ -411,8 +424,12 @@ function syncMatchStats(m){
 }
 
 function finish(){
-  // إخفاء شاشة الملعب فوراً لمنع تجمد الشاشة
-  $('ms').hidden = true;
+  // ✅ إخفاء شاشة الملعب فوراً وبقوة
+  const msEl = $('ms');
+  if(msEl) {
+      msEl.hidden = true;
+      msEl.style.display = 'none';
+  }
 
   try{
     cancelAnimationFrame(raf);
@@ -547,12 +564,18 @@ function finish(){
     if(pr){ $('rpen').style.display = 'block'; $('rpen').innerHTML = `🥅 ترجيح: ${pr.scoreA}-${pr.scoreB}`; } 
     else $('rpen').style.display = 'none';
     $('rlu').innerHTML = (Array.isArray(pendingLvl) && pendingLvl.length) ? pendingLvl.map(l => `<div>${l}</div>`).join('') : '';
-    $('rs').hidden = false; // إظهار النتيجة
+    
+    // ✅ إظهار شاشة النتيجة بقوة
+    const rsEl = $('rs');
+    rsEl.hidden = false;
+    rsEl.style.display = 'flex';
+
   } catch(e){
     console.error('finish err:', e); 
     // في حال حدوث خطأ كارثي، نغلق الشاشات ونعود للرئيسية
-    $('ms').hidden = true;
-    $('rs').hidden = true;
+    const msEl = $('ms'); if(msEl) { msEl.hidden = true; msEl.style.display = 'none'; }
+    const rsEl = $('rs'); if(rsEl) { rsEl.hidden = true; rsEl.style.display = 'none'; }
+    
     try {
       const nm = (Mt && Mt.calendarItem) ? Mt.calendarItem : getNextUserMatch();
       if(nm){ 

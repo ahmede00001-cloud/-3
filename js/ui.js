@@ -1,5 +1,5 @@
 // ============================================
-// ui.js - الشاشات والواجهة (عداد أيام تفاعلي)
+// ui.js - الشاشات والواجهة (محاكاة 60 ثانية + فصل البطولات)
 // ============================================
 
 function switchTab(t){G.tab = t; dash();}
@@ -81,8 +81,10 @@ function luH(t){
   if(!G.captain || !starters.find(p => p.id === G.captain)) autoAssignRoles();
 
   const slots = getSlots(G.form);
-  const nm = getNextUserMatch();
-  const cp = nm && daysUntilMatch(nm) <= 0 && !nm.played;
+  
+  const absoluteNext = getNextUserMatch();
+  const nmLeague = getNextUserMatch('league');
+  const nm = absoluteNext;
 
   const myPower = calcTeamPower(t, G.lu);
   let oppPower = null, oppName = '';
@@ -130,21 +132,32 @@ function luH(t){
   </div>`;
 
   const hints = buildHints();
-  const hintsBox = hints.length ? `<div class="hints-container"><div class="hints-title">💡 اقتراحات ذكية</div>${hints.map(h => `<div class="hint-item"><span>${h.icon}</span><span style="color:${h.color}">${h.text}</span></div>`).join('')}</div>` : '';
+  const hintsBox = hints.length ? `<div class="hints-container"><div class="hints-title">💡 اقتراحات ذكية</div>${hints.map(h => `<div class="hint-item"><span>${h.icon}</span><span style="color:${h.color}">${h.text}</span></span></div>`).join('')}</div>` : '';
 
   let pb = '';
-  if(cp){ 
-    const df = isDerby(G.my, nm.opp) ? '⚔️ ديربي! ' : ''; 
-    pb = `<div style="display:flex;gap:6px;margin-bottom:8px">
-      <button class="b g" style="flex:2;padding:14px;font-size:14px" onclick="play()">${df}▶️ العب المباراة</button>
-      <button class="b" style="flex:1;padding:14px;font-size:12px;background:#8b5cf6;color:#fff;border:none;border-radius:8px;font-weight:bold" onclick="if(confirm('محاكاة الجولة بالكامل؟ (سيتم محاكاة مباراتك أيضاً)'))simulateCurrentRound()">⏩ محاكاة الجولة</button>
-    </div>`; 
-  }
-  else if(nm){ 
-    pb = `<button class="b a" style="width:100%;margin-bottom:8px;padding:12px;font-size:12px" onclick="advanceToNextMatch()">⏭️ تقدّم (${daysUntilMatch(nm)} يوم)</button>`; 
-  }
-  else { 
-    pb = `<button class="b" style="width:100%;margin-bottom:8px;padding:12px;font-size:12px;background:#475569;color:#fff" onclick="endSeason()">🏁 انهاء الموسم</button>`; 
+  if (absoluteNext && absoluteNext.comp !== 'league') {
+      const oppN = T[absoluteNext.opp]?.name || AFRICAN.find(a=>a[0]===absoluteNext.opp)?.[1] || absoluteNext.opp;
+      const cnT = {cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
+      pb = `<div style="background:rgba(251,191,36,.2); border:2px solid #fbbf24; padding:15px; border-radius:12px; text-align:center; margin-bottom:10px; box-shadow:0 0 15px rgba(251,191,36,.2)">
+          <div style="font-size:24px; margin-bottom:5px;">🏆</div>
+          <div style="font-weight:900; color:#fbbf24; font-size:16px; margin-bottom:5px;">${cnT[absoluteNext.comp] || absoluteNext.comp} • ${absoluteNext.round}</div>
+          <div style="font-size:14px; color:#fff; font-weight:bold; margin-bottom:10px;">${t.name} ${absoluteNext.home?'vs':'@'} ${oppN}</div>
+          <div style="font-size:11px; color:#cbd5e1; margin-bottom:12px;">يجب عليك لعبها من تبويب البطولات حتى لا تتأثر مباريات الدوري.</div>
+          <button class="b" style="background:#8b5cf6; border:none; padding:12px" onclick="switchTab('comp')">الذهاب للبطولات ⚽</button>
+      </div>`;
+  } else if (nmLeague) {
+      const cp = daysUntilMatch(nmLeague) <= 0;
+      if (cp) {
+          const df = isDerby(G.my, nmLeague.opp) ? '⚔️ ديربي! ' : ''; 
+          pb = `<div style="display:flex;gap:6px;margin-bottom:8px">
+            <button class="b g" style="flex:2;padding:14px;font-size:14px" onclick="playLeagueMatch()">${df}▶️ العب المباراة</button>
+            <button class="b" style="flex:1;padding:14px;font-size:12px;background:#8b5cf6;color:#fff;border:none;border-radius:8px;font-weight:bold" onclick="startSimulationWithTimer('league')">⏩ محاكاة</button>
+          </div>`; 
+      } else {
+          pb = `<button class="b a" style="width:100%;margin-bottom:8px;padding:12px;font-size:12px" onclick="advanceToNextMatch('league')">⏭️ تقدّم (${daysUntilMatch(nmLeague)} يوم)</button>`; 
+      }
+  } else {
+      pb = `<button class="b" style="width:100%;margin-bottom:8px;padding:12px;font-size:12px;background:#475569;color:#fff" onclick="endSeason()">🏁 انهاء الموسم</button>`;
   }
 
   let matchCard = '';
@@ -291,7 +304,34 @@ function compH(){
   const projSup = st[0]?.id === G.my || cupW === G.my;
   const projColor = projCL ? '#4ade80' : projCC ? '#60a5fa' : '#f87171';
 
-  let h = `<div class="c"><div class="sec">🌳 خريطة البطولات والتأهل</div>`;
+  const nextTourn = getNextUserMatch('tournament');
+  let tournActionHTML = '';
+  if (nextTourn) {
+      const oppName = T[nextTourn.opp]?.name || AFRICAN.find(a=>a[0]===nextTourn.opp)?.[1] || WORLD.find(w=>w[0]===nextTourn.opp)?.[1] || nextTourn.opp;
+      const daysLeft = daysUntilMatch(nextTourn);
+      const cp = daysLeft <= 0;
+      const cn = {cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
+      
+      tournActionHTML = `
+      <div class="c" style="border:2px solid #fbbf24; background:linear-gradient(135deg,rgba(251,191,36,.2),rgba(15,34,56,.9)); margin-bottom:15px; box-shadow:0 0 20px rgba(251,191,36,.3)">
+        <div style="font-size:14px;color:#fbbf24;font-weight:900;margin-bottom:12px;display:flex;align-items:center;gap:8px; justify-content:center;">🏆 مباراتك القادمة في البطولات</div>
+        <div style="text-align:center; margin-bottom:15px; background:rgba(0,0,0,.4); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,.1);">
+          <div style="font-size:20px;font-weight:900;color:#fff; margin-bottom:5px;">${T[G.my].name} <span style="color:#fbbf24; font-size:16px;">${nextTourn.home?'vs':'@'}</span> ${oppName}</div>
+          <div style="font-size:12px;color:#cbd5e1; font-weight:bold;">${cn[nextTourn.comp] || nextTourn.comp} • ${nextTourn.round}</div>
+          <div style="font-size:11px;color:#4ade80; margin-top:8px; background:rgba(74,222,128,.1); display:inline-block; padding:4px 10px; border-radius:8px;">📅 ${dayToDate(nextTourn.day)}</div>
+        </div>
+        
+        ${cp ? 
+          `<div style="display:flex;gap:8px">
+             <button class="b g" style="flex:1;padding:14px;font-size:14px" onclick="playTournamentMatch()">▶️ العب المباراة</button>
+             <button class="b" style="flex:1;padding:14px;font-size:14px;background:#8b5cf6;color:#fff;border:none" onclick="startSimulationWithTimer('tournament')">⏩ محاكاة المباراة</button>
+           </div>` : 
+          `<button class="b a" style="width:100%;padding:14px;font-size:14px" onclick="advanceToNextMatch('tournament')">⏭️ تقدّم (${daysLeft} يوم)</button>`
+        }
+      </div>`;
+  }
+
+  let h = tournActionHTML + `<div class="c"><div class="sec">🌳 خريطة البطولات والتأهل</div>`;
   
   h += `<div onclick="showTournamentDetails('league')" style="cursor:pointer;background:linear-gradient(135deg,rgba(30,58,138,.6),rgba(15,34,56,.9));border:1px solid rgba(251,191,36,.4);border-radius:10px;padding:8px;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
@@ -671,16 +711,14 @@ function upgradeFacility(type) {
 // ============================================
 // دالة عداد الأيام التفاعلي
 // ============================================
-function advanceToNextMatch(){
-  const nm = getNextUserMatch();
+function advanceToNextMatch(filterComp){
+  const nm = getNextUserMatch(filterComp);
   if(!nm) return;
   
-  // منع تخطي المباراة
   if(G.season.currentDay >= nm.day) {
     return alert("⚠️ يجب عليك لعب المباراة الحالية أولاً! (لا يمكنك تخطي المباريات)");
   }
 
-  // منع التكرار أثناء العد
   if(window.isAdvancing) return;
   window.isAdvancing = true;
 
@@ -689,7 +727,7 @@ function advanceToNextMatch(){
   const steps = Math.min(15, totalDays);
   const daysPerTick = Math.ceil(totalDays / steps);
 
-  const btns = document.querySelectorAll('button[onclick="advanceToNextMatch()"]');
+  const btns = document.querySelectorAll('button[onclick^="advanceToNextMatch"]');
   btns.forEach(b => { 
     b.innerHTML = "⏳ جاري تقديم الأيام..."; 
     b.style.opacity = '0.7'; 
@@ -703,7 +741,6 @@ function advanceToNextMatch(){
     }
     
     const t = T[G.my];
-    // تحديث العداد في الأعلى مع تأثير وميض
     $('header-badge').textContent = `يوم ${G.season.currentDay} • ${t.budget.toFixed(1)}M`;
     $('header-badge').style.transform = 'scale(1.15)';
     $('header-badge').style.background = 'linear-gradient(135deg, #fbbf24, #f59e0b)';
@@ -717,7 +754,6 @@ function advanceToNextMatch(){
       clearInterval(ticker);
       window.isAdvancing = false;
       
-      // إنهاء تقدم اليوم (محاكاة الذكاء الاصطناعي، التدريب، إلخ)
       advanceToDay(targetDay);
       
       if(nm.comp !== 'cup' && (nm.comp !== 'league' || isDerby(G.my, nm.opp))){
@@ -727,7 +763,73 @@ function advanceToNextMatch(){
       
       dash();
     }
-  }, 100); // 100ms لكل خطوة
+  }, 100);
+}
+
+// ============================================
+// محاكاة المباراة مع عداد 60 ثانية احترافي
+// ============================================
+function startSimulationWithTimer(filterComp) {
+  if (window.isSimulating) return;
+  
+  const nm = getNextUserMatch(filterComp);
+  if (!nm) return alert("لا توجد مباراة لمحاكاتها حالياً!");
+  
+  window.isSimulating = true;
+  
+  let modal = document.getElementById('sim-modal');
+  if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'sim-modal';
+      modal.className = 'md';
+      modal.style.zIndex = 2000;
+      modal.innerHTML = `
+          <div class="mc mc-warning" style="text-align:center; border:2px solid #fbbf24;">
+              <div class="mc-icon" style="font-size:60px; animation:logoBounce 1s infinite alternate;">⚽</div>
+              <div class="mc-title" style="color:#fbbf24;">جاري محاكاة المباراة...</div>
+              <div style="font-size:11px; color:#94a3b8; margin-bottom:20px;" id="sim-match-teams">جاري الحساب</div>
+              
+              <div style="font-size:48px; font-weight:900; color:#fff; margin:20px 0; text-shadow:0 0 20px rgba(255,255,255,0.5);" id="sim-timer">60</div>
+              
+              <div style="height:12px; background:rgba(0,0,0,0.6); border-radius:6px; overflow:hidden; margin-bottom:20px;">
+                  <div id="sim-progress" style="width:0%; height:100%; background:linear-gradient(90deg,#fbbf24,#d97706); transition:width 1s linear;"></div>
+              </div>
+              <div style="font-size:12px; color:#cbd5e1;" id="sim-status">يتم استخراج التقارير...</div>
+          </div>
+      `;
+      document.body.appendChild(modal);
+  }
+  
+  const oppName = T[nm.opp]?.name || AFRICAN.find(a=>a[0]===nm.opp)?.[1] || nm.opp;
+  document.getElementById('sim-match-teams').textContent = `${T[G.my].name} ضد ${oppName}`;
+  
+  modal.hidden = false;
+  let timeLeft = 60;
+  const timerEl = document.getElementById('sim-timer');
+  const progressEl = document.getElementById('sim-progress');
+  const statusEl = document.getElementById('sim-status');
+  
+  timerEl.textContent = timeLeft;
+  progressEl.style.width = '0%';
+  statusEl.textContent = "جاري تحليل تشكيلة الفريقين...";
+
+  const interval = setInterval(() => {
+      timeLeft--;
+      timerEl.textContent = timeLeft;
+      progressEl.style.width = ((60 - timeLeft) / 60 * 100) + '%';
+
+      if (timeLeft === 40) statusEl.textContent = "جاري محاكاة أحداث المباراة...";
+      if (timeLeft === 20) statusEl.textContent = "يتم تسجيل الإحصائيات والأهداف...";
+      if (timeLeft === 5) statusEl.textContent = "تجهيز شاشة النتيجة...";
+
+      if (timeLeft <= 0) {
+          clearInterval(interval);
+          modal.hidden = true;
+          window.isSimulating = false;
+          
+          simulateCurrentRound(filterComp);
+      }
+  }, 1000);
 }
 
 function checkCupNotification(){
@@ -775,9 +877,11 @@ function showCupNotification(nm){
     ${postponeHTML}
     
     <div class="info-box" style="font-size:10px; text-align:center; color:#cbd5e1; margin-top:5px;">
-      ⚠️ مباراة إقصائية: التعادل يعني ركلات ترجيح!
+      ⚠️ يرجى التوجه لتبويب البطولات للعب المباراة!
     </div>
-    <div class="mc-actions"><button class="b full" onclick="$('cm').hidden=true">✅ فهمت - إلى المباراة</button></div>
+    <div class="mc-actions">
+      <button class="b g" style="flex:1" onclick="$('cm').hidden=true; switchTab('comp')">⚽ الذهاب للبطولات</button>
+    </div>
   </div>`;
   $('cm').hidden = false;
 }

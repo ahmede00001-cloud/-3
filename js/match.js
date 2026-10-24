@@ -12,9 +12,9 @@
 })();
 
 // ✅ مؤقت المحاكاة (يعتمد على الزمن الحقيقي مش على معدل الشاشة)
-let simAcc = 0;
-let loopErrors = 0;
-const SIM_STEP_MS = 1000/60;
+let _mtSimAcc = 0;
+let _mtLoopErr = 0;
+const _MT_STEP_MS = 1000/60;
 
 function play(){
   if(!G.lu || G.lu.length !== 11 || G.lu.includes(null) || G.lu.some(id => !T[G.my].ps.find(p => p.id === id))){
@@ -77,8 +77,8 @@ function play(){
   shown = 0;
   paused = false;
   speed = 3;
-  simAcc = 0;
-  loopErrors = 0;
+  _mtSimAcc = 0;
+  _mtLoopErr = 0;
   $('bs').textContent = '×3';
   $('lg').innerHTML = '';
   $('mr').textContent = `${cn[nm.comp]||nm.comp} • ${nm.round}`;
@@ -114,9 +114,9 @@ function loop(n){
   last = n;
   try {
     if(!paused && !Mt.done && Mt.hold <= 0){
-      simAcc += dt;
-      while(simAcc >= SIM_STEP_MS){
-        simAcc -= SIM_STEP_MS;
+      _mtSimAcc += dt;
+      while(_mtSimAcc >= _MT_STEP_MS){
+        _mtSimAcc -= _MT_STEP_MS;
         for(let i=0; i<speed; i++){
           if(!Mt.done) Mt.step();
         }
@@ -125,13 +125,13 @@ function loop(n){
     }
     draw();
     ui();
-    loopErrors = 0;
+    _mtLoopErr = 0;
     if(Mt.done){ finish(); return; }
     raf = requestAnimationFrame(loop);
   } catch(e) {
     console.error("Match Loop Error:", e);
-    loopErrors++;
-    if(loopErrors >= 5){
+    _mtLoopErr++;
+    if(_mtLoopErr >= 5){
       // ✅ بدل ما نعلّق اللاعب في لوب بيفشل، نخلّص المباراة
       console.error("Too many loop errors, finishing match");
       try { Mt.done = true; finish(); } catch(err){ console.error(err); }
@@ -659,3 +659,8 @@ function showPenaltyModal(r, hN, aN){
 }
 
 function closePenaltyModal(){ $('pen-m').hidden = true; }
+
+// ✅ نضمن إن الدوال متاحة للـ onclick في الـ HTML
+['play','skip','pz','spd','subm','doSub','mtac','finish','closePenaltyModal'].forEach(n => {
+  try { window[n] = eval(n); } catch(e) { console.error('export failed:', n, e); }
+});

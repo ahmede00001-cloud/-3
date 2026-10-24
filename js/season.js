@@ -1,5 +1,5 @@
 // ============================================
-// season.js - النسخة النهائية (فصل الدوري عن البطولات + محاكاة)
+// season.js - نظام المهمات المتسلسلة (بدون نظام وقت)
 // ============================================
 
 function mk(){
@@ -1007,9 +1007,6 @@ function resolveSuperCups(){
   }
 }
 
-// ============================================
-// دالة محاكاة الجولة (تدعم الفصل)
-// ============================================
 function simulateCurrentRound(filterComp) {
     const nm = getNextUserMatch(filterComp);
     if (!nm || nm.played) return;
@@ -1114,72 +1111,7 @@ function nxt(){
       Mt = null;
     }
 
-    let safety = 0;
-    while(safety++ < 100){
-      const nm = getNextUserMatch();
-      if(!nm) break;
-      if(nm.day > G.season.currentDay) break;
-      nm.played = true;
-      
-      if(!nm.result){
-        const myT = T[G.my];
-        const oppT = T[nm.opp] || createVirtualTeam(nm.opp, nm.opp, 75);
-        const myR = myT.R + (nm.home ? 2 : 0);
-        const oppR = oppT.R + (nm.home ? 0 : 2);
-        const df = (myR - oppR) / 15;
-        const mg = Math.max(0, Math.round(R()*1.5 + df*.4));
-        const og = Math.max(0, Math.round(R()*1.5 - df*.4));
-        nm.result = {myGoals:mg, oppGoals:og, won:mg>og, draw:mg===og};
-      }
-
-      if(nm.comp === 'league'){
-        const d = G.season.leagueFixtures[nm.round];
-        const pk = nm.home ? `${G.my}_${nm.opp}` : `${nm.opp}_${G.my}`;
-        if(d && !d.played.includes(pk)){
-          d.played.push(pk);
-          d.results = d.results || {};
-          d.results[pk] = [nm.result.myGoals, nm.result.oppGoals];
-          const myT = T[G.my];
-          const oppT = T[nm.opp] || createVirtualTeam(nm.opp, nm.opp, 75);
-          const hT = nm.home ? myT : oppT;
-          const aT = nm.home ? oppT : myT;
-          const hG = nm.home ? nm.result.myGoals : nm.result.oppGoals;
-          const aG = nm.home ? nm.result.oppGoals : nm.result.myGoals;
-          rec(hT, aT, hG, aG);
-        }
-      }
-
-      if(nm.comp === 'cup' && G.season.cupBracket?.rounds?.[nm.round]){
-        const m = G.season.cupBracket.rounds[nm.round].find(x => x.home===G.my || x.away===G.my);
-        if(m && !m.played){ m.played = true; m.winner = nm.result.won ? G.my : (m.home===G.my?m.away:m.home); m.score = [nm.result.myGoals, nm.result.oppGoals]; }
-      }
-      ['cafCL','cafCC','clubWC'].forEach(comp => {
-        if(nm.comp === comp && G.season[comp]?.rounds?.[nm.round]){
-          const m = G.season[comp].rounds[nm.round].find(x => x.home===G.my || x.away===G.my);
-          if(m && !m.played){ m.played = true; m.winner = nm.result.won ? G.my : (m.home===G.my?m.away:m.home); m.score = [nm.result.myGoals, nm.result.oppGoals]; }
-        }
-      });
-      if(nm.comp === 'super' && G.season.egyptSuper && !G.season.egyptSuper.played){
-        G.season.egyptSuper.played = true;
-        G.season.egyptSuper.winner = nm.result.won ? G.my : nm.opp;
-        G.season.egyptSuper.score = [nm.result.myGoals, nm.result.oppGoals];
-      }
-      if(nm.comp === 'cafSuper' && G.season.cafSuper && !G.season.cafSuper.played){
-        G.season.cafSuper.played = true;
-        G.season.cafSuper.winner = nm.result.won ? G.my : nm.opp;
-        G.season.cafSuper.score = [nm.result.myGoals, nm.result.oppGoals];
-      }
-    }
-
-    advanceCupBracket();
-    if(G.season.cafCL) advanceCafComp('cafCL');
-    if(G.season.cafCC) advanceCafComp('cafCC');
-    if(G.season.clubWC) advanceClubWC();
-
-    checkLegendsMarket();
-    checkPlayerOfMonth();
-    resolveSuperCups();
-
+    // محاكاة أيام الدوري للوصول لليوم التالي مباشرة
     const nextMatch = getNextUserMatch();
     if(!nextMatch || G.season.currentDay >= 360){
       endSeason();
@@ -1204,7 +1136,7 @@ function nxt(){
     if(G.pendingOffer) setTimeout(() => showOffer(), 300);
   } catch(e){
     console.error('nxt err:', e);
-    alert('حدث خطأ أثناء الانتقال لليوم التالي: ' + e.message);
+    alert('حدث خطأ: ' + e.message);
     save();
   }
 }

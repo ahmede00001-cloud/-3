@@ -1,5 +1,6 @@
 // ============================================
-// season.js - توليد الموسم، الكؤوس، والمحاكاة (نسخة آمنة ومحصنة + ربط كامل للبطولات)
+// season.js - النسخة النهائية الجاهزة للتركيب
+// ربط كامل: الدوري + الكأس + أفريقيا + السوبر + كأس العالم
 // ============================================
 
 function mk(){
@@ -100,9 +101,8 @@ function generateSeason(myId, prev){
     });
   });
 
-  // ═══ كأس مصر ═══
-  // ✅ إصلاح 1: عدد الفرق = 32 بالظبط
-  const cupTeams = [...ids, ...DIV2.slice(0, 14)]; // 18 + 14 = 32
+  // ═══ كأس مصر (20 فريق دوري + 12 فريق DIV2 = 32 فريق) ═══
+  const cupTeams = [...ids, ...DIV2.slice(0, 12)];
   const cs = [...cupTeams].sort(() => R()-.5);
   const cb = {rounds:{}, currentRound:'R32', userAlive:true, winner:null, userMatches:[]};
   cb.rounds.R32 = [];
@@ -122,20 +122,16 @@ function generateSeason(myId, prev){
   s.cupBracket = cb;
 
   // ═══ الترشيحات ═══
-  // ✅ إصلاح 2: ترشيح الموسم الأول + استخدام ترتيب الموسم السابق الفعلي
   if(prev){
     const fullTable = prev.fullLeagueTable || [];
     const myPosPrev = fullTable.indexOf(myId) + 1 || prev.leaguePos;
-
     let cafCL = false, cafCC = false;
     if(prev.userWonCAFCL || prev.userWonCAFCC) cafCL = true;
     else if(myPosPrev >= 1 && myPosPrev <= 2) cafCL = true;
     else if(prev.userWonCup) cafCC = true;
     else if(myPosPrev >= 3 && myPosPrev <= 4) cafCC = true;
-
     s.qualified.cafCL = cafCL;
     s.qualified.cafCC = cafCC;
-
     if(prev.userWonLeague || prev.userWonCup) s.qualified.egyptSuper = true;
     if(prev.userWonCAFCL){ s.qualified.clubWC = true; s.qualified.cafSuper = true; }
     if(prev.userWonCAFCC) s.qualified.cafSuper = true;
@@ -151,7 +147,6 @@ function generateSeason(myId, prev){
   // ═══ دوري أبطال أفريقيا ═══
   if(s.qualified.cafCL){
     s.cafCL = {rounds:{}, currentRound:'R16', userAlive:true, winner:null};
-    // ✅ إصلاح 3: قائمة الأندية تعتمد على ترتيب الموسم السابق
     const prevTable = prev?.fullLeagueTable || [];
     const qualifiersCL = prevTable.length >= 4
       ? prevTable.slice(0, 4)
@@ -252,22 +247,21 @@ function getNextUserMatch(){
   if(!G.season || !G.season.userCalendar) return null;
   return G.season.userCalendar.find(m => !m.played) || null;
 }
+
 function daysUntilMatch(m){
   if(!m || !G.season) return 0;
   return Math.max(0, m.day-G.season.currentDay);
 }
 
 // ============================================
-// تقدم الأيام (مع تطبيق التدريب وفحص الأساطير)
+// تقدم الأيام
 // ============================================
 function advanceToDay(td){
   if(!G.season) return;
   simulateAIUpToDay(td);
   G.season.currentDay = td;
-
   applyTraining();
   updateLegendMarket();
-
   save();
 }
 
@@ -276,24 +270,16 @@ function applyTraining() {
   const t = T[G.my];
   const focus = G.training.focus;
   const intensity = G.training.intensity;
-
-  let xpMult = 1;
-  let injuryRisk = 0;
-  let staminaDrain = 0;
-
+  let xpMult = 1, injuryRisk = 0, staminaDrain = 0;
   if (intensity === 'light') { xpMult = 0.5; injuryRisk = 0.001; staminaDrain = 2; }
   else if (intensity === 'normal') { xpMult = 1.0; injuryRisk = 0.005; staminaDrain = 5; }
   else if (intensity === 'intense') { xpMult = 1.8; injuryRisk = 0.015; staminaDrain = 10; }
-
   const facLevel = G.facilities?.training || 1;
   xpMult *= (1 + (facLevel - 1) * 0.25);
-
   t.ps.forEach(p => {
     p.fit = Math.max(20, (p.fit || 100) - staminaDrain);
     if (R() < injuryRisk) tryInjure(p);
-
     let xpGain = 20 * xpMult;
-
     if (focus === 'attack') {
       p.shooting = Math.min(99, p.shooting + (R() < 0.3 ? 1 : 0));
       p.dribbling = Math.min(99, p.dribbling + (R() < 0.2 ? 1 : 0));
@@ -306,7 +292,6 @@ function applyTraining() {
     } else if (focus === 'youth' && p.age <= 23) {
       xpGain *= 2;
     }
-
     gainXp(p, Math.round(xpGain));
   });
 }
@@ -321,18 +306,14 @@ function simulateAIUpToDay(td){
         if(d.played.includes(pk)) return;
         const tH = T[h], tA = T[a];
         if(!tH || !tA) return;
-
         let p1 = tH.R, p2 = tA.R+2;
         if(tH.tac === 'attack') p1 += 1; else if(tH.tac === 'defense') p1 += .5;
         if(tA.tac === 'attack') p2 += 1; else if(tA.tac === 'defense') p2 += .5;
-
         const df = (p1-p2)/15;
         const g1 = Math.max(0, Math.round(R()*1.8+df*.5));
         const g2 = Math.max(0, Math.round(R()*1.8-df*.5));
-
         rec(tH, tA, g1, g2);
         d.played.push(pk);
-
         const homeScorers = [], awayScorers = [];
         for(let i=0; i<g1; i++){
           const el = tH.ps.filter(p => p.pos !== 'GK');
@@ -344,7 +325,6 @@ function simulateAIUpToDay(td){
           const p = el[Math.floor(R()*el.length)] || tA.ps[0];
           if(p){ p.goals = (p.goals||0)+1; awayScorers.push(p.name); gainXp(p, 40); }
         }
-
         const winN = g1>g2 ? tH.name : g2>g1 ? tA.name : null;
         const desc = winN
           ? (Math.abs(g1-g2)>=3 ? `🔥 فوز ساحق لـ ${winN}`
@@ -353,22 +333,18 @@ function simulateAIUpToDay(td){
           : (g1+g2>=5 ? `⚡ تعادل مثير ${g1}-${g2}`
             : g1+g2===0 ? `😴 تعادل سلبي`
             : `🤝 تعادل ${g1}-${g2}`);
-
         let scorerInfo = '⚽ ';
         if(homeScorers.length) scorerInfo += `${tH.name}: ${homeScorers.join(', ')}`;
         if(homeScorers.length && awayScorers.length) scorerInfo += ' | ';
         if(awayScorers.length) scorerInfo += `${tA.name}: ${awayScorers.join(', ')}`;
         if(!homeScorers.length && !awayScorers.length) scorerInfo += 'لا أهداف في المباراة';
-
         addNews(`📢 جولة ${rn}: ${tH.name} ${g1}-${g2} ${tA.name}`, `${desc}\n${scorerInfo}`);
       });
     }
   });
-
   if(G.season.cupBracket) simulateCupUpToDay(td);
   if(G.season.cafCL) simulateCafComp('cafCL', td);
   if(G.season.cafCC) simulateCafComp('cafCC', td);
-
   Object.values(T).forEach(t => {
     t.ps.forEach(p => { p.fit = Math.min(100, (p.fit!=null?p.fit:100)+5); });
     recoverInjuries(t);
@@ -379,31 +355,24 @@ function simulateCupUpToDay(td){
   const cb = G.season.cupBracket;
   if(!cb) return;
   const ro = ['R32','R16','QF','SF','F'];
-
   ro.forEach(round => {
     const rd = CUP_DAYS[round];
     if(!cb.rounds[round]) return;
     if(rd > td) return;
-
     cb.rounds[round].forEach(m => {
       if(m.played) return;
       if((m.home === G.my || m.away === G.my) && !m.played) return;
-
       const hT = T[m.home], aT = T[m.away];
       let w;
-      if(hT && aT){
-        const df = (hT.R+2-aT.R)/12;
-        w = R() < .5+df*.1 ? m.home : m.away;
-      } else if(hT) w = m.home;
+      if(hT && aT){ const df = (hT.R+2-aT.R)/12; w = R() < .5+df*.1 ? m.home : m.away; }
+      else if(hT) w = m.home;
       else if(aT) w = m.away;
       else w = R() < .5 ? m.home : m.away;
-
       m.winner = w; m.played = true;
       const wN = T[w]?.name || w;
       const lN = T[w === m.home ? m.away : m.home]?.name || (w === m.home ? m.away : m.home);
       addNews(`🏆 كأس مصر - ${round}: ${wN} يتأهل`, `🥅 ${wN} يهزم ${lN}`);
     });
-
     if(cb.rounds[round].every(m => m.played)){
       const ni = ro.indexOf(round)+1;
       if(ni < ro.length){
@@ -417,7 +386,6 @@ function simulateCupUpToDay(td){
             }
           }
         }
-        // ✅ إصلاح 3: إضافة مباراة المستخدم للدور التالي إن تأهل
         const um = cb.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
         if(um && !G.season.userCalendar.find(x => x.comp === 'cup' && x.round === nr && !x.played)){
           const home = um.home === G.my;
@@ -440,31 +408,25 @@ function simulateCafComp(name, td){
   if(!c) return;
   const ro = ['R16','QF','SF','F'];
   const compName = name === 'cafCL' ? 'دوري أبطال أفريقيا' : 'كأس الكونفدرالية';
-
   ro.forEach(round => {
     const rd = CAF_DAYS[round];
     if(!c.rounds[round]) return;
     if(rd > td) return;
-
     c.rounds[round].forEach(m => {
       if(m.played) return;
       if((m.home === G.my || m.away === G.my) && !m.played) return;
-
       const hT = T[m.home], aT = T[m.away];
       const hR = hT ? hT.R : (AFRICAN.find(a=>a[0]===m.home)?.[2] || 78);
       const aR = aT ? aT.R : (AFRICAN.find(a=>a[0]===m.away)?.[2] || 78);
       const df = (hR+2-aR)/12;
-
       m.winner = R() < .5+df*.1 ? m.home : m.away;
       m.played = true;
-
       const wN = T[m.winner]?.name || AFRICAN.find(a=>a[0]===m.winner)?.[1] || m.winner;
       const lN = T[m.winner===m.home ? m.away : m.home]?.name
         || AFRICAN.find(a=>a[0]===(m.winner===m.home?m.away:m.home))?.[1]
         || (m.winner===m.home?m.away:m.home);
       addNews(`🌍 ${compName} - ${round}: ${wN} يتأهل`, `⚔️ ${wN} يقصي ${lN}`);
     });
-
     if(c.rounds[round].every(m => m.played)){
       const ni = ro.indexOf(round)+1;
       if(ni < ro.length){
@@ -478,7 +440,6 @@ function simulateCafComp(name, td){
             }
           }
         }
-        // ✅ إضافة مباراة المستخدم للدور التالي
         const um = c.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
         if(um && !G.season.userCalendar.find(x => x.comp === name && x.round === nr && !x.played)){
           const home = um.home === G.my;
@@ -497,16 +458,12 @@ function simulateCafComp(name, td){
   });
 }
 
-// ============================================
-// تقدم الكأس (مباراة المستخدم)
-// ============================================
 function advanceCupBracket(){
   try {
     const cb = G.season.cupBracket;
     if(!cb || !cb.rounds) return;
     const ro = ['R32','R16','QF','SF','F'];
     const days = {R32:CUP_DAYS.R32, R16:CUP_DAYS.R16, QF:CUP_DAYS.QF, SF:CUP_DAYS.SF, F:CUP_DAYS.F};
-
     ro.forEach((r, idx) => {
       if(!cb.rounds[r]) return;
       if(cb.rounds[r].every(m => m && m.played) && idx < ro.length-1){
@@ -542,14 +499,9 @@ function advanceCupBracket(){
         }
       }
     });
-  } catch(e) {
-    console.error('advanceCupBracket safe error:', e);
-  }
+  } catch(e) { console.error('advanceCupBracket safe error:', e); }
 }
 
-// ============================================
-// تقدم البطولة الأفريقية
-// ============================================
 function advanceCafComp(name){
   try {
     const c = G.season[name];
@@ -557,7 +509,6 @@ function advanceCafComp(name){
     const ro = ['R16','QF','SF','F'];
     const days = {R16:CAF_DAYS.R16, QF:CAF_DAYS.QF, SF:CAF_DAYS.SF, F:CAF_DAYS.F};
     const ar = name === 'cafCL' ? 'دوري أبطال أفريقيا' : 'كأس الكونفدرالية';
-
     ro.forEach((r, idx) => {
       if(!c.rounds[r]) return;
       if(c.rounds[r].every(m => m && m.played) && idx < ro.length-1){
@@ -594,21 +545,15 @@ function advanceCafComp(name){
         }
       }
     });
-  } catch(e) {
-    console.error('advanceCafComp safe error:', e);
-  }
+  } catch(e) { console.error('advanceCafComp safe error:', e); }
 }
 
-// ============================================
-// تقدم كأس العالم للأندية
-// ============================================
 function advanceClubWC(){
   try {
     const c = G.season.clubWC;
     if(!c || !c.rounds) return;
     const ro = ['QF','SF','F'];
     const days = {QF:CLUB_WC_DAYS.QF, SF:CLUB_WC_DAYS.SF, F:CLUB_WC_DAYS.F};
-
     ro.forEach((r, idx) => {
       if(!c.rounds[r]) return;
       if(c.rounds[r].every(m => m && m.played) && idx < ro.length-1){
@@ -644,9 +589,7 @@ function advanceClubWC(){
         }
       }
     });
-  } catch(e) {
-    console.error('advanceClubWC safe error:', e);
-  }
+  } catch(e) { console.error('advanceClubWC safe error:', e); }
 }
 
 function addTrophy(name, seasonNum, year){
@@ -658,7 +601,6 @@ function realPenaltyShootout(tA, tB){
   let sA = 0, sB = 0;
   const log = [];
   let round = 0;
-
   for(let i=0; i<5; i++){
     round++;
     const shA = R() < .72; const shB = R() < .72;
@@ -668,7 +610,6 @@ function realPenaltyShootout(tA, tB){
     if(sA > sB+rem) break;
     if(sB > sA+rem) break;
   }
-
   while(sA === sB){
     round++;
     const shA = R() < .68, shB = R() < .68;
@@ -682,7 +623,6 @@ function realPenaltyShootout(tA, tB){
 function simulateLivingWorld(){
   const ai = Object.values(T).filter(t => t.id !== G.my);
   if(!ai.length) return;
-
   const st = tbl();
   st.forEach((t,i) => {
     if(t.id === G.my) return;
@@ -690,7 +630,6 @@ function simulateLivingWorld(){
     else if(i < 5){ if(t.tac !== 'defense') t.tac = 'defense'; }
     else t.tac = 'balanced';
   });
-
   if(R() < .3){
     const b = ai[Math.floor(R()*ai.length)];
     const s = ai[Math.floor(R()*ai.length)];
@@ -709,7 +648,6 @@ function simulateLivingWorld(){
       }
     }
   }
-
   if(R() < .2){
     const ut = T[G.my];
     if(ut.ps.length > 15){
@@ -728,17 +666,14 @@ function simulateLivingWorld(){
 function checkLegendsMarket(){
   if(!G.season) return;
   if(G.legendsMarket && G.legendsMarket.length > 0) return;
-
   const r = Object.values(G.season.leagueFixtures).filter(d => d.played.length > 0).length;
   if(r > 0 && r%4 === 0 && G.lastLegendRound !== r){
     G.lastLegendRound = r;
     const av = LEGEND_POOL.filter(l => !G.usedLegends.includes('legend_'+l.name));
-
     if(av.length > 0){
       const idx = Math.floor(R()*av.length);
       const lg = av.splice(idx, 1)[0];
       const id = 'legend_'+lg.name;
-
       G.legendsMarket.push({
         id, name:lg.name, pos:lg.pos, r:lg.r,
         fit:100, goals:0, yc:0, rc:0, susp:0,
@@ -758,7 +693,6 @@ function checkLegendsMarket(){
 function updateLegendMarket(){
   if(!G || !G.season || !G.legendsMarket) return;
   const currentDay = G.season.currentDay;
-
   G.legendsMarket = G.legendsMarket.filter(p => {
     if (p.expiresOnDay && currentDay >= p.expiresOnDay) {
       addNews(`⏰ انتهى عرض الأسطورة ${p.name}!`, `🚫 غادر السوق ولن يعود.`);
@@ -774,7 +708,6 @@ function generateYouthPlayer(t){
   const name = YOUTH_NAMES[Math.floor(R()*YOUTH_NAMES.length)]+' '+(10+Math.floor(R()*90));
   const facLevel = G.facilities?.youth || 1;
   const rating = 55 + Math.floor(R()*15) + (facLevel * 2);
-
   const p = createPlayer(t.id+'_youth_'+Date.now()+'_'+Math.floor(R()*10000), name, pos, rating, 16);
   p.isYouth = true;
   p.morale = 90;
@@ -808,11 +741,9 @@ function checkRetirements(){
   const t = T[G.my];
   if(G.seasonNumber < 2) return;
   const tr = [];
-
   t.ps.forEach(p => {
     if((p.age >= 36 && R() < 0.5) || (p.age >= 38) || (p.contract && p.contract.years <= 0 && p.lvl >= 7 && R() < .3)) tr.push(p);
   });
-
   tr.forEach(p => {
     if(!G.hallOfFame) G.hallOfFame = [];
     G.hallOfFame.push({
@@ -827,7 +758,6 @@ function checkRetirements(){
     if(G.cornerTaker === p.id) G.cornerTaker = null;
     addNews(`🏛️ اعتزال ${p.name}!`, `⭐ تقييم ${p.r} • ${p.goals||0} هدف طوال المسيرة`);
   });
-
   if(tr.length && G.lu.includes(null)) G.lu = autoFillLineup(t, G.form);
 }
 
@@ -850,33 +780,25 @@ function endSeason(){
   const cw = G.season.cupBracket?.winner;
   const cw1 = G.season.cafCL?.winner;
   const cw2 = G.season.cafCC?.winner;
-
   if(lc === G.my){
     G.trophies = (G.trophies||0)+1;
     addTrophy('الدوري المصري', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
     addNews(`🏆🏆 ${t.name} بطل الدوري!`, `🎉 ${t.pts} نقطة • المركز الأول`);
   }
-
   checkBoardObjectives();
-
   const allP = Object.values(T).flatMap(t => t.ps.map(p => ({p, t})));
   allP.sort((a,b) => b.p.stats.goals-a.p.stats.goals);
   const topScorer = allP[0];
   allP.sort((a,b) => b.p.stats.rating-a.p.stats.rating);
   const bestPlayer = allP[0];
-
   addNews(`🏆 جوائز الموسم!`, `⚽ الهداف: ${topScorer.p.name} (${topScorer.p.stats.goals} هدف) • 🌟 أفضل لاعب: ${bestPlayer.p.name}`);
-
-  // ✅ إصلاح 6: حفظ الترتيب الكامل للترشيح
   const prev = {
     leaguePos: myPos, userWonLeague: lc === G.my, userWonCup: cw === G.my,
     userWonCAFCL: cw1 === G.my, userWonCAFCC: cw2 === G.my,
     leagueWinnerId: lc, cupWinnerId: cw, cafCLWinnerId: cw1, cafCCWinnerId: cw2,
     fullLeagueTable: st.map(t => t.id)
   };
-
   const ts = [...t.ps].sort((a,b) => (b.goals||0)-(a.goals||0))[0];
-
   $('main').innerHTML = `<div style="text-align:center;padding:20px">
     <div style="font-size:64px;filter:drop-shadow(0 0 30px rgba(251,191,36,.8))">🏆</div>
     <h2 style="color:var(--gold);font-size:20px;text-shadow:0 0 20px rgba(251,191,36,.6)">${myPos===1?'بطل الدوري!':'المركز '+myPos}</h2>
@@ -888,7 +810,6 @@ function endSeason(){
     </div>
     <button class="b" style="margin-top:14px;padding:14px;font-size:14px" onclick="startNextSeason()">▶ الموسم ${G.seasonNumber+1}</button>
   </div>`;
-
   G._prevResults = prev;
   save();
 }
@@ -897,7 +818,6 @@ function startNextSeason(){
   const prevTrophies = G.trophies||0;
   updatePlayerAges();
   checkRetirements();
-
   Object.values(T).forEach(t => {
     t.pts = 0; t.pl = 0; t.w = 0; t.d = 0; t.l = 0; t.gf = 0; t.ga = 0;
     t.ps.forEach(p => {
@@ -920,20 +840,16 @@ function startNextSeason(){
       }
     });
   });
-
   G.seasonNumber++;
   G.trophies = G.trophies||0;
   const pr = G._prevResults || null;
   G.season = generateSeason(G.my, pr);
   G.boardObjectives = setBoardObjectives(T[G.my]);
   G.youthPlayers = [generateYouthPlayer(T[G.my]), generateYouthPlayer(T[G.my])];
-
   if(!G.lu || G.lu.length !== 11 || G.lu.includes(null)) G.lu = autoFillLineup(T[G.my], G.form);
   G.inst = {}; G.legendsMarket = []; G.usedLegends = []; G.lastLegendRound = 0; G.lossStreak = 0;
   autoAssignRoles();
-
   addNews(`🏁 يبدأ الموسم ${SEASON_YEAR+G.seasonNumber-1}/${SEASON_YEAR+G.seasonNumber}!`, `👨‍💼 ${G.managerName} يقود ${T[G.my].name} • ${G.boardObjectives.map(o=>o.desc).join(' + ')}`);
-
   checkSponsorBonus();
   G.currentSponsor = null;
   G._sponsorTrophies = prevTrophies;
@@ -970,7 +886,6 @@ function showSponsorOffers(){
       <div class="mc-sub">اختر الراعي الرسمي لناديك هذا الموسم</div>
     </div>
     <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px">`;
-
   offers.forEach((s, i) => {
     html += `<div class="sponsor-card" onclick="chooseSponsor(${i})" style="border:1px solid rgba(255,255,255,.15); background:linear-gradient(135deg, rgba(30,41,59,.9), rgba(15,23,42,.9)); display:flex; flex-direction:column; gap:10px;">
       <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -989,7 +904,6 @@ function showSponsorOffers(){
       ${s.bonus ? `<div style="padding:8px; background:rgba(251,191,36,.1); border-radius:8px; font-size:11px; color:#fbbf24; font-weight:bold; text-align:center;">🎁 ${s.bonus}</div>` : `<div style="padding:8px; background:rgba(255,255,255,.05); border-radius:8px; font-size:11px; color:#94a3b8; text-align:center;">✅ عقد آمن بدون شروط إضافية</div>`}
     </div>`;
   });
-
   html += `</div></div>`;
   $('cmc').innerHTML = html;
   $('cm').hidden = false;
@@ -1054,19 +968,14 @@ function rejectOffer(){
   save(); dash();
 }
 
-// ============================================
-// السوبر المصري والأفريقي — ✅ إصلاح 4 و5
-// ============================================
 function resolveSuperCups(){
   if(!G.season) return;
   const prevRes = G._prevResults || {};
-
   if(G.season.egyptSuper && !G.season.egyptSuper.played){
     const s = G.season.egyptSuper;
     const userMatch = G.season.userCalendar.find(m => m.comp === 'super' && !m.played);
     if(userMatch) return;
     if(s.winner === null){
-      // استخدام نتائج الموسم السابق وليس tbl() الحالي
       const lc = prevRes.leagueWinnerId || tbl()[0].id;
       const cc = prevRes.cupWinnerId || 'ahly';
       const winner = R() < .5 ? lc : cc;
@@ -1078,7 +987,6 @@ function resolveSuperCups(){
       }
     }
   }
-
   if(G.season.cafSuper && !G.season.cafSuper.played){
     const s = G.season.cafSuper;
     const userMatch = G.season.userCalendar.find(m => m.comp === 'cafSuper' && !m.played);
@@ -1098,7 +1006,9 @@ function resolveSuperCups(){
 }
 
 // ============================================
-// nxt() — ✅ إصلاح 5: ربط كل البطولات ببعضها
+// nxt() — النسخة النهائية
+// finish() في match.js تتولى تسجيل النتائج
+// nxt() فقط تتقدم الحالة وتضمن عدم تخطي أي مباراة
 // ============================================
 function nxt(){
   try{
@@ -1106,105 +1016,83 @@ function nxt(){
     $('ms').hidden = true;
     pendingLvl = [];
 
-    const nm = getNextUserMatch();
+    if (typeof Mt !== 'undefined' && Mt !== null) {
+      Mt.fin = 1;
+      Mt = null;
+    }
 
-    // ═══ 1) تسجيل مباراة المستخدم ═══
-    if(nm && !nm.played) {
+    // ═══ شبكة أمان: محاكاة أي مباراة مستحقة لم تُلعب ═══
+    let safety = 0;
+    while(safety++ < 100){
+      const nm = getNextUserMatch();
+      if(!nm) break;
+      if(nm.day > G.season.currentDay) break;
+
+      console.warn('⚠️ مباراة مستحقة لم تُلعب، محاكاة تلقائية:', nm);
       nm.played = true;
-      if(!nm.result && typeof Mt !== 'undefined' && Mt !== null) {
-        const mg = Mt.s && Mt.s[Mt.hu] ? Mt.s[Mt.hu].g : 0;
-        const og = Mt.s && Mt.s[Mt.hu === 'home' ? 'away' : 'home']
-          ? Mt.s[Mt.hu === 'home' ? 'away' : 'home'].g : 0;
-        nm.result = {myGoals: mg, oppGoals: og, won: mg > og, draw: mg === og};
+
+      if(!nm.result){
+        const myT = T[G.my];
+        const oppT = T[nm.opp] || createVirtualTeam(nm.opp, nm.opp, 75);
+        const myR = myT.R + (nm.home ? 2 : 0);
+        const oppR = oppT.R + (nm.home ? 0 : 2);
+        const df = (myR - oppR) / 15;
+        const mg = Math.max(0, Math.round(R()*1.5 + df*.4));
+        const og = Math.max(0, Math.round(R()*1.5 - df*.4));
+        nm.result = {myGoals:mg, oppGoals:og, won:mg>og, draw:mg===og};
+        addNews(`🤖 محاكاة تلقائية: ${myT.name} ${mg}-${og} ${oppT.name}`, `⏰ لم تُلعب في وقتها`);
       }
 
-      // ═══ 2) مزامنة نتيجة المستخدم مع شجرة الكأس ═══
-      if(nm.comp === 'cup' && G.season.cupBracket?.rounds[nm.round]){
-        const br = G.season.cupBracket.rounds[nm.round];
-        const m = br.find(x =>
-          (x.home === G.my && x.away === nm.opp) ||
-          (x.away === G.my && x.home === nm.opp));
+      if(nm.comp === 'cup' && G.season.cupBracket?.rounds?.[nm.round]){
+        const m = G.season.cupBracket.rounds[nm.round].find(x => x.home===G.my || x.away===G.my);
         if(m && !m.played){
           m.played = true;
-          if(nm.result.won) m.winner = G.my;
-          else if(!nm.result.draw) m.winner = nm.opp;
-          else m.winner = R() < .5 ? G.my : nm.opp;
+          m.winner = nm.result.won ? G.my : (m.home===G.my ? m.away : m.home);
         }
       }
-
-      // ═══ 3) مزامنة نتيجة المستخدم مع البطولات الأفريقية ═══
       ['cafCL','cafCC','clubWC'].forEach(comp => {
         if(nm.comp === comp && G.season[comp]?.rounds?.[nm.round]){
-          const br = G.season[comp].rounds[nm.round];
-          const m = br.find(x =>
-            (x.home === G.my && x.away === nm.opp) ||
-            (x.away === G.my && x.home === nm.opp));
+          const m = G.season[comp].rounds[nm.round].find(x => x.home===G.my || x.away===G.my);
           if(m && !m.played){
             m.played = true;
-            if(nm.result.won) m.winner = G.my;
-            else if(!nm.result.draw) m.winner = nm.opp;
-            else m.winner = R() < .5 ? G.my : nm.opp;
+            m.winner = nm.result.won ? G.my : (m.home===G.my ? m.away : m.home);
           }
         }
       });
-
-      // ═══ 4) تسجيل فائز السوبر (بعد المباراة مباشرة) ═══
       if(nm.comp === 'super' && G.season.egyptSuper && !G.season.egyptSuper.played){
-        const s = G.season.egyptSuper;
-        const userWon = nm.result.won === true;
-        s.winner = userWon ? G.my : nm.opp;
-        s.played = true;
-        if(userWon){
-          G.trophies = (G.trophies||0)+1;
-          addTrophy('السوبر المصري', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
-          addNews(`🏆 ${T[G.my].name} بطل السوبر المصري!`, `🎉`);
-        } else {
-          addNews(`😔 خسارة السوبر المصري`, `${T[nm.opp]?.name} يفوز`);
-        }
+        G.season.egyptSuper.played = true;
+        G.season.egyptSuper.winner = nm.result.won ? G.my : nm.opp;
       }
-
       if(nm.comp === 'cafSuper' && G.season.cafSuper && !G.season.cafSuper.played){
-        const s = G.season.cafSuper;
-        const userWon = nm.result.won === true;
-        s.winner = userWon ? G.my : nm.opp;
-        s.played = true;
-        if(userWon){
-          G.trophies = (G.trophies||0)+1;
-          addTrophy('السوبر الأفريقي', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
-          addNews(`🌍 ${T[G.my].name} بطل السوبر الأفريقي!`, `🏆`);
-        }
+        G.season.cafSuper.played = true;
+        G.season.cafSuper.winner = nm.result.won ? G.my : nm.opp;
       }
     }
 
-    if (typeof Mt !== 'undefined' && Mt !== null) {
-        Mt.fin = 1;
-        Mt = null;
-    }
-
-    // ═══ 5) تقدم الأدوار (الأهم!) ═══
+    // ═══ تقدم كل البطولات (idempotent) ═══
     advanceCupBracket();
     if(G.season.cafCL) advanceCafComp('cafCL');
     if(G.season.cafCC) advanceCafComp('cafCC');
     if(G.season.clubWC) advanceClubWC();
 
-    // ═══ 6) باقي المنطق ═══
     checkLegendsMarket();
     checkPlayerOfMonth();
     resolveSuperCups();
 
+    // ═══ الانتقال لليوم التالي ═══
     const nextMatch = getNextUserMatch();
     if(!nextMatch || G.season.currentDay >= 360){
       endSeason();
       return;
     }
 
-    if(nextMatch.day > G.season.currentDay) {
-        advanceToDay(nextMatch.day);
+    if(nextMatch.day > G.season.currentDay){
+      advanceToDay(nextMatch.day);
     } else {
-        G.season.currentDay = Math.max(G.season.currentDay, nextMatch.day);
+      G.season.currentDay = Math.max(G.season.currentDay, nextMatch.day);
     }
 
-    // ═══ 7) نداء ثاني بعد تقدم اليوم لالتقاط أي مباراة جديدة ═══
+    // ═══ نداء ثانٍ بعد تقدم اليوم ═══
     advanceCupBracket();
     if(G.season.cafCL) advanceCafComp('cafCL');
     if(G.season.cafCC) advanceCafComp('cafCC');

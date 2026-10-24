@@ -1,5 +1,5 @@
 // ============================================
-// match.js - واجهة المباراة (نسخة نهائية تمنع التكرار)
+// match.js - واجهة المباراة، الرسم، النتيجة (نسخة نهائية تمنع التكرار تماماً)
 // ============================================
 
 function playTournamentMatch() { G.forcedMatchComp = 'tournament'; play(); }
@@ -12,7 +12,6 @@ function play(){
   const nm = getNextUserMatch(G.forcedMatchComp || null);
   if(!nm) return alert('لا مباراة!');
   
-  // حماية: إذا كانت المباراة ملعوبة بالخطأ، احذفها فوراً
   if(nm.played) {
       G.season.userCalendar = G.season.userCalendar.filter(m => m !== nm);
       save();
@@ -58,7 +57,7 @@ function play(){
     weather: w
   });
 
-  // ✅ ربط المباراة الحالية بالكائن لضمان عدم ضياعها
+  // ✅ ربط بيانات المباراة بالكائن لمنع الضياع
   Mt.matchData = nm;
 
   $('mh').textContent = Mt.h.name;
@@ -489,7 +488,7 @@ function syncMatchStats(m){
 
     (m.injuries||[]).forEach(inj => {
       const team = m.s.home.t.ps.find(p => p.id === inj.id) ? m.s.home.t : m.s.away.t;
-      const p = team.ps.find(p => p.id === inj.id);
+      const p = team.ps.find(x => x.id === inj.id);
       if(p) tryInjure(p);
     });
   } catch(e){
@@ -503,7 +502,7 @@ function finish(){
     if(Mt.fin) return;
     Mt.fin = 1;
 
-    // ✅ استخدام matchData لضمان تعديل المباراة الصحيحة
+    // ✅ استخدام matchData المضمون بدلاً من البحث العشوائي
     const nm = Mt.matchData || getNextUserMatch(G.forcedMatchComp || null);
     const s = Mt.s;
     const mg = s[Mt.hu].g;
@@ -514,7 +513,7 @@ function finish(){
 
     if(nm){
       nm.played = true;
-      // ✅ الحل الجذري: حذف المباراة من التقويم فوراً
+      // ✅ الحل الجذري لمنع تكرار المباريات: حذفها تماماً من جدول التقويم
       G.season.userCalendar = G.season.userCalendar.filter(m => m !== nm);
       
       let rW = mg > og, rD = mg === og;
@@ -532,10 +531,9 @@ function finish(){
 
       nm.result = {myGoals:mg, oppGoals:og, won:rW, draw:rD, penalty:pr};
 
-      // حفظ اللعبة فوراً هنا قبل أي عملية أخرى!
+      // حفظ التقويم فوراً بعد الحذف لتثبيت الحالة
       save(); 
 
-      // تسجيل الدوري
       if(nm.comp === 'league'){
         try {
           rec(Mt.h, Mt.a, s.home.g, s.away.g);
@@ -546,7 +544,6 @@ function finish(){
             lf.results = lf.results || {};
             lf.results[k] = [s.home.g, s.away.g];
             
-            // محاكاة باقي الجولة
             lf.round.forEach(([h,a]) => {
               if(h === G.my || a === G.my) return;
               const pk2 = h+'_'+a;
@@ -567,63 +564,30 @@ function finish(){
         } catch(e){ console.error('League rec error:', e); }
       }
 
-      // تسجيل البطولات الإقصائية
       try {
         if(nm.comp === 'cup' && G.season.cupBracket){
           const m = G.season.cupBracket.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
-          if(m){
-            m.played = true;
-            m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
-            m.score = [s.home.g, s.away.g];
-            advanceCupBracket();
-          }
+          if(m){ m.played = true; m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home); m.score = [s.home.g, s.away.g]; advanceCupBracket(); }
         }
         if(nm.comp === 'cafCL' && G.season.cafCL){
           const m = G.season.cafCL.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
-          if(m){
-            m.played = true;
-            m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
-            m.score = [s.home.g, s.away.g];
-            advanceCafComp('cafCL');
-          }
+          if(m){ m.played = true; m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home); m.score = [s.home.g, s.away.g]; advanceCafComp('cafCL'); }
         }
         if(nm.comp === 'cafCC' && G.season.cafCC){
           const m = G.season.cafCC.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
-          if(m){
-            m.played = true;
-            m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
-            m.score = [s.home.g, s.away.g];
-            advanceCafComp('cafCC');
-          }
+          if(m){ m.played = true; m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home); m.score = [s.home.g, s.away.g]; advanceCafComp('cafCC'); }
         }
         if(nm.comp === 'super' && G.season.egyptSuper){
-          G.season.egyptSuper.played = true;
-          G.season.egyptSuper.winner = rW ? G.my : nm.opp;
-          G.season.egyptSuper.score = [mg, og];
-          if(rW){
-            G.trophies = (G.trophies||0)+1;
-            addTrophy('السوبر المصري', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
-            addNews(`🏆 ${myT.name} بطل السوبر المصري!`, `🎉 فوز على ${oppT.name}`);
-          }
+          G.season.egyptSuper.played = true; G.season.egyptSuper.winner = rW ? G.my : nm.opp; G.season.egyptSuper.score = [mg, og];
+          if(rW){ G.trophies = (G.trophies||0)+1; addTrophy('السوبر المصري', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1); addNews(`🏆 ${myT.name} بطل السوبر المصري!`, `🎉 فوز على ${oppT.name}`); }
         }
         if(nm.comp === 'cafSuper' && G.season.cafSuper){
-          G.season.cafSuper.played = true;
-          G.season.cafSuper.winner = rW ? G.my : nm.opp;
-          G.season.cafSuper.score = [mg, og];
-          if(rW){
-            G.trophies = (G.trophies||0)+1;
-            addTrophy('السوبر الأفريقي', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
-            addNews(`🌍 ${myT.name} بطل السوبر الأفريقي!`, `🏆 فوز على ${oppT.name}`);
-          }
+          G.season.cafSuper.played = true; G.season.cafSuper.winner = rW ? G.my : nm.opp; G.season.cafSuper.score = [mg, og];
+          if(rW){ G.trophies = (G.trophies||0)+1; addTrophy('السوبر الأفريقي', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1); addNews(`🌍 ${myT.name} بطل السوبر الأفريقي!`, `🏆 فوز على ${oppT.name}`); }
         }
         if(nm.comp === 'clubWC' && G.season.clubWC){
           const m = G.season.clubWC.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
-          if(m){
-            m.played = true;
-            m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
-            m.score = [s.home.g, s.away.g];
-            advanceClubWC();
-          }
+          if(m){ m.played = true; m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home); m.score = [s.home.g, s.away.g]; advanceClubWC(); }
         }
       } catch(e){ console.error('Tournament advancement error:', e); }
     }

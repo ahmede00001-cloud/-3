@@ -1,5 +1,5 @@
 // ============================================
-// season.js - النسخة النهائية (عداد أيام + بداية فورية)
+// season.js - النسخة النهائية (فصل الدوري عن البطولات)
 // ============================================
 
 function mk(){
@@ -60,7 +60,6 @@ function generateSeason(myId, prev){
   let cumulativeDelay = 0;
 
   rounds.forEach((round, ri) => {
-    // تعديل: بدء الجولة الأولى في اليوم 1 مباشرة
     const baseDay = 1 + ri*LEAGUE_ROUND_INTERVAL; 
     let day = baseDay + cumulativeDelay;
     let previousDay = day;
@@ -229,10 +228,20 @@ function generateSeason(myId, prev){
   return s;
 }
 
-function getNextUserMatch(){
+// ============================================
+// دالة البحث عن المباريات (تم تعديلها للفلترة)
+// ============================================
+function getNextUserMatch(filterComp){
   if(!G.season || !G.season.userCalendar) return null;
-  return G.season.userCalendar.find(m => !m.played) || null;
+  let matches = G.season.userCalendar.filter(m => !m.played);
+  if (filterComp === 'league') {
+    matches = matches.filter(m => m.comp === 'league');
+  } else if (filterComp === 'tournament') {
+    matches = matches.filter(m => m.comp !== 'league');
+  }
+  return matches[0] || null;
 }
+
 function daysUntilMatch(m){
   if(!m || !G.season) return 0;
   return Math.max(0, m.day-G.season.currentDay);
@@ -331,32 +340,6 @@ function simulateAIUpToDay(td){
         
         d.results = d.results || {};
         d.results[pk] = [g1, g2];
-
-        const homeScorers = [], awayScorers = [];
-        for(let i=0; i<g1; i++){
-          const el = tH.ps.filter(p => p.pos !== 'GK');
-          const p = el[Math.floor(R()*el.length)] || tH.ps[0];
-          if(p){ p.goals = (p.goals||0)+1; homeScorers.push(p.name); gainXp(p, 40); }
-        }
-        for(let i=0; i<g2; i++){
-          const el = tA.ps.filter(p => p.pos !== 'GK');
-          const p = el[Math.floor(R()*el.length)] || tA.ps[0];
-          if(p){ p.goals = (p.goals||0)+1; awayScorers.push(p.name); gainXp(p, 40); }
-        }
-        const winN = g1>g2 ? tH.name : g2>g1 ? tA.name : null;
-        const desc = winN
-          ? (Math.abs(g1-g2)>=3 ? `🔥 فوز ساحق لـ ${winN}`
-            : Math.abs(g1-g2)===2 ? `✅ فوز مريح لـ ${winN}`
-            : `⚔️ فوز صعب لـ ${winN}`)
-          : (g1+g2>=5 ? `⚡ تعادل مثير ${g1}-${g2}`
-            : g1+g2===0 ? `😴 تعادل سلبي`
-            : `🤝 تعادل ${g1}-${g2}`);
-        let scorerInfo = '⚽ ';
-        if(homeScorers.length) scorerInfo += `${tH.name}: ${homeScorers.join(', ')}`;
-        if(homeScorers.length && awayScorers.length) scorerInfo += ' | ';
-        if(awayScorers.length) scorerInfo += `${tA.name}: ${awayScorers.join(', ')}`;
-        if(!homeScorers.length && !awayScorers.length) scorerInfo += 'لا أهداف في المباراة';
-        addNews(`📢 جولة ${rn}: ${tH.name} ${g1}-${g2} ${tA.name}`, `${desc}\n${scorerInfo}`);
       });
     }
   });
@@ -453,12 +436,6 @@ function simulateCafComp(name, td){
       m.winner = g1 > g2 ? m.home : m.away;
       m.played = true;
       m.score = [g1, g2];
-
-      const wN = T[m.winner]?.name || AFRICAN.find(a=>a[0]===m.winner)?.[1] || m.winner;
-      const lN = T[m.winner===m.home ? m.away : m.home]?.name
-        || AFRICAN.find(a=>a[0]===(m.winner===m.home?m.away:m.home))?.[1]
-        || (m.winner===m.home?m.away:m.home);
-      addNews(`🌍 ${compName} - ${round}: ${wN} يتأهل`, `⚔️ ${wN} يقصي ${lN}`);
     });
     if(c.rounds[round].every(m => m.played)){
       const ni = ro.indexOf(round)+1;
@@ -484,8 +461,6 @@ function simulateCafComp(name, td){
         }
       } else if(c.rounds.F && c.rounds.F.every(m => m.played)){
         c.winner = c.rounds.F[0].winner;
-        const wN = T[c.winner]?.name || AFRICAN.find(a=>a[0]===c.winner)?.[1] || c.winner;
-        addNews(`🏆 ${wN} بطل ${compName}!`, `🌟 إنجاز قاري كبير`);
       }
     }
   });
@@ -608,7 +583,6 @@ function advanceClubWC(){
             opp:home?um.away:um.home, home, played:false, result:null
           });
           G.season.userCalendar.sort((a,b) => a.day-b.day);
-          addNews(`🌐 تأهلت لدور ${nr} في كأس العالم!`, `📅 المباراة القادمة يوم ${days[nr]}`);
         }
       } else if(idx === ro.length-1 && c.rounds.F && c.rounds.F.length > 0 && c.rounds.F.every(m => m && m.played)){
         if(c.rounds.F[0] && c.rounds.F[0].winner){
@@ -1038,9 +1012,16 @@ function resolveSuperCups(){
   }
 }
 
-function simulateCurrentRound() {
-    const nm = getNextUserMatch();
+// ============================================
+// دالة محاكاة الجولة (تم تعديلها لتدعم الفصل)
+// ============================================
+function simulateCurrentRound(filterComp) {
+    const nm = getNextUserMatch(filterComp);
     if (!nm || nm.played) return;
+
+    if (G.season.currentDay < nm.day) {
+        advanceToDay(nm.day);
+    }
 
     nm.played = true;
     const myT = T[G.my];
@@ -1065,7 +1046,6 @@ function simulateCurrentRound() {
           const aG = nm.home ? nm.result.oppGoals : nm.result.myGoals;
           rec(hT, aT, hG, aG);
         }
-        
         d.round.forEach(([h,a]) => {
             if(h === G.my || a === G.my) return;
             const pk2 = h+'_'+a;
@@ -1081,8 +1061,28 @@ function simulateCurrentRound() {
             rec(tH, tA, g1, g2);
             d.played.push(pk2);
             d.results[pk2] = [g1, g2];
-            addNews(`📢 جولة ${nm.round}: ${tH.name} ${g1}-${g2} ${tA.name}`, `AI محاكاة`);
         });
+    } else {
+        if(nm.comp === 'cup' && G.season.cupBracket?.rounds?.[nm.round]){
+            const m = G.season.cupBracket.rounds[nm.round].find(x => x.home===G.my || x.away===G.my);
+            if(m && !m.played){ m.played = true; m.winner = nm.result.won ? G.my : (m.home===G.my?m.away:m.home); m.score = [nm.result.myGoals, nm.result.oppGoals]; }
+        }
+        ['cafCL','cafCC','clubWC'].forEach(comp => {
+            if(nm.comp === comp && G.season[comp]?.rounds?.[nm.round]){
+              const m = G.season[comp].rounds[nm.round].find(x => x.home===G.my || x.away===G.my);
+              if(m && !m.played){ m.played = true; m.winner = nm.result.won ? G.my : (m.home===G.my?m.away:m.home); m.score = [nm.result.myGoals, nm.result.oppGoals]; }
+            }
+        });
+        if(nm.comp === 'super' && G.season.egyptSuper && !G.season.egyptSuper.played){
+            G.season.egyptSuper.played = true;
+            G.season.egyptSuper.winner = nm.result.won ? G.my : nm.opp;
+            G.season.egyptSuper.score = [nm.result.myGoals, nm.result.oppGoals];
+        }
+        if(nm.comp === 'cafSuper' && G.season.cafSuper && !G.season.cafSuper.played){
+            G.season.cafSuper.played = true;
+            G.season.cafSuper.winner = nm.result.won ? G.my : nm.opp;
+            G.season.cafSuper.score = [nm.result.myGoals, nm.result.oppGoals];
+        }
     }
 
     advanceCupBracket();
@@ -1112,6 +1112,7 @@ function nxt(){
     $('rs').hidden = true;
     $('ms').hidden = true;
     pendingLvl = [];
+    G.forcedMatchComp = null; // إعادة ضبط الفلتر
 
     if (typeof Mt !== 'undefined' && Mt !== null) {
       Mt.fin = 1;
@@ -1134,7 +1135,6 @@ function nxt(){
         const mg = Math.max(0, Math.round(R()*1.5 + df*.4));
         const og = Math.max(0, Math.round(R()*1.5 - df*.4));
         nm.result = {myGoals:mg, oppGoals:og, won:mg>og, draw:mg===og};
-        addNews(`🤖 محاكاة تلقائية: ${myT.name} ${mg}-${og} ${oppT.name}`, `⏰ لم تُلعب في وقتها`);
       }
 
       if(nm.comp === 'league'){

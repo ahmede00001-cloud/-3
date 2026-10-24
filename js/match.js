@@ -1,1082 +1,712 @@
 // ============================================
-// season.js - النسخة النهائية الجاهزة للتركيب
-// ربط كامل: الدوري + الكأس + أفريقيا + السوبر + كأس العالم
+// match.js - واجهة المباراة، الرسم، النتيجة (محصن ضد التعليق)
 // ============================================
 
-function mk(){
-  T = {};
-  D.forEach(([id, name, Rt, c1, c2, s], i) => {
-    const ps = [];
-    s.split('|').forEach((g, gi) => {
-      g.split(' ').forEach((nm, j) => {
-        const r = Math.min(99, Rt+2-((j*2+gi)%6));
-        const age = 18+Math.floor(R()*15);
-        ps.push(createPlayer(id+ps.length, nm.replace(/_/g, ' '), POS[gi], r, age));
-      });
-    });
-    const budget = Math.round(30+Math.pow(Math.max(0, Rt-60)/10, 1.8)*8);
-    T[id] = {
-      id, name, R:Rt, c1, c2, ps,
-      pts:0, pl:0, w:0, d:0, l:0, gf:0, ga:0,
-      form: Object.keys(FM)[i%12],
-      budget, tac: 'balanced'
-    };
+// ============================================
+// بدء المباراة
+// ============================================
+function play(){
+  if(!G.lu || G.lu.length !== 11 || G.lu.includes(null) || G.lu.some(id => !T[G.my].ps.find(p => p.id === id))){
+    return alert('التشكيلة غير مكتملة!');
+  }
+  const nm = getNextUserMatch();
+  if(!nm) return alert('لا مباراة!');
+  if(daysUntilMatch(nm) > 0) return alert(`بعد ${daysUntilMatch(nm)} يوم!`);
+
+  const hm = nm.home;
+  const oid = nm.opp;
+  let oT;
+  if(T[oid]) oT = T[oid];
+  else if(AFRICAN.find(a => a[0] === oid)){
+    const a = AFRICAN.find(a => a[0] === oid);
+    oT = createVirtualTeam(oid, a[1], a[2]);
+  } else if(WORLD.find(w => w[0] === oid)){
+    const w = WORLD.find(w => w[0] === oid);
+    oT = createVirtualTeam(oid, w[1], w[2], w[3], w[4]);
+  } else if(DIV2.includes(oid)){
+    oT = createVirtualTeam(oid, oid, 68);
+  } else return alert('خصم غير معروف');
+
+  const hT = hm ? T[G.my] : oT;
+  const aT = hm ? oT : T[G.my];
+  const hL = hm
+    ? G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean)
+    : autoFillLineup(oT, '4-3-3').map(id => oT.ps.find(p => p.id === id)).filter(Boolean);
+  const aL = hm
+    ? autoFillLineup(oT, '4-3-3').map(id => oT.ps.find(p => p.id === id)).filter(Boolean)
+    : G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean);
+
+  const cn = {league:'الدوري', cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
+  const w = getWeather(nm.day);
+
+  Mt = new Match({
+    h: hT, a: aT, hl: hL, al: aL,
+    hf: hm ? G.form : '4-3-3',
+    af: hm ? '4-3-3' : G.form,
+    ht: hm ? G.tac : 'balanced',
+    at: hm ? 'balanced' : G.tac,
+    human: hm ? 'home' : 'away',
+    compName: cn[nm.comp] || nm.comp,
+    weather: w
   });
+
+  $('mh').textContent = Mt.h.name;
+  $('ma').textContent = Mt.a.name;
+  $('weather-badge').textContent = `${w.emoji} ${w.type}`;
+  shown = 0;
+  paused = false;
+  speed = 3;
+  $('bs').textContent = '×3';
+  $('lg').innerHTML = '';
+  $('mr').textContent = `${cn[nm.comp]||nm.comp} • ${nm.round}`;
+  $('live-commentary').style.display = 'none';
+  $('momentum-pointer').style.left = '50%';
+  mtac(G.tac);
+  $('ms').hidden = false;
+  last = performance.now();
+  raf = requestAnimationFrame(loop);
 }
 
-function generateSeason(myId, prev){
-  const s = {
-    year: SEASON_YEAR, currentDay: 1,
-    leagueFixtures: {}, cupBracket: null, cafCL: null, cafCC: null,
-    egyptSuper: null, cafSuper: null, clubWC: null,
-    userCalendar: [], postponedRounds: [],
-    qualified: {cafCL:false, cafCC:false, egyptSuper:false, cafSuper:false, clubWC:false}
+// ============================================
+// فريق افتراضي للخصوم (الأفريقي، العالمي، DIV2)
+// ============================================
+function createVirtualTeam(id, name, rating, c1, c2){
+  const ps = [];
+  const positions = ['GK','GK','DEF','DEF','DEF','DEF','MID','MID','MID','FWD','FWD','FWD'];
+  positions.forEach((pos, i) => {
+    const r = Math.max(55, rating-3+Math.floor(R()*6));
+    ps.push(createPlayer(id+'_'+i, name+' '+i, pos, r, 22));
+  });
+  return {
+    id, name, R: rating,
+    c1: c1 || '#1e40af',
+    c2: c2 || '#ffffff',
+    ps, form:'4-3-3', tac:'balanced', budget:50,
+    gk: GKC[hs(id)%4]
   };
+}
 
-  const ids = Object.keys(T);
-  const sh = [...ids].sort(() => R()-.5);
-  const n = sh.length;
-  const rounds = [];
-  const fixed = sh[0];
-  const rot = sh.slice(1);
-  const n2 = rot.length;
-  const all = [];
-
-  for(let r=0; r<n-1; r++){
-    const round = [];
-    const opp = rot[r%n2];
-    round.push(r%2===0 ? [fixed, opp] : [opp, fixed]);
-    for(let i=1; i<=n2/2; i++){
-      const t1 = rot[(r+i)%n2], t2 = rot[(r-i+n2)%n2];
-      if(t1 !== t2) round.push([t1, t2]);
-    }
-    all.push(round);
-  }
-  all.forEach(r => rounds.push(r.map(m => [m[1], m[0]])));
-
-  const cupDayMap = {17:'R32', 49:'R16', 81:'QF', 113:'SF', 145:'F'};
-  const cupDaysSorted = [17, 49, 81, 113, 145];
-  const cupPostponedRounds = {};
-  let cupIdx = 0;
-  let cumulativeDelay = 0;
-
-  rounds.forEach((round, ri) => {
-    const baseDay = LEAGUE_START_DAY + ri*LEAGUE_ROUND_INTERVAL;
-    let day = baseDay + cumulativeDelay;
-    let previousDay = day;
-
-    while(cupIdx < cupDaysSorted.length && day >= cupDaysSorted[cupIdx]){
-      const cupRound = cupDayMap[cupDaysSorted[cupIdx]];
-      if(!cupPostponedRounds[cupRound]){
-        cupPostponedRounds[cupRound] = {
-          leagueRound: ri+1, previousDay: previousDay,
-          newDay: previousDay+LEAGUE_ROUND_INTERVAL
-        };
-      }
-      cumulativeDelay += LEAGUE_ROUND_INTERVAL;
-      day += LEAGUE_ROUND_INTERVAL;
-      cupIdx++;
-    }
-
-    s.leagueFixtures[ri+1] = {day, round, played:[]};
-
-    const um = round.find(m => m[0] === myId || m[1] === myId);
-    if(um){
-      const home = um[0] === myId;
-      const opp = home ? um[1] : um[0];
-      s.userCalendar.push({day, comp:'league', round:ri+1, opp, home, played:false, result:null});
-    }
-  });
-
-  Object.entries(cupPostponedRounds).forEach(([cupRound, info]) => {
-    s.postponedRounds.push({
-      cupRound, leagueRound: info.leagueRound,
-      previousDay: info.previousDay, newDay: info.newDay
-    });
-  });
-
-  const cupTeams = [...ids, ...DIV2.slice(0, 14)];
-  const cs = [...cupTeams].sort(() => R()-.5);
-  const cb = {rounds:{}, currentRound:'R32', userAlive:true, winner:null, userMatches:[]};
-  cb.rounds.R32 = [];
-  for(let i=0; i<32; i+=2){
-    cb.rounds.R32.push({home:cs[i], away:cs[i+1], played:false, winner:null});
-  }
-  if(cs.includes(myId)){
-    const m = cb.rounds.R32.find(x => x.home === myId || x.away === myId);
-    if(m){
-      const home = m.home === myId;
-      s.userCalendar.push({
-        day:CUP_DAYS.R32, comp:'cup', round:'R32',
-        opp:home?m.away:m.home, home, played:false, result:null
-      });
+// ============================================
+// حلقة المباراة
+// ============================================
+function loop(n){
+  last = n;
+  if(!paused && !Mt.done && Mt.hold <= 0){
+    for(let i=0; i<speed; i++){
+      if(!Mt.done) Mt.step();
     }
   }
-  s.cupBracket = cb;
+  draw();
+  ui();
+  if(Mt.done){finish(); return;}
+  raf = requestAnimationFrame(loop);
+}
 
-  if(prev){
-    const fullTable = prev.fullLeagueTable || [];
-    const myPosPrev = fullTable.indexOf(myId) + 1 || prev.leaguePos;
-    let cafCL = false, cafCC = false;
-    if(prev.userWonCAFCL || prev.userWonCAFCC) cafCL = true;
-    else if(myPosPrev >= 1 && myPosPrev <= 2) cafCL = true;
-    else if(prev.userWonCup) cafCC = true;
-    else if(myPosPrev >= 3 && myPosPrev <= 4) cafCC = true;
-    s.qualified.cafCL = cafCL;
-    s.qualified.cafCC = cafCC;
-    if(prev.userWonLeague || prev.userWonCup) s.qualified.egyptSuper = true;
-    if(prev.userWonCAFCL){ s.qualified.clubWC = true; s.qualified.cafSuper = true; }
-    if(prev.userWonCAFCC) s.qualified.cafSuper = true;
+// ============================================
+// تحديث واجهة المباراة
+// ============================================
+function ui(){
+  const s = Mt.s;
+  $('sc').textContent = `${s.home.g} - ${s.away.g}`;
+  const mF = Math.floor(Mt.min);
+  if(Mt.half === 1 && mF >= 45) $('mm').textContent = `45+${mF-45}'`;
+  else if(Mt.half === 2 && mF >= 90) $('mm').textContent = `90+${mF-90}'`;
+  else $('mm').textContent = mF+"'";
+  $('mhalf').textContent = Mt.half === 1 ? 'ش1' : 'ش2';
+
+  const lc = $('live-commentary');
+  if(Mt.log.length > 0){
+    const l = Mt.log[Mt.log.length-1];
+    lc.textContent = l.x;
+    lc.style.display = 'block';
+    lc.style.color = l.t==='goal' ? '#4ade80'
+      : (l.t==='red' ? '#f87171'
+      : (l.t==='var' ? '#a855f7'
+      : (l.t==='injury' ? '#ef4444'
+      : (l.t==='shot' ? '#fbbf24' : '#fff'))));
+  }
+
+  while(shown < Mt.log.length){
+    const l = Mt.log[shown++], d = document.createElement('div');
+    d.className = 'li '+l.t;
+    d.textContent = (l.t==='info'?'':l.m+"' ")+l.x;
+    $('lg').prepend(d);
+  }
+
+  const a = s.home, b = s.away;
+  $('ms-shotH').textContent = a.sh;
+  $('ms-shotA').textContent = b.sh;
+  $('ms-corH').textContent = a.co;
+  $('ms-corA').textContent = b.co;
+  $('ms-flH').textContent = a.fl;
+  $('ms-flA').textContent = b.fl;
+  $('ms-ycH').textContent = a.yc;
+  $('ms-ycA').textContent = b.yc;
+  $('ms-rcH').textContent = a.rc;
+  $('ms-rcA').textContent = b.rc;
+  $('momentum-pointer').style.left = Mt.momentum+'%';
+  $('sl').textContent = s[Mt.hu].subs+'/5';
+  $('bp').textContent = paused ? '▶' : '⏸';
+}
+
+// ============================================
+// رسم اللاعب على الملعب
+// ============================================
+function man(x, p, px, py, t, gk, car, num, isRef = false){
+  const f = p.fc || 1;
+  const mv = Math.min(1, p.mv||0);
+  const a = Math.sin(p.ph||0)*.95*mv;
+  const ks = p.kick > 0;
+  const up = Mt.sc && Mt.sc.p == p;
+  const dv = p.dive > 0 && gk;
+  const kit = isRef ? '#111' : (gk ? t.gk : t.c1);
+  const sh = isRef ? '#111' : (gk ? '#1a1a1a' : t.c2);
+  const sock = isRef ? '#ffeb3b' : (gk ? '#1a1a1a' : t.c1);
+  const sc = SKN[(p.sk||1)%9];
+  const hc = HRC[(p.sk||1)%5];
+
+  x.save();
+  x.translate(px, py);
+  x.fillStyle = 'rgba(0,0,0,.28)';
+  x.beginPath();
+  x.ellipse(0, 1, 8, 2.6, 0, 0, 7);
+  x.fill();
+  if(car){
+    x.strokeStyle = '#fbbf24';
+    x.lineWidth = 1.5;
+    x.beginPath();
+    x.ellipse(0, 1, 10, 3.8, 0, 0, 7);
+    x.stroke();
+  }
+  x.scale(f, 1);
+  x.lineCap = 'round';
+
+  const leg = g => {
+    const hy = -12;
+    const kx = Math.sin(g)*6.5;
+    const ky = hy+Math.cos(g)*6.5;
+    const g2 = g-.7*Math.abs(g);
+    const ax = kx+Math.sin(g2)*6.5;
+    const ay = ky+Math.cos(g2)*6.5;
+    x.strokeStyle = sc; x.lineWidth = 3.2;
+    x.beginPath(); x.moveTo(0, hy); x.lineTo(kx, ky); x.stroke();
+    x.strokeStyle = sock; x.lineWidth = 3.4;
+    x.beginPath(); x.moveTo(kx, ky); x.lineTo(ax, ay); x.stroke();
+    x.fillStyle = '#111';
+    x.fillRect(ax-1.5, ay-1, 5, 2.6);
+  };
+  leg(ks ? 1.15 : -a);
+  leg(ks ? -.25 : a);
+
+  x.fillStyle = sh;
+  x.beginPath();
+  x.moveTo(-4.6, -12.5);
+  x.lineTo(4.6, -12.5);
+  x.lineTo(5.2, -6.5);
+  x.lineTo(-5.2, -6.5);
+  x.fill();
+
+  x.fillStyle = kit;
+  x.beginPath();
+  x.moveTo(-5.6, -22);
+  x.lineTo(5.6, -22);
+  x.lineTo(4.4, -12);
+  x.lineTo(-4.4, -12);
+  x.closePath();
+  x.fill();
+
+  const arm = b => {
+    const ex = Math.sin(b)*4.5;
+    const ey = -21+Math.cos(b)*4.5;
+    const hx = ex+Math.sin(b-.6)*4;
+    const hy = ey+Math.cos(b-.6)*4;
+    x.strokeStyle = kit; x.lineWidth = 3;
+    x.beginPath(); x.moveTo(0, -21); x.lineTo(ex, ey); x.stroke();
+    x.strokeStyle = sc; x.lineWidth = 2.2;
+    x.beginPath(); x.moveTo(ex, ey); x.lineTo(hx, hy); x.stroke();
+    if(gk){
+      x.fillStyle = '#fff';
+      x.beginPath(); x.arc(hx, hy, 2, 0, 7); x.fill();
+    }
+  };
+  if(up || dv){
+    arm(up ? 2.9 : 2.2);
+    arm(up ? 3.4 : 2.6);
   } else {
-    const ranked = Object.values(T).sort((a,b) => b.R - a.R);
-    const myRank = ranked.findIndex(x => x.id === myId) + 1;
-    s.qualified.cafCL = myRank <= 4;
-    s.qualified.cafCC = myRank >= 5 && myRank <= 8;
-    s.qualified.egyptSuper = myRank <= 2;
+    arm(a*.9);
+    arm(-a*.9);
   }
 
-  if(s.qualified.cafCL){
-    s.cafCL = {rounds:{}, currentRound:'R16', userAlive:true, winner:null};
-    const prevTable = prev?.fullLeagueTable || [];
-    const qualifiersCL = prevTable.length >= 4
-      ? prevTable.slice(0, 4)
-      : [...Object.values(T)].sort((a,b)=>b.R-a.R).slice(0,4).map(t=>t.id);
-    const cafPool = [...new Set([...qualifiersCL, myId, 'ahly', 'zamalek', 'pyramids',
-      ...AFRICAN.map(a=>a[0])])].slice(0, 16);
-    const csh = [...cafPool].sort(() => R()-.5);
-    s.cafCL.rounds.R16 = [];
-    for(let i=0; i<16; i+=2){
-      s.cafCL.rounds.R16.push({home:csh[i], away:csh[i+1], played:false, winner:null});
+  x.fillStyle = sc;
+  x.fillRect(-1.2, -24, 2.4, 2.5);
+  x.beginPath();
+  x.arc(.6, -27.2, 3.6, 0, 7);
+  x.fill();
+  x.fillStyle = hc;
+  x.beginPath();
+  x.arc(.2, -27.8, 3.8, Math.PI*1.05, Math.PI*2.05);
+  x.fill();
+
+  x.scale(f, 1);
+  if(!isRef){
+    x.fillStyle = gk ? '#fff' : t.c2;
+    x.font = 'bold 6px sans-serif';
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.fillText(num, 0, -16.5);
+    if(p.yc > 0){
+      x.fillStyle = '#fbbf24';
+      x.fillRect(5, -31, 3.5, 5);
+      x.strokeStyle = '#000';
+      x.lineWidth = .4;
+      x.strokeRect(5, -31, 3.5, 5);
     }
-    const m = s.cafCL.rounds.R16.find(x => x.home === myId || x.away === myId);
-    if(m){
-      const home = m.home === myId;
-      s.userCalendar.push({
-        day:CAF_DAYS.R16, comp:'cafCL', round:'R16',
-        opp:home?m.away:m.home, home, played:false, result:null
-      });
+    if(p.origId === Mt.effectiveRoles?.captain){
+      x.fillStyle = '#fbbf24';
+      x.strokeStyle = '#000';
+      x.lineWidth = .6;
+      x.beginPath();
+      x.arc(-6, -23, 3, 0, 7);
+      x.fill();
+      x.stroke();
+      x.fillStyle = '#000';
+      x.font = 'bold 4px sans-serif';
+      x.fillText('C', -6, -22.5);
     }
   }
-
-  if(s.qualified.cafCC){
-    s.cafCC = {rounds:{}, currentRound:'R16', userAlive:true, winner:null};
-    const prevTable = prev?.fullLeagueTable || [];
-    const qualifiersCC = prevTable.length >= 8
-      ? prevTable.slice(4, 8)
-      : [...Object.values(T)].sort((a,b)=>b.R-a.R).slice(4,8).map(t=>t.id);
-    const cafCCPool = [...new Set([...qualifiersCC, myId, 'masry', 'ittihad', 'ceramica',
-      ...AFRICAN.map(a=>a[0])])].slice(0, 16);
-    const csh = [...cafCCPool].sort(() => R()-.5);
-    s.cafCC.rounds.R16 = [];
-    for(let i=0; i<16; i+=2){
-      s.cafCC.rounds.R16.push({home:csh[i], away:csh[i+1], played:false, winner:null});
-    }
-    const m = s.cafCC.rounds.R16.find(x => x.home === myId || x.away === myId);
-    if(m){
-      const home = m.home === myId;
-      s.userCalendar.push({
-        day:CAF_DAYS.R16, comp:'cafCC', round:'R16',
-        opp:home?m.away:m.home, home, played:false, result:null
-      });
-    }
-  }
-
-  if(s.qualified.egyptSuper && prev){
-    const lc = prev.userWonLeague ? myId : (prev.leagueWinnerId || tbl()[0].id);
-    const cc = prev.userWonCup ? myId : (prev.cupWinnerId || 'ahly');
-    if(lc !== cc){
-      const opp = lc === myId ? cc : lc;
-      s.userCalendar.push({
-        day:SUP_CUP_DAY, comp:'super', round:'S',
-        opp, home:true, played:false, result:null
-      });
-      s.egyptSuper = {opp, played:false, winner:null};
-    }
-  }
-
-  if(s.qualified.cafSuper && prev){
-    const cw = prev.userWonCAFCL ? myId : (prev.cafCLWinnerId || 'ahly');
-    const cc = prev.userWonCAFCC ? myId : (prev.cafCCWinnerId || 'zamalek');
-    if(cw !== cc){
-      const opp = cw === myId ? cc : cw;
-      s.userCalendar.push({
-        day:CAF_SUP_DAY, comp:'cafSuper', round:'S',
-        opp, home:true, played:false, result:null
-      });
-      s.cafSuper = {opp, played:false, winner:null};
-    }
-  }
-
-  if(s.qualified.clubWC && prev && prev.userWonCAFCL){
-    s.clubWC = {rounds:{}, currentRound:'QF', userAlive:true, winner:null};
-    const wt = [myId, ...WORLD.map(w=>w[0])].slice(0, 8);
-    const wsh = [...new Set(wt)].slice(0, 8).sort(() => R()-.5);
-    s.clubWC.rounds.QF = [];
-    for(let i=0; i<8; i+=2){
-      s.clubWC.rounds.QF.push({home:wsh[i], away:wsh[i+1], played:false, winner:null});
-    }
-    const m = s.clubWC.rounds.QF.find(x => x.home === myId || x.away === myId);
-    if(m){
-      const home = m.home === myId;
-      s.userCalendar.push({
-        day:CLUB_WC_DAYS.QF, comp:'clubWC', round:'QF',
-        opp:home?m.away:m.home, home, played:false, result:null
-      });
-    }
-  }
-
-  s.userCalendar.sort((a,b) => a.day-b.day);
-  return s;
+  x.restore();
 }
 
-function getNextUserMatch(){
-  if(!G.season || !G.season.userCalendar) return null;
-  return G.season.userCalendar.find(m => !m.played) || null;
-}
-function daysUntilMatch(m){
-  if(!m || !G.season) return 0;
-  return Math.max(0, m.day-G.season.currentDay);
-}
+// ============================================
+// رسم الملعب (مع cache)
+// ============================================
+let _pitch = null, _pW = 0, _pH = 0;
 
-function advanceToDay(td){
-  if(!G.season) return;
-  simulateAIUpToDay(td);
-  G.season.currentDay = td;
-  applyTraining();
-  updateLegendMarket();
-  save();
-}
+function drawPitch(x, W, H, P, u){
+  if(_pitch && _pW == W && _pH == H){
+    x.drawImage(_pitch, 0, 0);
+    return;
+  }
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const px = c.getContext('2d');
+  const grad = px.createRadialGradient(W/2, H/2, 0, W/2, H/2, W*.7);
+  grad.addColorStop(0, '#1a7a3e');
+  grad.addColorStop(1, '#0f4d24');
+  px.fillStyle = grad;
+  px.fillRect(0, 0, W, H);
 
-function applyTraining() {
-  if (!G.training) G.training = { focus: 'balanced', intensity: 'normal' };
-  const t = T[G.my];
-  const focus = G.training.focus;
-  const intensity = G.training.intensity;
-  let xpMult = 1, injuryRisk = 0, staminaDrain = 0;
-  if (intensity === 'light') { xpMult = 0.5; injuryRisk = 0.001; staminaDrain = 2; }
-  else if (intensity === 'normal') { xpMult = 1.0; injuryRisk = 0.005; staminaDrain = 5; }
-  else if (intensity === 'intense') { xpMult = 1.8; injuryRisk = 0.015; staminaDrain = 10; }
-  const facLevel = G.facilities?.training || 1;
-  xpMult *= (1 + (facLevel - 1) * 0.25);
-  t.ps.forEach(p => {
-    p.fit = Math.max(20, (p.fit || 100) - staminaDrain);
-    if (R() < injuryRisk) tryInjure(p);
-    let xpGain = 20 * xpMult;
-    if (focus === 'attack') {
-      p.shooting = Math.min(99, p.shooting + (R() < 0.3 ? 1 : 0));
-      p.dribbling = Math.min(99, p.dribbling + (R() < 0.2 ? 1 : 0));
-    } else if (focus === 'defense') {
-      p.defending = Math.min(99, p.defending + (R() < 0.3 ? 1 : 0));
-      p.physical = Math.min(99, p.physical + (R() < 0.2 ? 1 : 0));
-    } else if (focus === 'fitness') {
-      p.pace = Math.min(99, p.pace + (R() < 0.3 ? 1 : 0));
-      p.physical = Math.min(99, p.physical + (R() < 0.2 ? 1 : 0));
-    } else if (focus === 'youth' && p.age <= 23) {
-      xpGain *= 2;
-    }
-    gainXp(p, Math.round(xpGain));
+  for(let i=0; i<14; i+=2){
+    px.fillStyle = 'rgba(0,0,0,.1)';
+    px.fillRect(P+i*L/14*u, P, L/14*u, H-2*P);
+  }
+
+  px.strokeStyle = '#ffffffd0';
+  px.lineWidth = 2;
+  px.strokeRect(P, P, W-2*P, H-2*P);
+  px.beginPath();
+  px.moveTo(P+L/2*u, P);
+  px.lineTo(P+L/2*u, H-P);
+  px.stroke();
+  px.beginPath();
+  px.arc(P+L/2*u, P+34*(H-2*P)/WD, 9.15*u, 0, 7);
+  px.stroke();
+
+  [0,1].forEach(i => {
+    const s = i ? -1 : 1;
+    const g = i ? L : 0;
+    px.strokeRect(i ? P+(L-16.5)*u : P, P+(34-20.15)*(H-2*P)/WD, 16.5*u, 40.3*(H-2*P)/WD);
+    px.strokeRect(i ? P+(L-5.5)*u : P, P+(34-9.15)*(H-2*P)/WD, 5.5*u, 18.3*(H-2*P)/WD);
+    px.beginPath();
+    px.arc(P+(g+s*11)*u, P+34*(H-2*P)/WD, 2, 0, 7);
+    px.fillStyle = '#fff';
+    px.fill();
+    px.fillStyle = '#ffffff55';
+    px.fillRect(i ? P+L*u : P-9, P+(34-GW/2)*(H-2*P)/WD, 9, GW*(H-2*P)/WD);
   });
+
+  _pitch = c;
+  _pW = W;
+  _pH = H;
+  x.drawImage(c, 0, 0);
 }
 
-function simulateAIUpToDay(td){
-  Object.entries(G.season.leagueFixtures).forEach(([rn, d]) => {
-    if(d.day <= td && d.played.length < d.round.length){
-      const um = d.round.find(m => m[0] === G.my || m[1] === G.my);
-      d.round.forEach(([h,a]) => {
-        if((h === G.my || a === G.my) && um) return;
-        const pk = h+'_'+a;
-        if(d.played.includes(pk)) return;
-        const tH = T[h], tA = T[a];
-        if(!tH || !tA) return;
-        let p1 = tH.R, p2 = tA.R+2;
-        if(tH.tac === 'attack') p1 += 1; else if(tH.tac === 'defense') p1 += .5;
-        if(tA.tac === 'attack') p2 += 1; else if(tA.tac === 'defense') p2 += .5;
-        const df = (p1-p2)/15;
-        const g1 = Math.max(0, Math.round(R()*1.8+df*.5));
-        const g2 = Math.max(0, Math.round(R()*1.8-df*.5));
-        rec(tH, tA, g1, g2);
-        d.played.push(pk);
-        const homeScorers = [], awayScorers = [];
-        for(let i=0; i<g1; i++){
-          const el = tH.ps.filter(p => p.pos !== 'GK');
-          const p = el[Math.floor(R()*el.length)] || tH.ps[0];
-          if(p){ p.goals = (p.goals||0)+1; homeScorers.push(p.name); gainXp(p, 40); }
-        }
-        for(let i=0; i<g2; i++){
-          const el = tA.ps.filter(p => p.pos !== 'GK');
-          const p = el[Math.floor(R()*el.length)] || tA.ps[0];
-          if(p){ p.goals = (p.goals||0)+1; awayScorers.push(p.name); gainXp(p, 40); }
-        }
-        const winN = g1>g2 ? tH.name : g2>g1 ? tA.name : null;
-        const desc = winN
-          ? (Math.abs(g1-g2)>=3 ? `🔥 فوز ساحق لـ ${winN}`
-            : Math.abs(g1-g2)===2 ? `✅ فوز مريح لـ ${winN}`
-            : `⚔️ فوز صعب لـ ${winN}`)
-          : (g1+g2>=5 ? `⚡ تعادل مثير ${g1}-${g2}`
-            : g1+g2===0 ? `😴 تعادل سلبي`
-            : `🤝 تعادل ${g1}-${g2}`);
-        let scorerInfo = '⚽ ';
-        if(homeScorers.length) scorerInfo += `${tH.name}: ${homeScorers.join(', ')}`;
-        if(homeScorers.length && awayScorers.length) scorerInfo += ' | ';
-        if(awayScorers.length) scorerInfo += `${tA.name}: ${awayScorers.join(', ')}`;
-        if(!homeScorers.length && !awayScorers.length) scorerInfo += 'لا أهداف في المباراة';
-        addNews(`📢 جولة ${rn}: ${tH.name} ${g1}-${g2} ${tA.name}`, `${desc}\n${scorerInfo}`);
-      });
-    }
-  });
-  if(G.season.cupBracket) simulateCupUpToDay(td);
-  if(G.season.cafCL) simulateCafComp('cafCL', td);
-  if(G.season.cafCC) simulateCafComp('cafCC', td);
-  Object.values(T).forEach(t => {
-    t.ps.forEach(p => { p.fit = Math.min(100, (p.fit!=null?p.fit:100)+5); });
-    recoverInjuries(t);
-  });
-}
+// ============================================
+// الرسم الرئيسي
+// ============================================
+function draw(){
+  const c = $('pc'), x = c.getContext('2d'), W = c.width, H = c.height, P = 14;
+  const u = (W-2*P)/L;
+  const X = v => P+v*u;
+  const Y = v => P+v*(H-2*P)/WD;
+  drawPitch(x, W, H, P, u);
 
-function simulateCupUpToDay(td){
-  const cb = G.season.cupBracket;
-  if(!cb) return;
-  const ro = ['R32','R16','QF','SF','F'];
-  ro.forEach(round => {
-    const rd = CUP_DAYS[round];
-    if(!cb.rounds[round]) return;
-    if(rd > td) return;
-    cb.rounds[round].forEach(m => {
-      if(m.played) return;
-      if((m.home === G.my || m.away === G.my) && !m.played) return;
-      const hT = T[m.home], aT = T[m.away];
-      let w;
-      if(hT && aT){ const df = (hT.R+2-aT.R)/12; w = R() < .5+df*.1 ? m.home : m.away; }
-      else if(hT) w = m.home;
-      else if(aT) w = m.away;
-      else w = R() < .5 ? m.home : m.away;
-      m.winner = w; m.played = true;
-      const wN = T[w]?.name || w;
-      const lN = T[w === m.home ? m.away : m.home]?.name || (w === m.home ? m.away : m.home);
-      addNews(`🏆 كأس مصر - ${round}: ${wN} يتأهل`, `🥅 ${wN} يهزم ${lN}`);
+  const LS = [];
+  for(const k of ['home','away']){
+    Mt.s[k].on.forEach((p, i) => LS.push([p, k, i, false]));
+  }
+  LS.push([Mt.ref, 'ref', 0, true]);
+  LS.sort((a, b) => a[0].y-b[0].y);
+
+  LS.forEach(([p, k, i, isRef]) => {
+    if(isRef) man(x, p, X(p.x), Y(p.y)+12, null, false, false, 0, true);
+    else man(x, p, X(p.x), Y(p.y)+12, Mt.s[k].t, p.role=='GK', Mt.ball.o == p, i+1, false);
+  });
+
+  const b = Mt.ball;
+  const bx = X(b.x), by = Y(b.y)+12, bz = b.z||0;
+
+  if(b.trail && b.trail.length){
+    b.trail.forEach((t, i) => {
+      const a = 0.5*((i+1)/b.trail.length);
+      x.fillStyle = `rgba(255,255,255,${a})`;
+      x.beginPath();
+      x.arc(X(t.x), Y(t.y)+12-4-(t.z||0)*2.2, 2, 0, 7);
+      x.fill();
     });
-    if(cb.rounds[round].every(m => m.played)){
-      const ni = ro.indexOf(round)+1;
-      if(ni < ro.length){
-        const nr = ro[ni];
-        if(!cb.rounds[nr]){
-          cb.rounds[nr] = [];
-          for(let i=0; i<cb.rounds[round].length; i+=2){
-            const m1 = cb.rounds[round][i], m2 = cb.rounds[round][i+1];
-            if(m1 && m2 && m1.winner && m2.winner){
-              cb.rounds[nr].push({home:m1.winner, away:m2.winner, played:false, winner:null});
-            }
-          }
-        }
-        const um = cb.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === 'cup' && x.round === nr && !x.played)){
-          const home = um.home === G.my;
-          G.season.userCalendar.push({
-            day:CUP_DAYS[nr], comp:'cup', round:nr,
-            opp:home?um.away:um.home, home, played:false, result:null
-          });
-          G.season.userCalendar.sort((a,b) => a.day-b.day);
-        }
-      } else if(cb.rounds.F && cb.rounds.F.every(m => m.played)){
-        cb.winner = cb.rounds.F[0].winner;
-        addNews(`🏆🏆 ${T[cb.winner]?.name||cb.winner} بطل كأس مصر!`, `🎉 يحقق البطولة بعد رحلة رائعة`);
-      }
-    }
-  });
-}
-
-function simulateCafComp(name, td){
-  const c = G.season[name];
-  if(!c) return;
-  const ro = ['R16','QF','SF','F'];
-  const compName = name === 'cafCL' ? 'دوري أبطال أفريقيا' : 'كأس الكونفدرالية';
-  ro.forEach(round => {
-    const rd = CAF_DAYS[round];
-    if(!c.rounds[round]) return;
-    if(rd > td) return;
-    c.rounds[round].forEach(m => {
-      if(m.played) return;
-      if((m.home === G.my || m.away === G.my) && !m.played) return;
-      const hT = T[m.home], aT = T[m.away];
-      const hR = hT ? hT.R : (AFRICAN.find(a=>a[0]===m.home)?.[2] || 78);
-      const aR = aT ? aT.R : (AFRICAN.find(a=>a[0]===m.away)?.[2] || 78);
-      const df = (hR+2-aR)/12;
-      m.winner = R() < .5+df*.1 ? m.home : m.away;
-      m.played = true;
-      const wN = T[m.winner]?.name || AFRICAN.find(a=>a[0]===m.winner)?.[1] || m.winner;
-      const lN = T[m.winner===m.home ? m.away : m.home]?.name
-        || AFRICAN.find(a=>a[0]===(m.winner===m.home?m.away:m.home))?.[1]
-        || (m.winner===m.home?m.away:m.home);
-      addNews(`🌍 ${compName} - ${round}: ${wN} يتأهل`, `⚔️ ${wN} يقصي ${lN}`);
-    });
-    if(c.rounds[round].every(m => m.played)){
-      const ni = ro.indexOf(round)+1;
-      if(ni < ro.length){
-        const nr = ro[ni];
-        if(!c.rounds[nr]){
-          c.rounds[nr] = [];
-          for(let i=0; i<c.rounds[round].length; i+=2){
-            const m1 = c.rounds[round][i], m2 = c.rounds[round][i+1];
-            if(m1 && m2 && m1.winner && m2.winner){
-              c.rounds[nr].push({home:m1.winner, away:m2.winner, played:false, winner:null});
-            }
-          }
-        }
-        const um = c.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === name && x.round === nr && !x.played)){
-          const home = um.home === G.my;
-          G.season.userCalendar.push({
-            day:CAF_DAYS[nr], comp:name, round:nr,
-            opp:home?um.away:um.home, home, played:false, result:null
-          });
-          G.season.userCalendar.sort((a,b) => a.day-b.day);
-        }
-      } else if(c.rounds.F && c.rounds.F.every(m => m.played)){
-        c.winner = c.rounds.F[0].winner;
-        const wN = T[c.winner]?.name || AFRICAN.find(a=>a[0]===c.winner)?.[1] || c.winner;
-        addNews(`🏆 ${wN} بطل ${compName}!`, `🌟 إنجاز قاري كبير`);
-      }
-    }
-  });
-}
-
-function advanceCupBracket(){
-  try {
-    const cb = G.season.cupBracket;
-    if(!cb || !cb.rounds) return;
-    const ro = ['R32','R16','QF','SF','F'];
-    const days = {R32:CUP_DAYS.R32, R16:CUP_DAYS.R16, QF:CUP_DAYS.QF, SF:CUP_DAYS.SF, F:CUP_DAYS.F};
-    ro.forEach((r, idx) => {
-      if(!cb.rounds[r]) return;
-      if(cb.rounds[r].every(m => m && m.played) && idx < ro.length-1){
-        const nr = ro[idx+1];
-        if(!cb.rounds[nr]){
-          cb.rounds[nr] = [];
-          for(let i=0; i<cb.rounds[r].length; i+=2){
-            const m1 = cb.rounds[r][i], m2 = cb.rounds[r][i+1];
-            if(m1 && m2 && m1.winner && m2.winner){
-              cb.rounds[nr].push({home:m1.winner, away:m2.winner, played:false, winner:null});
-            }
-          }
-        }
-        const um = cb.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === 'cup' && x.round === nr && !x.played)){
-          const home = um.home === G.my;
-          G.season.userCalendar.push({
-            day:days[nr], comp:'cup', round:nr,
-            opp:home?um.away:um.home, home, played:false, result:null
-          });
-          G.season.userCalendar.sort((a,b) => a.day-b.day);
-          addNews(`🎯 تأهلت لدور ${nr} في كأس مصر!`, `📅 المباراة القادمة يوم ${days[nr]}`);
-        }
-      } else if(idx === ro.length-1 && cb.rounds.F && cb.rounds.F.length > 0 && cb.rounds.F.every(m => m && m.played)){
-        if(cb.rounds.F[0] && cb.rounds.F[0].winner){
-          cb.winner = cb.rounds.F[0].winner;
-          if(cb.winner === G.my && !cb.trophyAdded){
-            cb.trophyAdded = true;
-            G.trophies = (G.trophies||0)+1;
-            addTrophy('كأس مصر', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
-            addNews(`🏆🏆 ${T[G.my].name} بطل كأس مصر!`, `🎉 ${G.trophies} بطولة`);
-          }
-        }
-      }
-    });
-  } catch(e) { console.error('advanceCupBracket safe error:', e); }
-}
-
-function advanceCafComp(name){
-  try {
-    const c = G.season[name];
-    if(!c || !c.rounds) return;
-    const ro = ['R16','QF','SF','F'];
-    const days = {R16:CAF_DAYS.R16, QF:CAF_DAYS.QF, SF:CAF_DAYS.SF, F:CAF_DAYS.F};
-    const ar = name === 'cafCL' ? 'دوري أبطال أفريقيا' : 'كأس الكونفدرالية';
-    ro.forEach((r, idx) => {
-      if(!c.rounds[r]) return;
-      if(c.rounds[r].every(m => m && m.played) && idx < ro.length-1){
-        const nr = ro[idx+1];
-        if(!c.rounds[nr]){
-          c.rounds[nr] = [];
-          for(let i=0; i<c.rounds[r].length; i+=2){
-            const m1 = c.rounds[r][i], m2 = c.rounds[r][i+1];
-            if(m1 && m2 && m1.winner && m2.winner){
-              c.rounds[nr].push({home:m1.winner, away:m2.winner, played:false, winner:null});
-            }
-          }
-        }
-        const um = c.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === name && x.round === nr && !x.played)){
-          const home = um.home === G.my;
-          G.season.userCalendar.push({
-            day:days[nr], comp:name, round:nr,
-            opp:home?um.away:um.home, home, played:false, result:null
-          });
-          G.season.userCalendar.sort((a,b) => a.day-b.day);
-          addNews(`🎯 تأهلت لدور ${nr} في ${ar}!`, `📅 المباراة القادمة يوم ${days[nr]}`);
-        }
-      } else if(idx === ro.length-1 && c.rounds.F && c.rounds.F.length > 0 && c.rounds.F.every(m => m && m.played)){
-        if(c.rounds.F[0] && c.rounds.F[0].winner){
-          c.winner = c.rounds.F[0].winner;
-          const wN = T[c.winner]?.name || AFRICAN.find(a=>a[0]===c.winner)?.[1] || c.winner;
-          if(c.winner === G.my && !c.trophyAdded){
-            c.trophyAdded = true;
-            G.trophies = (G.trophies||0)+1;
-            addTrophy(ar, G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
-            addNews(`🌍🏆 ${wN} بطل ${ar}!`, `🎉 ${G.trophies} بطولة`);
-          }
-        }
-      }
-    });
-  } catch(e) { console.error('advanceCafComp safe error:', e); }
-}
-
-function advanceClubWC(){
-  try {
-    const c = G.season.clubWC;
-    if(!c || !c.rounds) return;
-    const ro = ['QF','SF','F'];
-    const days = {QF:CLUB_WC_DAYS.QF, SF:CLUB_WC_DAYS.SF, F:CLUB_WC_DAYS.F};
-    ro.forEach((r, idx) => {
-      if(!c.rounds[r]) return;
-      if(c.rounds[r].every(m => m && m.played) && idx < ro.length-1){
-        const nr = ro[idx+1];
-        if(!c.rounds[nr]){
-          c.rounds[nr] = [];
-          for(let i=0; i<c.rounds[r].length; i+=2){
-            const m1 = c.rounds[r][i], m2 = c.rounds[r][i+1];
-            if(m1 && m2 && m1.winner && m2.winner){
-              c.rounds[nr].push({home:m1.winner, away:m2.winner, played:false, winner:null});
-            }
-          }
-        }
-        const um = c.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === 'clubWC' && x.round === nr && !x.played)){
-          const home = um.home === G.my;
-          G.season.userCalendar.push({
-            day:days[nr], comp:'clubWC', round:nr,
-            opp:home?um.away:um.home, home, played:false, result:null
-          });
-          G.season.userCalendar.sort((a,b) => a.day-b.day);
-          addNews(`🌐 تأهلت لدور ${nr} في كأس العالم!`, `📅 المباراة القادمة يوم ${days[nr]}`);
-        }
-      } else if(idx === ro.length-1 && c.rounds.F && c.rounds.F.length > 0 && c.rounds.F.every(m => m && m.played)){
-        if(c.rounds.F[0] && c.rounds.F[0].winner){
-          c.winner = c.rounds.F[0].winner;
-          if(c.winner === G.my && !c.trophyAdded){
-            c.trophyAdded = true;
-            G.trophies = (G.trophies||0)+1;
-            addTrophy('كأس العالم للأندية', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
-            addNews(`🌐🌐 ${T[G.my].name} بطل كأس العالم!`, `🏆 ${G.trophies} بطولة`);
-          }
-        }
-      }
-    });
-  } catch(e) { console.error('advanceClubWC safe error:', e); }
-}
-
-function addTrophy(name, seasonNum, year){
-  if(!G.trophyCabinet) G.trophyCabinet = [];
-  G.trophyCabinet.push({name, season:seasonNum, year});
-}
-
-function realPenaltyShootout(tA, tB){
-  let sA = 0, sB = 0;
-  const log = [];
-  let round = 0;
-  for(let i=0; i<5; i++){
-    round++;
-    const shA = R() < .72; const shB = R() < .72;
-    if(shA) sA++; if(shB) sB++;
-    log.push(`ركلة ${round}: ${tA.name} ${shA?'✅':'❌'} | ${tB.name} ${shB?'✅':'❌'}`);
-    const rem = 5-i-1;
-    if(sA > sB+rem) break;
-    if(sB > sA+rem) break;
   }
-  while(sA === sB){
-    round++;
-    const shA = R() < .68, shB = R() < .68;
-    if(shA) sA++; if(shB) sB++;
-    log.push(`ركلة ${round} (حاسمة): ${tA.name} ${shA?'✅':'❌'} | ${tB.name} ${shB?'✅':'❌'}`);
-    if(round > 15) break;
+
+  x.fillStyle = 'rgba(0,0,0,.35)';
+  x.beginPath();
+  x.ellipse(bx, by, Math.max(2, 5-bz*.25), Math.max(1, 2-bz*.1), 0, 0, 7);
+  x.fill();
+  x.fillStyle = '#fff';
+  x.beginPath();
+  x.arc(bx, by-4-bz*2.2, 4.2+Math.min(2, bz*.15), 0, 7);
+  x.fill();
+  x.strokeStyle = '#000';
+  x.lineWidth = .8;
+  x.stroke();
+
+  if(b.o){
+    x.font = 'bold 8px Cairo,sans-serif';
+    x.textAlign = 'center';
+    x.textBaseline = 'bottom';
+    x.lineWidth = 2;
+    x.strokeStyle = '#000';
+    x.fillStyle = '#fff';
+    const tx = X(b.o.x), ty = Y(b.o.y)+12-34;
+    x.strokeText(b.o.name, tx, ty);
+    x.fillText(b.o.name, tx, ty);
   }
-  return {winner: sA>sB ? 'home' : 'away', scoreA:sA, scoreB:sB, log};
-}
 
-function simulateLivingWorld(){
-  const ai = Object.values(T).filter(t => t.id !== G.my);
-  if(!ai.length) return;
-  const st = tbl();
-  st.forEach((t,i) => {
-    if(t.id === G.my) return;
-    if(i > 14){ if(t.tac !== 'attack') t.tac = 'attack'; }
-    else if(i < 5){ if(t.tac !== 'defense') t.tac = 'defense'; }
-    else t.tac = 'balanced';
-  });
-  if(R() < .3){
-    const b = ai[Math.floor(R()*ai.length)];
-    const s = ai[Math.floor(R()*ai.length)];
-    if(b.id !== s.id && b.budget > 10 && s.ps.length > 15){
-      const b11 = autoFillLineup(s, s.form);
-      const sp = s.ps.filter(p => !b11.includes(p.id) && !p.susp && !p.injury);
-      if(sp.length){
-        const p = sp[Math.floor(R()*sp.length)];
-        if(p && b.budget >= p.value && b.ps.length < 25){
-          b.budget = Math.round((b.budget-p.value)*10)/10;
-          s.budget = Math.round((s.budget+p.value)*10)/10;
-          s.ps = s.ps.filter(x => x.id !== p.id);
-          b.ps.push(p);
-          addNews(`💼 انتقال داخلي: ${b.name} ← ${p.name}`, `💸 من ${s.name} بـ${p.value}M • تقييم ${p.r}`);
-        }
-      }
-    }
-  }
-  if(R() < .2){
-    const ut = T[G.my];
-    if(ut.ps.length > 15){
-      const b = ai[Math.floor(R()*ai.length)];
-      if(b.budget > 15){
-        const t = ut.ps[Math.floor(R()*ut.ps.length)];
-        if(t && t.value < b.budget && !t.injury){
-          const oa = Math.round(t.value*(1.1+R()*.5)*10)/10;
-          G.pendingOffer = {playerId:t.id, buyerId:b.id, amount:oa};
-        }
-      }
-    }
-  }
-}
-
-function checkLegendsMarket(){
-  if(!G.season) return;
-  if(G.legendsMarket && G.legendsMarket.length > 0) return;
-  const r = Object.values(G.season.leagueFixtures).filter(d => d.played.length > 0).length;
-  if(r > 0 && r%4 === 0 && G.lastLegendRound !== r){
-    G.lastLegendRound = r;
-    const av = LEGEND_POOL.filter(l => !G.usedLegends.includes('legend_'+l.name));
-    if(av.length > 0){
-      const idx = Math.floor(R()*av.length);
-      const lg = av.splice(idx, 1)[0];
-      const id = 'legend_'+lg.name;
-      G.legendsMarket.push({
-        id, name:lg.name, pos:lg.pos, r:lg.r,
-        fit:100, goals:0, yc:0, rc:0, susp:0,
-        morale:90, injury:null,
-        pace:lg.r, shooting:lg.r, passing:lg.r, dribbling:lg.r, defending:lg.r, physical:lg.r, aggr:70,
-        lvl:1, xp:0, value:lg.price, isLegend:true,
-        contract:{years:3, salary:calcSalary(lg.r)},
-        age:28, form:[7,7,7], chemistry:0,
-        stats:{matches:0, goals:0, assists:0, rating:0},
-        expiresOnDay: G.season.currentDay + 1
-      });
-      addNews(`🌟 أسطورة في السوق!`, `🎯 ${lg.name} متاح لمدة يوم واحد فقط!`);
-    }
-  }
-}
-
-function updateLegendMarket(){
-  if(!G || !G.season || !G.legendsMarket) return;
-  const currentDay = G.season.currentDay;
-  G.legendsMarket = G.legendsMarket.filter(p => {
-    if (p.expiresOnDay && currentDay >= p.expiresOnDay) {
-      addNews(`⏰ انتهى عرض الأسطورة ${p.name}!`, `🚫 غادر السوق ولن يعود.`);
-      G.usedLegends.push(p.id);
-      return false;
-    }
-    return true;
-  });
-}
-
-function generateYouthPlayer(t){
-  const pos = POS[Math.floor(R()*4)];
-  const name = YOUTH_NAMES[Math.floor(R()*YOUTH_NAMES.length)]+' '+(10+Math.floor(R()*90));
-  const facLevel = G.facilities?.youth || 1;
-  const rating = 55 + Math.floor(R()*15) + (facLevel * 2);
-  const p = createPlayer(t.id+'_youth_'+Date.now()+'_'+Math.floor(R()*10000), name, pos, rating, 16);
-  p.isYouth = true;
-  p.morale = 90;
-  return p;
-}
-
-function checkPlayerOfMonth(){
-  if(!G || !G.season) return;
-  const day = G.season.currentDay;
-  if(day > 0 && day%30 === 0 && G.lastPOTM !== day){
-    G.lastPOTM = day;
-    const all = [];
-    Object.values(T).forEach(team => {
-      team.ps.forEach(p => { if(p.goals > 0 || p.lvl > 1) all.push({p, team}); });
-    });
-    if(!all.length) return;
-    all.sort((a,b) => (b.p.goals||0)-(a.p.goals||0) || b.p.lvl-a.p.lvl);
-    const w = all[0];
-    if(!G.monthlyAwards) G.monthlyAwards = [];
-    G.monthlyAwards.push({
-      season:G.seasonNumber, month:Math.ceil(day/30),
-      player:w.p.name, team:w.team.name, goals:w.p.goals||0
-    });
-    gainXp(w.p, 100);
-    addNews(`🎖️ لاعب الشهر: ${w.p.name}!`, `⚽ ${w.team.name} • ${w.p.goals||0} هدف • +100 XP`);
-  }
-}
-
-function checkRetirements(){
-  if(!G || !G.season) return;
-  const t = T[G.my];
-  if(G.seasonNumber < 2) return;
-  const tr = [];
-  t.ps.forEach(p => {
-    if((p.age >= 36 && R() < 0.5) || (p.age >= 38) || (p.contract && p.contract.years <= 0 && p.lvl >= 7 && R() < .3)) tr.push(p);
-  });
-  tr.forEach(p => {
-    if(!G.hallOfFame) G.hallOfFame = [];
-    G.hallOfFame.push({
-      name:p.name, pos:p.pos, r:p.r, lvl:p.lvl, goals:p.goals||0,
-      season:G.seasonNumber, year: SEASON_YEAR+G.seasonNumber-1
-    });
-    t.ps = t.ps.filter(x => x.id !== p.id);
-    G.lu = G.lu.map(id => id === p.id ? null : id);
-    if(G.captain === p.id) G.captain = null;
-    if(G.penaltyTaker === p.id) G.penaltyTaker = null;
-    if(G.freeKickTaker === p.id) G.freeKickTaker = null;
-    if(G.cornerTaker === p.id) G.cornerTaker = null;
-    addNews(`🏛️ اعتزال ${p.name}!`, `⭐ تقييم ${p.r} • ${p.goals||0} هدف طوال المسيرة`);
-  });
-  if(tr.length && G.lu.includes(null)) G.lu = autoFillLineup(t, G.form);
-}
-
-function updatePlayerAges(){
-  if(!G || !G.season) return;
-  Object.values(T).forEach(t => {
-    t.ps.forEach(p => {
-      p.age++;
-      if(p.age <= 23) p.xp += 100;
-      else if(p.age >= 30){ p.r = Math.max(50, p.r-1); p.value = calcVal(p.r, p.lvl, p.age); }
-    });
-  });
-}
-
-function endSeason(){
-  const t = T[G.my];
-  const st = tbl();
-  const myPos = st.findIndex(x => x.id === G.my)+1;
-  const lc = st[0].id;
-  const cw = G.season.cupBracket?.winner;
-  const cw1 = G.season.cafCL?.winner;
-  const cw2 = G.season.cafCC?.winner;
-  if(lc === G.my){
-    G.trophies = (G.trophies||0)+1;
-    addTrophy('الدوري المصري', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
-    addNews(`🏆🏆 ${t.name} بطل الدوري!`, `🎉 ${t.pts} نقطة • المركز الأول`);
-  }
-  checkBoardObjectives();
-  const allP = Object.values(T).flatMap(t => t.ps.map(p => ({p, t})));
-  allP.sort((a,b) => b.p.stats.goals-a.p.stats.goals);
-  const topScorer = allP[0];
-  allP.sort((a,b) => b.p.stats.rating-a.p.stats.rating);
-  const bestPlayer = allP[0];
-  addNews(`🏆 جوائز الموسم!`, `⚽ الهداف: ${topScorer.p.name} (${topScorer.p.stats.goals} هدف) • 🌟 أفضل لاعب: ${bestPlayer.p.name}`);
-  const prev = {
-    leaguePos: myPos, userWonLeague: lc === G.my, userWonCup: cw === G.my,
-    userWonCAFCL: cw1 === G.my, userWonCAFCC: cw2 === G.my,
-    leagueWinnerId: lc, cupWinnerId: cw, cafCLWinnerId: cw1, cafCCWinnerId: cw2,
-    fullLeagueTable: st.map(t => t.id)
-  };
-  const ts = [...t.ps].sort((a,b) => (b.goals||0)-(a.goals||0))[0];
-  $('main').innerHTML = `<div style="text-align:center;padding:20px">
-    <div style="font-size:64px;filter:drop-shadow(0 0 30px rgba(251,191,36,.8))">🏆</div>
-    <h2 style="color:var(--gold);font-size:20px;text-shadow:0 0 20px rgba(251,191,36,.6)">${myPos===1?'بطل الدوري!':'المركز '+myPos}</h2>
-    <p style="font-size:13px;color:#fff">${t.pts} نقطة (${t.w}ف ${t.d}ت ${t.l}خ)</p>
-    <div class="c" style="text-align:right;font-size:12px;padding:12px;margin-top:10px">
-      <div style="margin-bottom:6px">🏆 البطولات: <b style="color:var(--gold)">${G.trophies}</b></div>
-      <div style="margin-bottom:6px">⚽ هدافك: <b style="color:var(--gold)">${ts?.name} (${ts?.goals||0})</b></div>
-      <div>💰 الميزانية: <b style="color:var(--gold)">${t.budget.toFixed(1)}M</b></div>
-    </div>
-    <button class="b" style="margin-top:14px;padding:14px;font-size:14px" onclick="startNextSeason()">▶ الموسم ${G.seasonNumber+1}</button>
-  </div>`;
-  G._prevResults = prev;
-  save();
-}
-
-function startNextSeason(){
-  const prevTrophies = G.trophies||0;
-  updatePlayerAges();
-  checkRetirements();
-  Object.values(T).forEach(t => {
-    t.pts = 0; t.pl = 0; t.w = 0; t.d = 0; t.l = 0; t.gf = 0; t.ga = 0;
-    t.ps.forEach(p => {
-      p.fit = 100; p.goals = 0; p.yc = 0; p.rc = 0; p.susp = 0; p.injury = null;
-      p.stats = {matches:0, goals:0, assists:0, rating:0};
-      p.form = [6,6,6];
-      if(p.contract){
-        p.contract.years--;
-        if(p.contract.years <= 0 && t.id === G.my){
-          if(R() < 0.5){
-            addNews(`🚪 ${p.name} يرحل كحر!`, `📋 انتهى عقده • ${p.r} تقييم`);
-            t.ps = t.ps.filter(x => x.id !== p.id);
-            G.lu = G.lu.map(id => id === p.id ? null : id);
-            if(G.captain === p.id) G.captain = null;
-            if(G.penaltyTaker === p.id) G.penaltyTaker = null;
-            if(G.freeKickTaker === p.id) G.freeKickTaker = null;
-            if(G.cornerTaker === p.id) G.cornerTaker = null;
-          }
-        }
-      }
-    });
-  });
-  G.seasonNumber++;
-  G.trophies = G.trophies||0;
-  const pr = G._prevResults || null;
-  G.season = generateSeason(G.my, pr);
-  G.boardObjectives = setBoardObjectives(T[G.my]);
-  G.youthPlayers = [generateYouthPlayer(T[G.my]), generateYouthPlayer(T[G.my])];
-  if(!G.lu || G.lu.length !== 11 || G.lu.includes(null)) G.lu = autoFillLineup(T[G.my], G.form);
-  G.inst = {}; G.legendsMarket = []; G.usedLegends = []; G.lastLegendRound = 0; G.lossStreak = 0;
-  autoAssignRoles();
-  addNews(`🏁 يبدأ الموسم ${SEASON_YEAR+G.seasonNumber-1}/${SEASON_YEAR+G.seasonNumber}!`, `👨‍💼 ${G.managerName} يقود ${T[G.my].name} • ${G.boardObjectives.map(o=>o.desc).join(' + ')}`);
-  checkSponsorBonus();
-  G.currentSponsor = null;
-  G._sponsorTrophies = prevTrophies;
-  save();
-  dash();
-  setTimeout(() => showSponsorOffers(), 500);
-}
-
-function checkSponsorBonus(){
-  if(!G?.currentSponsor) return;
-  const s = G.currentSponsor;
-  const t = T[G.my];
-  const myPos = tbl().findIndex(x => x.id === G.my)+1;
-  let bonus = 0;
-  if(s.bonus){
-    if(s.bonus.includes('بطولة') && G.trophies > (G._sponsorTrophies||0)) bonus = s.bonus.includes('100M') ? 100 : 50;
-    if(s.bonus.includes('أفريقيا') && myPos <= 2) bonus = 20;
-    if(s.bonus.includes('الدوري') && myPos === 1) bonus = 80;
-  }
-  if(bonus > 0){
-    t.budget = Math.round((t.budget+bonus)*10)/10;
-    addNews(`💰 مكافأة الراعي ${s.name}!`, `📈 +${bonus}M ميزانية`);
-  }
-}
-
-function showSponsorOffers(){
-  const shuffled = [...SPONSORS].sort(() => R()-.5);
-  const offers = shuffled.slice(0, 3);
-  let html = `<div class="mc mc-warning modal-bg-anim">
-    <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
-    <div class="mc-head">
-      <div class="mc-icon" style="font-size:45px">💼</div>
-      <div class="mc-title">عروض الرعاية</div>
-      <div class="mc-sub">اختر الراعي الرسمي لناديك هذا الموسم</div>
-    </div>
-    <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px">`;
-  offers.forEach((s, i) => {
-    html += `<div class="sponsor-card" onclick="chooseSponsor(${i})" style="border:1px solid rgba(255,255,255,.15); background:linear-gradient(135deg, rgba(30,41,59,.9), rgba(15,23,42,.9)); display:flex; flex-direction:column; gap:10px;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div style="font-size:32px; background:rgba(255,255,255,.1); padding:8px; border-radius:12px;">${s.logo}</div>
-          <div>
-            <div style="font-size:16px; font-weight:900; color:#fff">${s.name}</div>
-            <div style="font-size:10px; color:#94a3b8">عقد رعاية موسم ${G.seasonNumber}</div>
-          </div>
-        </div>
-        <div style="text-align:left;">
-          <div style="color:#4ade80; font-size:20px; font-weight:900">${s.safe}M</div>
-          <div style="font-size:9px; color:#94a3b8; background:rgba(74,222,128,.1); padding:2px 6px; border-radius:4px;">دفعة مقدمة</div>
-        </div>
-      </div>
-      ${s.bonus ? `<div style="padding:8px; background:rgba(251,191,36,.1); border-radius:8px; font-size:11px; color:#fbbf24; font-weight:bold; text-align:center;">🎁 ${s.bonus}</div>` : `<div style="padding:8px; background:rgba(255,255,255,.05); border-radius:8px; font-size:11px; color:#94a3b8; text-align:center;">✅ عقد آمن بدون شروط إضافية</div>`}
-    </div>`;
-  });
-  html += `</div></div>`;
-  $('cmc').innerHTML = html;
-  $('cm').hidden = false;
-  G._pendingSponsors = offers;
-}
-
-function chooseSponsor(idx){
-  if(!G._pendingSponsors) return;
-  const s = G._pendingSponsors[idx];
-  G.currentSponsor = s;
-  T[G.my].budget = Math.round((T[G.my].budget+s.safe)*10)/10;
-  addNews(`💼 رعاية جديدة: ${s.logo} ${s.name}`, `💰 دفعة أولى ${s.safe}M ${s.bonus?'• '+s.bonus:''}`);
-  G._pendingSponsors = null;
-  $('cm').hidden = true;
-  save(); dash();
-}
-
-function showOffer(){
-  if(!G.pendingOffer) return;
-  const b = T[G.pendingOffer.buyerId];
-  const p = T[G.my].ps.find(x => x.id === G.pendingOffer.playerId);
-  if(!p){G.pendingOffer = null; return;}
-  $('omt').innerHTML = `<div style="text-align:center;padding:12px;background:rgba(34,197,94,.1);border-radius:10px;margin-bottom:8px">
-    <div style="font-size:13px;color:#fff;margin-bottom:6px">يقدم <b style="color:#fbbf24">${b.name}</b> عرضاً</div>
-    <div style="font-size:24px;color:#4ade80;font-weight:900">${G.pendingOffer.amount}M</div>
-  </div>
-  <div style="text-align:center;font-size:12px;color:#fff;line-height:1.7">للتعاقد مع <b style="color:#fbbf24">${p.name}</b><br>L${p.lvl} • ⭐${p.r} • ${p.pos}</div>`;
-  $('om').hidden = false;
-}
-
-function acceptOffer(){
-  if(!G.pendingOffer) return;
-  const b = T[G.pendingOffer.buyerId], me = T[G.my];
-  const pid = G.pendingOffer.playerId;
-  const p = me.ps.find(x => x.id === pid);
-  const amt = G.pendingOffer.amount;
-  if(p){
-    me.budget = Math.round((me.budget+amt)*10)/10;
-    b.budget = Math.round((b.budget-amt)*10)/10;
-    me.ps = me.ps.filter(x => x.id !== pid);
-    b.ps.push(p);
-    G.lu = G.lu.map(id => id === pid ? null : id);
-    if(G.captain === pid) G.captain = null;
-    if(G.penaltyTaker === pid) G.penaltyTaker = null;
-    if(G.freeKickTaker === pid) G.freeKickTaker = null;
-    if(G.cornerTaker === pid) G.cornerTaker = null;
-    if(G.lu.includes(null)) G.lu = autoFillLineup(me, G.form);
-    addNews(`💰 ${p.name} يُباع لـ ${b.name}!`, `💸 صفقة بـ${amt}M • اللاعب يغادر ${me.name}`);
-  }
-  G.pendingOffer = null;
-  $('om').hidden = true;
-  save(); dash();
-}
-
-function rejectOffer(){
-  if(!G.pendingOffer) return;
-  const b = T[G.pendingOffer.buyerId];
-  const p = T[G.my].ps.find(x => x.id === G.pendingOffer.playerId);
-  if(p) addNews(`🚫 رفض عرض ${b.name}!`, `⚔️ ${T[G.my].name} تحتفظ بـ ${p.name}`);
-  G.pendingOffer = null;
-  $('om').hidden = true;
-  save(); dash();
-}
-
-function resolveSuperCups(){
-  if(!G.season) return;
-  const prevRes = G._prevResults || {};
-  if(G.season.egyptSuper && !G.season.egyptSuper.played){
-    const s = G.season.egyptSuper;
-    const userMatch = G.season.userCalendar.find(m => m.comp === 'super' && !m.played);
-    if(userMatch) return;
-    if(s.winner === null){
-      const lc = prevRes.leagueWinnerId || tbl()[0].id;
-      const cc = prevRes.cupWinnerId || 'ahly';
-      const winner = R() < .5 ? lc : cc;
-      s.winner = winner; s.played = true;
-      if(winner === G.my){
-        G.trophies = (G.trophies||0)+1;
-        addTrophy('السوبر المصري', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
-        addNews(`🏆 ${T[G.my].name} بطل السوبر المصري!`, `🎉 فوز على ${T[s.opp]?.name || s.opp}`);
-      }
-    }
-  }
-  if(G.season.cafSuper && !G.season.cafSuper.played){
-    const s = G.season.cafSuper;
-    const userMatch = G.season.userCalendar.find(m => m.comp === 'cafSuper' && !m.played);
-    if(userMatch) return;
-    if(s.winner === null){
-      const cw = prevRes.cafCLWinnerId || G.season.cafCL?.winner || 'ahly';
-      const cc = prevRes.cafCCWinnerId || G.season.cafCC?.winner || 'zamalek';
-      const winner = R() < .5 ? cw : cc;
-      s.winner = winner; s.played = true;
-      if(winner === G.my){
-        G.trophies = (G.trophies||0)+1;
-        addTrophy('السوبر الأفريقي', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
-        addNews(`🌍 ${T[G.my].name} بطل السوبر الأفريقي!`, `🏆 فوز على ${T[s.opp]?.name || s.opp}`);
-      }
-    }
+  if(Mt.fl){
+    x.fillStyle = 'rgba(0,0,0,.75)';
+    x.fillRect(0, H/2-28, W, 56);
+    x.fillStyle = '#fbbf24';
+    x.font = '900 22px Cairo,sans-serif';
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.fillText(Mt.fl.x, W/2, H/2);
   }
 }
 
 // ============================================
-// nxt() — النسخة النهائية
-// finish() في match.js تتولى تسجيل النتائج، nxt() فقط تتقدم الحالة
+// أزرار التحكم أثناء المباراة
 // ============================================
-function nxt(){
-  try{
-    $('rs').hidden = true;
-    $('ms').hidden = true;
-    pendingLvl = [];
+function mtac(k){
+  if(!Mt) return;
+  Mt.s[Mt.hu].tc = k;
+  document.querySelectorAll('[data-t]').forEach(b => {
+    b.classList.toggle('on', b.dataset.t === k);
+  });
+}
 
-    if (typeof Mt !== 'undefined' && Mt !== null) {
-      Mt.fin = 1;
-      Mt = null;
+function pz(){paused = !paused;}
+function spd(){
+  const a = [1,2,3,4];
+  speed = a[(a.indexOf(speed)+1)%4];
+  $('bs').textContent = '×'+speed;
+}
+
+function subm(){
+  const s = Mt.s[Mt.hu];
+  if(s.subs >= 5) return alert('5 تبديلات');
+  $('so').innerHTML = s.on.filter(p => p.role != 'GK').map(p => `<option value="${p.id}">${p.name} (${p.role}) ⭐${p.r}</option>`).join('');
+  $('si').innerHTML = s.bn.map(p => `<option value="${p.id}">${p.name} (${p.pos}) ⭐${p.r}</option>`).join('');
+  $('sm').hidden = false;
+}
+
+function doSub(){
+  if(Mt.sub(Mt.hu, $('so').value, $('si').value)) $('sm').hidden = true;
+}
+
+function skip(){
+  if(!Mt || Mt.done) return;
+  
+  $('lg').innerHTML = '<div style="text-align:center;color:gold;padding:20px;font-weight:bold;">⏳ جاري محاكاة باقي المباراة...</div>';
+  
+  let steps = 0;
+  const totalSteps = 60000;
+  
+  const doBatch = () => {
+    for(let i=0; i<1000; i++){
+      if(!Mt.done) Mt.step();
+      else break;
     }
-
-    // شبكة أمان: محاكاة أي مباراة مستحقة لم تُلعب
-    let safety = 0;
-    while(safety++ < 100){
-      const nm = getNextUserMatch();
-      if(!nm) break;
-      if(nm.day > G.season.currentDay) break;
-      console.warn('⚠️ مباراة مستحقة لم تُلعب، محاكاة تلقائية:', nm);
-      nm.played = true;
-      if(!nm.result){
-        const myT = T[G.my];
-        const oppT = T[nm.opp] || createVirtualTeam(nm.opp, nm.opp, 75);
-        const myR = myT.R + (nm.home ? 2 : 0);
-        const oppR = oppT.R + (nm.home ? 0 : 2);
-        const df = (myR - oppR) / 15;
-        const mg = Math.max(0, Math.round(R()*1.5 + df*.4));
-        const og = Math.max(0, Math.round(R()*1.5 - df*.4));
-        nm.result = {myGoals:mg, oppGoals:og, won:mg>og, draw:mg===og};
-        addNews(`🤖 محاكاة تلقائية: ${myT.name} ${mg}-${og} ${oppT.name}`, `⏰ لم تُلعب في وقتها`);
-      }
-      if(nm.comp === 'cup' && G.season.cupBracket?.rounds?.[nm.round]){
-        const m = G.season.cupBracket.rounds[nm.round].find(x => x.home===G.my || x.away===G.my);
-        if(m && !m.played){ m.played = true; m.winner = nm.result.won ? G.my : (m.home===G.my?m.away:m.home); }
-      }
-      ['cafCL','cafCC','clubWC'].forEach(comp => {
-        if(nm.comp === comp && G.season[comp]?.rounds?.[nm.round]){
-          const m = G.season[comp].rounds[nm.round].find(x => x.home===G.my || x.away===G.my);
-          if(m && !m.played){ m.played = true; m.winner = nm.result.won ? G.my : (m.home===G.my?m.away:m.home); }
-        }
-      });
-      if(nm.comp === 'super' && G.season.egyptSuper && !G.season.egyptSuper.played){
-        G.season.egyptSuper.played = true;
-        G.season.egyptSuper.winner = nm.result.won ? G.my : nm.opp;
-      }
-      if(nm.comp === 'cafSuper' && G.season.cafSuper && !G.season.cafSuper.played){
-        G.season.cafSuper.played = true;
-        G.season.cafSuper.winner = nm.result.won ? G.my : nm.opp;
-      }
-    }
-
-    // تقدم كل البطولات (idempotent — آمن التكرار)
-    advanceCupBracket();
-    if(G.season.cafCL) advanceCafComp('cafCL');
-    if(G.season.cafCC) advanceCafComp('cafCC');
-    if(G.season.clubWC) advanceClubWC();
-
-    checkLegendsMarket();
-    checkPlayerOfMonth();
-    resolveSuperCups();
-
-    const nextMatch = getNextUserMatch();
-    if(!nextMatch || G.season.currentDay >= 360){
-      endSeason();
-      return;
-    }
-
-    if(nextMatch.day > G.season.currentDay){
-      advanceToDay(nextMatch.day);
+    steps += 1000;
+    
+    if(!Mt.done && steps < totalSteps){
+      setTimeout(doBatch, 5);
     } else {
-      G.season.currentDay = Math.max(G.season.currentDay, nextMatch.day);
+      ui();
+      draw();
+      finish();
+    }
+  };
+  
+  doBatch();
+}
+
+// ============================================
+// مزامنة إحصائيات المباراة بعد الانتهاء
+// ============================================
+function syncMatchStats(m){
+  try{
+    ['home','away'].forEach(k => {
+      const team = m.s[k].t;
+      if(!team || !team.ps) return;
+      team.ps.forEach(p => {
+        if(p.susp > 0) p.susp = Math.max(0, p.susp-1);
+      });
+      const played = m.s[k].played || m.s[k].on || [];
+      played.forEach(p => {
+        const orig = team.ps.find(x => x.id === (p.origId||p.id));
+        if(!orig) return;
+        if(p.goals) orig.goals = (orig.goals||0)+p.goals;
+        if(p.minSt != null) orig.fit = Math.max(35, Math.round(p.minSt));
+        let xp = 35;
+        if(p.goals) xp += p.goals*30;
+        if(p.yc) xp -= 5;
+        if(p.rc) xp -= 20;
+        gainXp(orig, xp);
+        if(R() < .008) tryInjure(orig);
+        orig.stats.matches++;
+        orig.stats.goals += p.goals||0;
+        let rating = 6.0+(p.goals*2)+(p.stats.tackles*0.1)+(p.stats.passes*0.01);
+        if(rating > 10) rating = 10;
+        orig.stats.rating += rating;
+        if(!orig.form) orig.form = [];
+        orig.form.push(rating);
+        if(orig.form.length > 3) orig.form.shift();
+      });
+    });
+
+    (m.redCards||[]).forEach(rc => {
+      const team = T[rc.teamId];
+      if(!team) return;
+      const p = team.ps.find(x => x.id === rc.id);
+      if(p) p.susp = 1;
+    });
+
+    (m.injuries||[]).forEach(inj => {
+      const team = m.s.home.t.ps.find(p => p.id === inj.id) ? m.s.home.t : m.s.away.t;
+      const p = team.ps.find(p => p.id === inj.id);
+      if(p) tryInjure(p);
+    });
+  } catch(e){
+    console.error('sync error:', e);
+  }
+}
+
+// ============================================
+// إنهاء المباراة وإظهار النتيجة (محصن ضد التعليق بالكامل)
+// ============================================
+function finish(){
+  try{
+    cancelAnimationFrame(raf);
+    if(Mt.fin) return;
+    Mt.fin = 1;
+
+    const nm = getNextUserMatch();
+    const s = Mt.s;
+    const mg = s[Mt.hu].g;
+    const og = s[Mt.hu==='home' ? 'away' : 'home'].g;
+    const myT = Mt.s[Mt.hu].t;
+    const oppT = Mt.s[Mt.hu==='home' ? 'away' : 'home'].t;
+    const cn = {league:'الدوري', cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
+
+    // 1. تأمين دورة المباراة وتحديث حالتها فوراً لتجنب التعليق
+    if(nm){
+      nm.played = true;
+      let rW = mg > og, rD = mg === og;
+      const isKO = ['cup','cafCL','cafCC','super','cafSuper','clubWC'].includes(nm.comp);
+      let pr = null;
+      
+      if(isKO && rD){
+        try {
+          pr = realPenaltyShootout(Mt.h, Mt.a);
+          const pw = pr.winner === 'home' ? Mt.h.id : Mt.a.id;
+          if(pw === G.my) rW = true;
+          showPenaltyModal(pr, Mt.h.name, Mt.a.name);
+        } catch(err){ console.error('Penalty error:', err); }
+      }
+
+      nm.result = {myGoals:mg, oppGoals:og, won:rW, draw:rD, penalty:pr};
+
+      // تسجيل الدوري
+      if(nm.comp === 'league'){
+        try {
+          rec(Mt.h, Mt.a, s.home.g, s.away.g);
+          const lf = G.season.leagueFixtures[nm.round];
+          if(lf){
+            const k = `${Mt.h.id}_${Mt.a.id}`;
+            if(!lf.played.includes(k)) lf.played.push(k);
+          }
+        } catch(e){ console.error('League rec error:', e); }
+      }
+
+      // تقدم البطولات الإقصائية بأمان تام
+      try {
+        if(nm.comp === 'cup' && G.season.cupBracket){
+          const m = G.season.cupBracket.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
+          if(m){
+            m.played = true;
+            m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
+            advanceCupBracket();
+          }
+        }
+        if(nm.comp === 'cafCL' && G.season.cafCL){
+          const m = G.season.cafCL.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
+          if(m){
+            m.played = true;
+            m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
+            advanceCafComp('cafCL');
+          }
+        }
+        if(nm.comp === 'cafCC' && G.season.cafCC){
+          const m = G.season.cafCC.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
+          if(m){
+            m.played = true;
+            m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
+            advanceCafComp('cafCC');
+          }
+        }
+        if(nm.comp === 'super' && G.season.egyptSuper){
+          G.season.egyptSuper.played = true;
+          G.season.egyptSuper.winner = rW ? G.my : nm.opp;
+          if(rW){
+            G.trophies = (G.trophies||0)+1;
+            addTrophy('السوبر المصري', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
+            addNews(`🏆 ${myT.name} بطل السوبر المصري!`, `🎉 فوز على ${oppT.name} • بطولة جديدة`);
+          }
+        }
+        if(nm.comp === 'cafSuper' && G.season.cafSuper){
+          G.season.cafSuper.played = true;
+          G.season.cafSuper.winner = rW ? G.my : nm.opp;
+          if(rW){
+            G.trophies = (G.trophies||0)+1;
+            addTrophy('السوبر الأفريقي', G.seasonNumber, SEASON_YEAR+G.seasonNumber-1);
+            addNews(`🌍 ${myT.name} بطل السوبر الأفريقي!`, `🏆 فوز على ${oppT.name} • إنجاز قاري`);
+          }
+        }
+        if(nm.comp === 'clubWC' && G.season.clubWC){
+          const m = G.season.clubWC.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
+          if(m){
+            m.played = true;
+            m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home);
+            advanceClubWC();
+          }
+        }
+      } catch(e){ console.error('Tournament advancement error:', e); }
     }
 
-    // نداء ثاني بعد تقدم اليوم (لالتقاط أي ترشيحات جديدة)
-    advanceCupBracket();
-    if(G.season.cafCL) advanceCafComp('cafCL');
-    if(G.season.cafCC) advanceCafComp('cafCC');
-    if(G.season.clubWC) advanceClubWC();
+    // مزامنة إحصائيات اللاعبين والمعنويات
+    try {
+      syncMatchStats(Mt);
+      let rW = mg > og, rD = mg === og;
+      updateMorale(myT, rW ? 'win' : (rD ? 'draw' : 'loss'));
+      updateMorale(oppT, rW ? 'loss' : (rD ? 'draw' : 'win'));
+      updateContractMorale(myT);
+    } catch(e){ console.error('Stats sync error:', e); }
 
-    simulateLivingWorld();
+    // الاقتصاد والميزانية
+    let netIncome = 0;
+    try {
+      let rW = mg > og, rD = mg === og;
+      const totalSalary = myT.ps.reduce((sum, p) => sum+(p.contract?.salary||0), 0);
+      const baseIncome = rW ? 15 : rD ? 8 : 3;
+      const sponsorInc = G.currentSponsor ? (G.currentSponsor.safe/20) : 0;
+      netIncome = Math.round((baseIncome+sponsorInc-totalSalary)*10)/10;
+      myT.budget = Math.round((myT.budget+netIncome)*10)/10;
+      if(myT.budget < -20){
+        myT.budget += 30;
+        addNews(`💰 قرض طارئ من الإدارة!`, `📈 +30M لتفادي الإفلاس • ميزانيتك الآن ${myT.budget.toFixed(1)}M`);
+      }
+    } catch(e){ console.error('Finance error:', e); }
+
+    // XP وإدارة الخسائر المتتالية
+    try {
+      let rW = mg > og, rD = mg === og;
+      const isKO = ['cup','cafCL','cafCC','super','cafSuper','clubWC'].includes(nm?.comp);
+      let xpG = rW ? 50 : rD ? 20 : 5;
+      if(isKO && rW) xpG += 30;
+      if(Mt.isDerby && rW) xpG += 20;
+      addManagerXp(xpG);
+
+      if(rW){playSound('goal'); G.lossStreak = 0;}
+      else if(!rD){
+        playSound('card');
+        G.lossStreak++;
+        if(G.lossStreak >= 3) addNews(`⚠️ تحذير! ${G.lossStreak} خسارات متتالية!`, `📉 الإدارة بدأت تفكر في بديل • صحح المسار!`);
+      } else playSound('whistle');
+
+      if(G.lossStreak >= 5){
+        save();
+        $('game-over').hidden = false;
+        $('go-text').textContent = `خسرت 5 مباريات متتالية، قررت الإدارة إقالتك.`;
+        return;
+      }
+    } catch(e){ console.error('Manager XP error:', e); }
+
     save();
-    dash();
 
-    if(G.pendingOffer) setTimeout(() => showOffer(), 300);
+    // عرض شاشة النتيجة النهائية بضمان تام
+    let rW = mg > og, rD = mg === og;
+    const rsIcon = rW ? '🏆' : rD ? '🤝' : '😞';
+    const rsTitle = rW ? 'فوز رائع!' : rD ? 'تعادل مثير' : 'خسارة صعبة';
+    const rsClass = rW ? 'mc-success' : rD ? 'mc-warning' : 'mc-danger';
+    const rsEmoji = rW ? '🎉' : rD ? '🤝' : '😔';
+
+    document.getElementById('rs-mc').className = 'mc '+rsClass;
+    $('rs-icon').textContent = rsIcon;
+    $('rs-title').textContent = rsTitle;
+    $('rcomp').textContent = cn[nm?.comp]||'مباراة';
+    $('rst').innerHTML = `📊 <b>استحواذ:</b> ${Math.round(100*s.home.ps/(s.home.ps+s.away.ps||1))}% • <b>تسديدات:</b> ${s.home.sh}-${s.away.sh} • <b>بطاقات:</b> 🟨${s.home.yc}-${s.away.yc}`;
+    $('rsc').textContent = `${Mt.h.name} ${s.home.g} - ${s.away.g} ${Mt.a.name}`;
+    $('rso').innerHTML = `${rsEmoji} ${rW?'فوز! 🎉':rD?'تعادل 🤝':'خسارة 😞'}`;
+    $('rso').style.color = rW ? '#22c55e' : rD ? '#fbbf24' : '#ef4444';
+    $('rfin').innerHTML = `💰 صافي المباراة: <b style="color:${netIncome>=0?'#4ade80':'#f87171'}">${netIncome>=0?'+':''}${netIncome.toFixed(1)}M</b> • الرصيد: ${myT.budget.toFixed(1)}M`;
+    if(pr){
+      $('rpen').style.display = 'block';
+      $('rpen').innerHTML = `🥅 ترجيح: ${pr.scoreA}-${pr.scoreB}`;
+    } else $('rpen').style.display = 'none';
+    $('rlu').innerHTML = (Array.isArray(pendingLvl) && pendingLvl.length) ? pendingLvl.map(l => `<div>${l}</div>`).join('') : '';
+    $('rs').hidden = false;
+
   } catch(e){
-    console.error('nxt err:', e);
-    alert('حدث خطأ أثناء الانتقال لليوم التالي: ' + e.message);
+    console.error('Fatal finish error:', e);
+    // ملاذ أخير آمن لمنع أي تجميد للعبة نهائياً
+    const nm = getNextUserMatch();
+    if(nm) nm.played = true;
     save();
+    $('rs').hidden = false;
   }
+}
+
+// ============================================
+// ركلات الترجيح (نافذة)
+// ============================================
+function showPenaltyModal(r, hN, aN){
+  $('pen-score').textContent = `${hN} ${r.scoreA} - ${r.scoreB} ${aN}`;
+  $('pen-log').innerHTML = r.log.map(l => `<div>${l}</div>`).join('');
+  const wN = r.winner === 'home' ? hN : aN;
+  $('pen-result').textContent = `🏆 ${wN} يتأهل!`;
+  pendingPenaltyResult = r;
+  $('pen-m').hidden = false;
+}
+
+function closePenaltyModal(){
+  $('pen-m').hidden = true;
 }

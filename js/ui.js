@@ -133,7 +133,13 @@ function luH(t){
   const hintsBox = hints.length ? `<div class="hints-container"><div class="hints-title">💡 اقتراحات ذكية</div>${hints.map(h => `<div class="hint-item"><span>${h.icon}</span><span style="color:${h.color}">${h.text}</span></div>`).join('')}</div>` : '';
 
   let pb = '';
-  if(cp){ const df = isDerby(G.my, nm.opp) ? '⚔️ ديربي! ' : ''; pb = `<button class="b g" style="width:100%;margin-bottom:8px;padding:14px;font-size:14px" onclick="play()">${df}▶️ العب المباراة</button>`; }
+  if(cp){ 
+    const df = isDerby(G.my, nm.opp) ? '⚔️ ديربي! ' : ''; 
+    pb = `<div style="display:flex;gap:6px;margin-bottom:8px">
+      <button class="b g" style="flex:2;padding:14px;font-size:14px" onclick="play()">${df}▶️ العب المباراة</button>
+      <button class="b" style="flex:1;padding:14px;font-size:12px;background:#8b5cf6;color:#fff;border:none;border-radius:8px;font-weight:bold" onclick="if(confirm('محاكاة الجولة بالكامل؟ (سيتم محاكاة مباراتك أيضاً)'))simulateCurrentRound()">⏩ محاكاة الجولة</button>
+    </div>`; 
+  }
   else if(nm){ pb = `<button class="b a" style="width:100%;margin-bottom:8px;padding:12px;font-size:12px" onclick="advanceToNextMatch()">⏭️ تقدّم (${daysUntilMatch(nm)} يوم)</button>`; }
   else { pb = `<button class="b" style="width:100%;margin-bottom:8px;padding:12px;font-size:12px;background:#475569;color:#fff" onclick="endSeason()">🏁 انهاء الموسم</button>`; }
 
@@ -268,9 +274,6 @@ function tbH(){
   </div>`;
 }
 
-// ============================================
-// شاشة البطولات (تم تحديثها لعرض التفاصيل)
-// ============================================
 function compH(){
   const t = T[G.my], s = G.season, st = tbl();
   const myPos = st.findIndex(x => x.id === G.my)+1;
@@ -366,7 +369,6 @@ function compH(){
   return h;
 }
 
-// سوق الانتقالات
 function trH(t){
   const me = T[G.my];
   const isWindowOpen = checkTransferWindow();
@@ -446,13 +448,11 @@ function crH(t){
     <div style="font-size:12px;margin-top:4px;font-weight:900">${t.ps.length} لاعب • مستوى ${teamLvl(t)}</div>
   </div>`;
 
-  // حساب متوسط تقدم الفريق في التدريب
   const teamAvgXp = t.ps.reduce((sum, p) => {
     if(p.lvl >= 10) return sum + 100;
     return sum + Math.min(100, ((p.xp || 0) / xpNeeded(p.lvl)) * 100);
   }, 0) / t.ps.length;
 
-  // لوحة التدريب
   const trainFocus = G.training?.focus || 'balanced';
   const trainIntensity = G.training?.intensity || 'normal';
   const intensityLabels = {light: 'خفيف', normal: 'عادي', intense: 'مكثف 🔥'};
@@ -462,7 +462,6 @@ function crH(t){
   h += `<div class="c">
     <div class="sec">🏋️ مركز التدريب</div>
     
-    <!-- شريط تقدم الفريق العام -->
     <div style="background:linear-gradient(135deg,rgba(59,130,246,.15),rgba(15,34,56,.5));border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:10px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
         <span style="font-size:11px;color:#94a3b8;font-weight:bold;">📊 تقدم الفريق في التدريب</span>
@@ -502,7 +501,6 @@ function crH(t){
     const inj = p.injury ? '🚑 ' : '';
     const conYrs = p.contract?.years || 0;
     
-    // حساب تقدم اللاعب
     const maxed = p.lvl >= 10;
     const xpPct = maxed ? 100 : Math.min(100, Math.round(((p.xp || 0) / xpNeeded(p.lvl)) * 100));
     const xpBarColor = maxed ? '#22c55e' : 'linear-gradient(90deg,#3b82f6,#22d3ee)';
@@ -517,7 +515,6 @@ function crH(t){
         </div>
       </div>
       
-      <!-- شريط تقدم اللاعب (XP) -->
       <div style="height:4px;background:rgba(0,0,0,.5);border-radius:2px;overflow:hidden;position:relative;">
         <div style="width:${xpPct}%;height:100%;background:${xpBarColor};border-radius:2px;transition:width .5s;"></div>
       </div>
@@ -651,7 +648,6 @@ function newsH(){
   return `${headerHTML}${filtersHTML}<div style="max-height:calc(100vh - 280px);overflow-y:auto;padding-bottom:20px">${sorted.length > 0 ? groupsHTML : '<div class="c" style="text-align:center">لا أخبار هنا</div>'}</div>`;
 }
 
-// أدوات مساعدة
 function autoFillAction(){ G.lu = autoFillLineup(T[G.my], G.form); autoAssignRoles(); save(); dash(); }
 function clearLineupAction(){ const gk = G.lu[0]; G.lu = new Array(11).fill(null); if(gk) G.lu[0] = gk; G.inst = {}; save(); dash(); }
 function setF(f){ G.form = f; G.lu = autoFillLineup(T[G.my], f); G.inst = {}; save(); dash(); }
@@ -736,7 +732,6 @@ function showCupNotification(nm){
   $('cm').hidden = false;
 }
 
-// سحب اللاعبين
 function startDrag(e, index, isBench, playerId){
   e.preventDefault();
   const el = e.currentTarget; const rect = el.getBoundingClientRect();
@@ -801,7 +796,6 @@ function removePlayer(){
   $('pm').hidden = true; save(); dash();
 }
 
-// عرض لاعبي فريق آخر (تصميم مضمون)
 function showTeamPlayers(tid){
   const team = T[tid]; if(!team) return;
   const st = autoFillLineup(team, team.form);
@@ -815,7 +809,6 @@ function showTeamPlayers(tid){
       <div style="font-size:11px; color:#94a3b8; margin-top:2px;">💰 ${team.budget.toFixed(1)}M • ⭐ ${team.R}</div>
     </div>
 
-    <!-- تخصيص حاوية القائمة لإخفاء أو تجميل شريط التمرير -->
     <div style="max-height: 50vh; overflow-y: auto; padding: 0 4px; scrollbar-width: thin; scrollbar-color: #fbbf24 rgba(0,0,0,.2);">`;
 
   const groups = {GK:[], DEF:[], MID:[], FWD:[]};
@@ -861,8 +854,6 @@ function showTeamPlayers(tid){
   $('cmc').innerHTML = h; $('cm').hidden = false;
 }
 
-
-// بطاقة اللاعب (تصميم احترافي FIFA Style + شريط تقدم)
 function showCard(pid, teamId){
   teamId = teamId || G.my; const team = T[teamId];
   if(!team) return; const p = team.ps.find(x => x.id === pid); if(!p) return;
@@ -892,7 +883,6 @@ function showCard(pid, teamId){
       
       <div style="height: 1px; background: rgba(251,191,36,.3); margin: 12px 0;"></div>
 
-      <!-- إحصائيات اللاعب بشكل منظم ومنفصل عن الأرقام -->
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
         <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px;">
           <span style="font-size:11px; color:#94a3b8;">⚡ سرعة</span>
@@ -933,7 +923,6 @@ function showCard(pid, teamId){
   </div>`;
   $('cm').hidden = false;
 }
-
 
 function makeOffer(pid, tid){
   if(!checkTransferWindow()) return alert('نافذة مغلقة!');
@@ -1027,9 +1016,6 @@ function cont(){
   migrateSave(); autoAssignRoles(); dash();
 }
 
-// ============================================
-// سوق الأساطير (عرض البطاقة والشراء)
-// ============================================
 function showLegendCard(pid){
   if(!checkTransferWindow()) return alert('نافذة مغلقة!');
   const p = G.legendsMarket.find(x => x.id === pid);

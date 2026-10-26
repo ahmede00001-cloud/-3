@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف المباشرة المتكامل
+// multiplayer.js - نظام الغرف المباشرة (نهائي)
 // ============================================
 
 let currentLobby = null;
@@ -321,7 +321,6 @@ async function loadMultiplayerCompData() {
     };
 
     await fetchAndRender();
-    // تحديث لحظي كل 5 ثواني طالما المستخدم في صفحة البطولات
     mpCompInterval = setInterval(fetchAndRender, 5000);
 }
 
@@ -346,7 +345,6 @@ async function playMultiplayerMatch(matchId, lobbyId) {
         T[oppTeamId] = buildTeamFromSnapshot(oppTeamData, oppTeamId);
     }
 
-    // تحديث لقطة فريق اللاعب الحالي قبل المباراة
     const newSnap = { name: T[G.my].name, form: G.form, tac: G.tac, starters: G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean) };
     await _db.from('lobby_slots').update({ team_snapshot: newSnap }).eq('id', mySlot.id);
 
@@ -392,7 +390,5 @@ async function playMultiplayerMatch(matchId, lobbyId) {
     await updateSlot(awaySlot, ag, hg, !homeWin && !draw, draw);
 
     alert(`انتهت المباراة: ${hg} - ${ag}`);
-    
-    // تحديث الشاشة فوراً
     if (typeof loadMultiplayerCompData === 'function') loadMultiplayerCompData();
 }

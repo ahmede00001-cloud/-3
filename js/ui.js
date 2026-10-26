@@ -1,9 +1,16 @@
 // ============================================
-// ui.js - واجهة المستخدم الكاملة (مع تحديث VIP)
+// ui.js - واجهة المستخدم الكاملة (مع تحديث VIP والدوري المباشر)
 // ============================================
 
 function switchTab(t) {
   if (!G) return; // ✅ حماية: إذا لم تكن اللعبة جاهزة، لا تفعل شيئاً
+  
+  // ✅ إيقاف تحديث البث المباشر إذا غادر المستخدم صفحة البطولات
+  if (typeof mpCompInterval !== 'undefined' && mpCompInterval && t !== 'comp') {
+      clearInterval(mpCompInterval);
+      mpCompInterval = null;
+  }
+  
   G.tab = t; 
   dash();
 }
@@ -410,6 +417,23 @@ function compH(){
   const projSup = st[0]?.id === G.my || cupW === G.my;
   const projColor = projCL ? '#4ade80' : projCC ? '#60a5fa' : '#f87171';
 
+  // ✅ إضافة قسم الدوري المباشر (Multiplayer)
+  let multiplayerSection = '';
+  if (G.multiplayerLeagueId) {
+      multiplayerSection = `<div id="mp-league-container" style="margin-bottom:15px;">
+          <div class="c" style="text-align:center; border:2px solid #ef4444; background:rgba(239,68,68,.1); box-shadow:0 0 15px rgba(239,68,68,.2);">
+              <div style="color:#ef4444; font-weight:900; margin-bottom:10px; font-size:14px; display:flex; justify-content:center; align-items:center; gap:5px;">
+                  <span style="animation: badgeGlow 1s infinite alternate;">🔴</span> الدوري المباشر (أونلاين)
+              </div>
+              <div id="mp-league-content" style="text-align:right; font-size:12px; color:#94a3b8;">
+                  ⏳ جاري تحميل بيانات الدوري...
+              </div>
+          </div>
+      </div>`;
+      // استدعاء دالة تحميل البيانات بعد رسم الواجهة
+      setTimeout(() => { if(typeof loadMultiplayerCompData === 'function') loadMultiplayerCompData(); }, 100);
+  }
+
   const nextTourn = getNextUserMatch('tournament');
   let tournActionHTML = '';
   if (nextTourn && nextTourn.day === G.season.currentDay) {
@@ -441,7 +465,7 @@ function compH(){
       </div>`;
   }
 
-  let h = tournActionHTML + `<div class="c"><div class="sec">🌳 خريطة البطولات والتأهل</div>`;
+  let h = multiplayerSection + tournActionHTML + `<div class="c"><div class="sec">🌳 خريطة البطولات والتأهل</div>`;
   
   h += `<div onclick="showTournamentDetails('league')" style="cursor:pointer;background:linear-gradient(135deg,rgba(30,58,138,.6),rgba(15,34,56,.9));border:1px solid rgba(251,191,36,.4);border-radius:10px;padding:8px;margin-bottom:6px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">

@@ -2,18 +2,18 @@
 // auth.js - نظام تسجيل الدخول والسحابة
 // ============================================
 
-// ✅ مفاتيحك الجديدة
+// ✅ مفاتيحك
 const SUPABASE_URL = 'https://yueqfoivwfpxuxrzokto.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_L-TNPbuS3sslIa68v_oyiA_6GQ-hmuW';
 
-// تهيئة عميل Supabase (نستخدم window.supabase من الـ CDN)
+// تهيئة عميل Supabase
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 window._db = _supabase;
 
 // دالة عرض شاشة تسجيل الدخول
 function showAuthScreen() {
   $('main').innerHTML = `
-    <div class="setup-hero" style="margin-top: 50px;">
+    <div class="setup-hero" style="margin-top: 30px;">
       <div class="setup-icon">☁️</div>
       <div class="setup-title">اللعب الجماعي</div>
       <div class="setup-sub">سجل دخولك لحفظ تقدمك ومنافسة الآخرين</div>
@@ -26,7 +26,7 @@ function showAuthScreen() {
         <button class="b a" style="flex:1; padding:14px;" onclick="loginUser()">تسجيل الدخول</button>
         <button class="b g" style="flex:1; padding:14px;" onclick="registerUser()">حساب جديد</button>
       </div>
-      <button class="b" style="margin-top:10px; background:#475569; padding:10px;" onclick="showSetup()">تخطي (لعب محلي)</button>
+      <button class="b" style="margin-top:10px; background:#475569; padding:10px;" onclick="showSetup()">العودة للبداية</button>
     </div>
   `;
 }
@@ -45,6 +45,7 @@ async function loginUser() {
   
   // ✅ حماية: التحقق مما إذا كانت اللعبة موجودة في الذاكرة المحلية
   if (!G || !G.season) {
+      alert("تم تسجيل الدخول! لا توجد مسيرة سابقة، يرجى اختيار فريق جديد.");
       showSetup(); // إذا لم تكن هناك مسيرة محفوظة، اذهب لشاشة اختيار الفريق
   } else {
       $('bottom-nav').hidden = false;

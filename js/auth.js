@@ -103,7 +103,7 @@ async function registerUser(btnElement) {
 }
 
 // ============================================
-// 4. دالة تسجيل الدخول (توجيه لاختيار الدوري)
+// 4. دالة تسجيل الدخول (توجيه ذكي)
 // ============================================
 async function loginUser(btnElement) {
   const email = $('login-email').value.trim();
@@ -123,22 +123,22 @@ async function loginUser(btnElement) {
     return alert('خطأ في الدخول: ' + error.message);
   }
 
-  // جلب البيانات من السيرفر
+  // جلب البيانات من السيرفر (الاسم، البطولات، إلخ)
   await loadProfileFromCloud();
   
-  // التحقق من وجود مسيرة محفوظة محلياً
-  if (!G || !G.season) {
-      // ✅ تجهيز بيانات المدرب قبل اختيار الفريق
+  // ✅ التوجيه الذكي:
+  // نفحص ما إذا كان المتغير G موجوداً ويحتوي على موسم (أي أن هناك مسيرة محفوظة في المتصفح)
+  if (typeof G !== 'undefined' && G && G.season) {
+      // لاعب قديم ولديه مسيرة -> الدخول المباشر للعبة
+      $('bottom-nav').hidden = false;
+      dash();
+  } else {
+      // لاعب جديد -> تجهيز بياناته وتوجيهه لاختيار الدوريات
       tempUserData.managerName = (G && G.managerName) ? G.managerName : 'المدرب';
       tempUserData.username = (G && G.username) ? G.username : 'مستخدم';
 
       alert("تم تسجيل الدخول بنجاح!\nيرجى اختيار فريقك لبدء المسيرة.");
-      
-      // ✅ التوجه مباشرة لصفحة اختيار الدوريات
       selTeam(); 
-  } else {
-      $('bottom-nav').hidden = false;
-      dash(); // الدخول المباشر للعبة إذا كانت هناك مسيرة سابقة
   }
 }
 

@@ -1,5 +1,5 @@
 // ============================================
-// ui.js - واجهة المستخدم الكاملة (مع تحديث VIP والدوري المباشر)
+// ui.js - واجهة المستخدم الكاملة (مع الدوري المباشر)
 // ============================================
 
 function switchTab(t) {
@@ -417,7 +417,7 @@ function compH(){
   const projSup = st[0]?.id === G.my || cupW === G.my;
   const projColor = projCL ? '#4ade80' : projCC ? '#60a5fa' : '#f87171';
 
-  // ✅ إضافة قسم الدوري المباشر (Multiplayer)
+  // ✅ قسم الدوري المباشر (Multiplayer)
   let multiplayerSection = '';
   if (G.multiplayerLeagueId) {
       multiplayerSection = `<div id="mp-league-container" style="margin-bottom:15px;">

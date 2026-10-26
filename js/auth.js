@@ -1,5 +1,5 @@
 // ============================================
-// auth.js - حل نهائي صارم (بدون استدعاء اللوبي)
+// auth.js - نظام تسجيل الدخول (متصل بالأونلاين)
 // ============================================
 
 const SUPABASE_URL = 'https://yueqfoivwfpxuxrzokto.supabase.co';
@@ -12,12 +12,13 @@ function showAuthScreen() {
     <div class="setup-hero" style="margin-top: 30px;">
       <div class="setup-icon">☁️</div>
       <div class="setup-title">تسجيل الدخول</div>
-      <div class="setup-sub">سجل دخولك لحفظ تقدمك</div>
+      <div class="setup-sub">سجل دخولك للعب مع أصدقائك</div>
       <input type="email" id="login-email" placeholder="البريد الإلكتروني" style="margin-bottom:10px; text-align:left; direction:ltr;">
       <input type="password" id="login-pass" placeholder="كلمة المرور" style="margin-bottom:15px; text-align:left; direction:ltr;">
       <button class="b a full" style="padding:14px; font-size:14px; margin-bottom:10px;" onclick="loginUser(this)">تسجيل الدخول</button>
+      <div style="text-align:center; font-size:12px; color:#94a3b8; margin-bottom:10px;">ليس لديك حساب؟</div>
       <button class="b g full" style="padding:12px; font-size:13px; margin-bottom:15px;" onclick="showRegisterScreen()">إنشاء حساب جديد</button>
-      <button class="b" style="background:#475569; padding:10px; font-size:12px;" onclick="showSetup()">تخطي (لعب محلي)</button>
+      <button class="b" style="background:#475569; padding:10px; font-size:12px;" onclick="showSetup()">تخطي (لعب فردي)</button>
     </div>
   `;
 }
@@ -39,6 +40,7 @@ function showRegisterScreen() {
 async function registerUser(btn) {
   const name = $('reg-name').value.trim(), email = $('reg-email').value.trim(), pass = $('reg-pass').value.trim();
   if(!name || !email || !pass) return alert('أدخل جميع البيانات');
+  if(pass.length < 6) return alert('كلمة المرور 6 أحرف على الأقل');
   btn.textContent = 'جاري التسجيل...'; btn.disabled = true;
   const { data, error } = await _db.auth.signUp({ email, password: pass });
   if (error) { btn.textContent = 'تسجيل'; btn.disabled = false; return alert('خطأ: ' + error.message); }
@@ -58,14 +60,16 @@ async function loginUser(btn) {
   if (error) { btn.textContent = 'تسجيل الدخول'; btn.disabled = false; return alert('خطأ: ' + error.message); }
 
   await loadProfileFromCloud();
+  if (data.user && G) G._userId = data.user.id; // حفظ الآي دي للأونلاين
   
-  $('main').innerHTML = '<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">✅ تم الدخول.. جاري التحويل...</div>';
+  $('main').innerHTML = '<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">✅ تم الدخول.. جاري الدخول للغرف...</div>';
   
-  // ✅ التوجيه القسري المباشر لاختيار الدوري
+  // ✅ التوجيه للغرف (الأونلاين)
   setTimeout(() => {
-      if (typeof selTeam === 'function') {
-          selTeam(); // دالة اختيار الدوري
+      if (typeof showLeaguesPage === 'function') {
+          showLeaguesPage();
       } else {
+          alert("خطأ: ملف multiplayer.js غير محمل!");
           showSetup();
       }
   }, 100);

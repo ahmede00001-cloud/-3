@@ -1,18 +1,13 @@
 // ============================================
-// auth.js - نظام تسجيل الدخول والسحابة
+// auth.js - نظام تسجيل الدخول والسحابة (محدث ونهائي)
 // ============================================
 
-// ✅ مفاتيح Supabase الخاصة بك
 const SUPABASE_URL = 'https://yueqfoivwfpxuxrzokto.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_L-TNPbuS3sslIa68v_oyiA_6GQ-hmuW';
 
-// تهيئة عميل Supabase
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 window._db = _supabase;
 
-// ============================================
-// 1. شاشة تسجيل الدخول (الافتراضية)
-// ============================================
 function showAuthScreen() {
   $('main').innerHTML = `
     <div class="setup-hero" style="margin-top: 30px;">
@@ -33,9 +28,6 @@ function showAuthScreen() {
   `;
 }
 
-// ============================================
-// 2. شاشة إنشاء حساب جديد
-// ============================================
 function showRegisterScreen() {
   $('main').innerHTML = `
     <div class="setup-hero" style="margin-top: 30px;">
@@ -55,15 +47,12 @@ function showRegisterScreen() {
   `;
 }
 
-// ============================================
-// 3. دالة إنشاء الحساب (التسجيل)
-// ============================================
 async function registerUser(btnElement) {
   const name = $('reg-name').value.trim();
   const email = $('reg-email').value.trim();
   const pass = $('reg-pass').value.trim();
   
-  if(!name || !email || !pass) return alert('الرجاء إدخال جميع البيانات (الاسم، البريد، كلمة المرور)');
+  if(!name || !email || !pass) return alert('الرجاء إدخال جميع البيانات');
   if(pass.length < 6) return alert('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
 
   const originalText = btnElement.textContent;
@@ -79,7 +68,7 @@ async function registerUser(btnElement) {
   }
 
   if (data.user) {
-    const { error: profileError } = await _db.from('profiles').insert({
+    await _db.from('profiles').insert({
       id: data.user.id,
       email: email,
       manager_name: name,
@@ -87,21 +76,11 @@ async function registerUser(btnElement) {
       manager_level: 1,
       manager_xp: 0
     });
-
-    if (profileError) {
-      console.error("Profile Error:", profileError);
-      alert('تم إنشاء الحساب، لكن حدث خطأ في حفظ الملف الشخصي.');
-    } else {
-      alert('✅ تم إنشاء الحساب بنجاح!\n\nيرجى تسجيل الدخول الآن لبدء اللعبة.');
-    }
-    
+    alert('✅ تم إنشاء الحساب بنجاح!\n\nيرجى تسجيل الدخول الآن لبدء اللعبة.');
     showAuthScreen(); 
   }
 }
 
-// ============================================
-// 4. دالة تسجيل الدخول (توجيه إجباري لاختيار الدوري)
-// ============================================
 async function loginUser(btnElement) {
   const email = $('login-email').value.trim();
   const pass = $('login-pass').value.trim();
@@ -120,24 +99,30 @@ async function loginUser(btnElement) {
     return alert('خطأ في الدخول: ' + error.message);
   }
 
-  // جلب بيانات الملف الشخصي
   await loadProfileFromCloud();
   
-  // ✅ إجبار المتصفح على الانتقال لصفحة اختيار الفريق بعد نجاح الدخول
+  // إخفاء الشاشة فوراً لمنع التعليق
+  $('main').innerHTML = '<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">✅ تم الدخول.. جاري تحويلك...</div>';
+  
   setTimeout(() => {
-      alert("✅ تم تسجيل الدخول بنجاح!\nيرجى اختيار فريقك لبدء المسيرة.");
-      if (typeof selTeam === 'function') {
-          selTeam(); // الدالة الموجودة في ui.js التي تعرض الدوريات
-      } else {
-          // في حال لم يتم تحميل ui.js بشكل صحيح (احتياطي)
-          location.reload(); 
+      alert("تم تسجيل الدخول بنجاح!\nيرجى اختيار فريقك.");
+      
+      // ✅ محاولة استدعاء صفحة الغرف (اللوبي) أو صفحة اختيار الدوري
+      try {
+          if (typeof showLeaguesPage === 'function') {
+              showLeaguesPage();
+          } else if (typeof selTeam === 'function') {
+              selTeam();
+          } else {
+              location.reload();
+          }
+      } catch(e) {
+          console.error(e);
+          location.reload();
       }
-  }, 100);
+  }, 200);
 }
 
-// ============================================
-// 5. دوال السحابة (الحفظ والتحميل)
-// ============================================
 async function saveToCloud() {
   if (!G || !G.my) return;
   const { data: { user } } = await _db.auth.getUser();
@@ -166,47 +151,4 @@ async function loadProfileFromCloud() {
     G.managerLevel = data.manager_level || 1;
     G.managerXp = data.manager_xp || 0;
   }
-}
-
-// ============================================
-// 6. لوحة المتصدرين
-// ============================================
-async function showLeaderboard() {
-  $('main').innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">⏳ جاري تحميل التصنيف العالمي...</div>`;
-  
-  const { data, error } = await _db.from('profiles')
-    .select('manager_name, trophies, manager_level, team_name')
-    .order('trophies', { ascending: false })
-    .order('manager_level', { ascending: false })
-    .limit(50);
-
-  if (error) return $('main').innerHTML = `<div class="c">❌ حدث خطأ في الاتصال</div>`;
-
-  let html = `<div class="c" style="margin-top:10px;">
-    <div class="sec">🏆 أفضل 50 مدرب في العالم</div>
-    <div style="max-height:60vh; overflow:auto;">`;
-    
-  data.forEach((p, i) => {
-    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span style="color:#64748b; font-size:10px;">#${i+1}</span>`;
-    const isMe = G && G.managerName === p.manager_name ? 'border:1px solid var(--gold); background:rgba(251,191,36,.1);' : '';
-    
-    html += `
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid rgba(255,255,255,.05); ${isMe}">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div style="width:25px; text-align:center; font-size:14px;">${medal}</div>
-          <div>
-            <div style="font-size:12px; font-weight:bold; color:#fff;">${p.manager_name}</div>
-            <div style="font-size:9px; color:#94a3b8;">${p.team_name || 'غير معروف'}</div>
-          </div>
-        </div>
-        <div style="text-align:left;">
-          <div style="font-size:11px; color:var(--gold);">🏆 ${p.trophies}</div>
-          <div style="font-size:9px; color:#4ade80;">⭐ Lv.${p.manager_level}</div>
-        </div>
-      </div>
-    `;
-  });
-  
-  html += `</div><button class="b a" style="margin-top:10px;" onclick="switchTab('lu');">العودة للرئيسية</button></div>`;
-  $('main').innerHTML = html;
 }

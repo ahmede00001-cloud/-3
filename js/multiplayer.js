@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف المباشرة (نسخة مستقرة)
+// multiplayer.js - نظام الغرف المباشرة (نظام الـ 3 غرف)
 // ============================================
 
 let currentLobby = null;
@@ -27,7 +27,6 @@ function ensureLocalGameReady(slot) {
         }
         if (typeof G === 'undefined' || !G) window.G = {};
         
-        // تحديد الفريق المختار
         if (slot && slot.team_id && T[slot.team_id]) {
             G.my = slot.team_id;
         } else if (!G.my || !T[G.my]) {
@@ -46,9 +45,14 @@ function ensureLocalGameReady(slot) {
     }
 }
 
+// ============================================
+// 1. صفحة اللوبي (توزيع عشوائي على 3 غرف)
+// ============================================
 async function showLeaguesPage() {
-    stopLobbyTimers(); isSeasonStarting = false;
+    stopLobbyTimers(); 
+    isSeasonStarting = false;
     
+    // إذا كان اللاعب يملك فريقاً بالفعل، نوجهه فوراً لواجهة اللعبة
     if (typeof G !== 'undefined' && G && G.multiplayerLeagueId) {
         try {
             const { data: { user } } = await _db.auth.getUser();
@@ -64,13 +68,18 @@ async function showLeaguesPage() {
         } catch (e) { console.error("Redirect Error:", e); }
     }
 
-    $('main').innerHTML = `<div style="text-align:center; padding:50px 20px;"><div style="font-size:40px; animation: logoBounce 1s infinite alternate;">⏳</div><div style="color:var(--gold); font-weight:bold; margin-top:15px; font-size:16px;">جاري الاتصال بالدوري...</div></div>`;
+    $('main').innerHTML = `<div style="text-align:center; padding:50px 20px;"><div style="font-size:40px; animation: logoBounce 1s infinite alternate;">⏳</div><div style="color:var(--gold); font-weight:bold; margin-top:15px; font-size:16px;">جاري البحث عن غرفة...</div></div>`;
 
     try {
         const { data: { user } } = await _db.auth.getUser();
         if (!user) throw new Error("يجب تسجيل الدخول أولاً");
 
-        const { data: mySlots } = await _db.from('lobby_slots').select('lobby_id, lobbies!inner(id, status)').eq('user_id', user.id).in('lobbies.status', ['waiting', 'active']).limit(1);
+        // 1. البحث عن غرفة موجود بها المستخدم
+        const { data: mySlots } = await _db.from('lobby_slots')
+            .select('lobby_id, lobbies!inner(id, status)')
+            .eq('user_id', user.id)
+            .in('lobbies.status', ['waiting', 'active'])
+            .limit(1);
 
         if (mySlots && mySlots.length > 0) {
             const { data: lobbyData } = await _db.from('lobbies').select('*').eq('id', mySlots[0].lobby_id).single();
@@ -87,25 +96,38 @@ async function showLeaguesPage() {
                 renderWaitingRoom(); startCountdownTimer(); liveInterval = setInterval(fetchUpdates, 3000);
             }
             return;
-        } else {
-            const { data: openLobbies } = await _db.from('lobbies').select('*').eq('status', 'waiting').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: true });
-            let foundLobby = null;
-            if (openLobbies) {
-                for (const l of openLobbies) {
-                    const { count } = await _db.from('lobby_slots').select('*', { count: 'exact', head: true }).eq('lobby_id', l.id).not('user_id', 'is', null);
-                    if (count < 10) { foundLobby = l; break; }
-                }
-            }
-            if (!foundLobby) {
-                const expDate = new Date(Date.now() + 60 * 60000).toISOString();
-                const { data: newLobby, error } = await _db.from('lobbies').insert({ status: 'waiting', expires_at: expDate }).select().single();
-                if (error) throw error;
-                foundLobby = newLobby;
-                const teams = LEAGUES['egypt'].teams.slice(0, 10);
-                await _db.from('lobby_slots').insert(teams.map(t => ({ lobby_id: foundLobby.id, team_id: t[0], team_name: t[1] })));
-            }
-            currentLobby = foundLobby;
         }
+
+        // 2. اللاعب ليس في غرفة. جلب الغرف المفتوحة
+        let { data: openLobbies } = await _db.from('lobbies')
+            .select('*')
+            .eq('status', 'waiting')
+            .gt('expires_at', new Date().toISOString())
+            .order('created_at', { ascending: false });
+
+        // فلترة الغرف الممتلئة (10 لاعبين)
+        let availableLobbies = [];
+        if (openLobbies) {
+            for (const l of openLobbies) {
+                const { count } = await _db.from('lobby_slots').select('*', { count: 'exact', head: true }).eq('lobby_id', l.id).not('user_id', 'is', null);
+                if (count < 10) availableLobbies.push(l);
+            }
+        }
+
+        // 3. التأكد من وجود 3 غرف متاحة على الأقل
+        while (availableLobbies.length < 3) {
+            const expDate = new Date(Date.now() + 60 * 60000).toISOString();
+            const { data: newLobby, error } = await _db.from('lobbies').insert({ status: 'waiting', expires_at: expDate }).select().single();
+            if (error) throw error;
+            
+            const teams = LEAGUES['egypt'].teams.slice(0, 10);
+            await _db.from('lobby_slots').insert(teams.map(t => ({ lobby_id: newLobby.id, team_id: t[0], team_name: t[1] })));
+            availableLobbies.push(newLobby);
+        }
+
+        // 4. توزيع اللاعب عشوائياً على واحدة من الغرف المتاحة
+        const randomIdx = Math.floor(Math.random() * availableLobbies.length);
+        currentLobby = availableLobbies[randomIdx];
 
         await loadLobbyData();
         renderWaitingRoom();
@@ -247,7 +269,6 @@ function renderWaitingRoom() {
     $('main').innerHTML = html;
 }
 
-// ✅ دالة الحجز (تنتقل فوراً لواجهة اللعبة)
 async function claimLiveTeam(slotId, btnEl) {
     try {
         const { data: { user } } = await _db.auth.getUser();
@@ -259,7 +280,6 @@ async function claimLiveTeam(slotId, btnEl) {
         const chosenSlot = currentSlots.find(s => String(s.id) === String(slotId));
         if (!chosenSlot) throw new Error('الفريق غير موجود!');
 
-        // ✅ تهيئة اللعبة قبل الحجز لضمان عدم حدوث أخطاء
         ensureLocalGameReady(chosenSlot);
 
         const snap = { 
@@ -287,7 +307,6 @@ async function claimLiveTeam(slotId, btnEl) {
         
         alert("✅ تم اختيار الفريق!\nأنت الآن في واجهة اللعبة، يمكنك تجهيز خطتك وسوق الانتقالات بينما ينتظر باقي اللاعبين.");
         
-        // ✅ إجبار الواجهة على التغيير للعبة
         G.tab = 'lu'; 
         if (typeof dash === 'function') dash(); 
 
@@ -336,19 +355,13 @@ function startGlobalLobbyWatcher() {
 async function forceNewLobby() {
     try {
         stopLobbyTimers();
-        $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);">⏳ جاري إنشاء غرفة جديدة...</div>`;
+        $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);">⏳ جاري البحث عن غرفة جديدة...</div>`;
         const { data: { user } } = await _db.auth.getUser();
-        if (user && currentLobby) await _db.from('lobby_slots').update({ user_id: null, manager_name: null, team_snapshot: null }).eq('lobby_id', currentLobby.id).eq('user_id', user.id);
-        
-        const expDate = new Date(Date.now() + 60 * 60000).toISOString();
-        const { data: newLobby, error } = await _db.from('lobbies').insert({ status: 'waiting', expires_at: expDate }).select().single();
-        if (error) throw error;
-        const teams = LEAGUES['egypt'].teams.slice(0, 10);
-        await _db.from('lobby_slots').insert(teams.map(t => ({ lobby_id: newLobby.id, team_id: t[0], team_name: t[1] })));
-        
-        currentLobby = newLobby; mySlot = null;
-        await loadLobbyData(); renderWaitingRoom(); startCountdownTimer();
-        liveInterval = setInterval(fetchUpdates, 3000);
+        if (user && currentLobby) {
+            await _db.from('lobby_slots').update({ user_id: null, manager_name: null, team_snapshot: null }).eq('lobby_id', currentLobby.id).eq('user_id', user.id);
+        }
+        // العودة للصفحة الرئيسية للبحث وتوزيع المستخدم من جديد
+        showLeaguesPage();
     } catch (e) { alert('خطأ: ' + e.message); showLeaguesPage(); }
 }
 
@@ -523,7 +536,6 @@ async function playMultiplayerMatch(matchId, lobbyId) {
     }
 }
 
-// بناء فريق من لقطة محفوظة
 function buildTeamFromSnapshot(snap, teamId) {
     const ps = (snap.starters || []).map((p, idx) => ({
         ...p, id: p.id || (teamId + '_' + idx), fit: 100, morale: p.morale || 85, susp: 0, injury: null,

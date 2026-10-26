@@ -1,5 +1,5 @@
 // ============================================
-// auth.js - نظام تسجيل الدخول والسحابة (محدث ونهائي)
+// auth.js - نظام تسجيل الدخول (حل فوري وتخطي اللوبي)
 // ============================================
 
 const SUPABASE_URL = 'https://yueqfoivwfpxuxrzokto.supabase.co';
@@ -99,28 +99,22 @@ async function loginUser(btnElement) {
     return alert('خطأ في الدخول: ' + error.message);
   }
 
+  // جلب البيانات من السيرفر (الاسم، البطولات، إلخ)
   await loadProfileFromCloud();
   
-  // إخفاء الشاشة فوراً لمنع التعليق
-  $('main').innerHTML = '<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">✅ تم الدخول.. جاري تحويلك...</div>';
-  
-  setTimeout(() => {
-      alert("تم تسجيل الدخول بنجاح!\nيرجى اختيار فريقك.");
-      
-      // ✅ محاولة استدعاء صفحة الغرف (اللوبي) أو صفحة اختيار الدوري
-      try {
-          if (typeof showLeaguesPage === 'function') {
-              showLeaguesPage();
-          } else if (typeof selTeam === 'function') {
-              selTeam();
-          } else {
-              location.reload();
-          }
-      } catch(e) {
-          console.error(e);
+  // ✅ التوجيه المباشر: إذا كان هناك مسيرة محفوظة ادخل للعبة، إذا لا، اذهب لاختيار الدوري
+  if (typeof G !== 'undefined' && G && G.season) {
+      $('bottom-nav').hidden = false;
+      dash();
+  } else {
+      alert("تم تسجيل الدخول بنجاح!\nيرجى اختيار فريقك لبدء المسيرة.");
+      // التوجه لصفحة اختيار الدوري مباشرة (بدون المرور بصفحة الغرف)
+      if (typeof selTeam === 'function') {
+          selTeam();
+      } else {
           location.reload();
       }
-  }, 200);
+  }
 }
 
 async function saveToCloud() {

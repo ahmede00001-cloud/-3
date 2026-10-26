@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف المباشرة (النسخة النهائية)
+// multiplayer.js - نظام الغرف المباشرة (نسخة محمية ضد الأخطاء)
 // ============================================
 
 let currentLobby = null;
@@ -28,6 +28,7 @@ function ensureLocalGameReady(slot) {
         if (typeof T === 'undefined' || Object.keys(T).length === 0) {
             if (typeof mk === 'function') mk('egypt');
         }
+        // ✅ حماية المتغير G
         if (typeof G === 'undefined' || !G) window.G = {};
         
         if (slot && slot.team_id && T[slot.team_id]) {
@@ -51,6 +52,9 @@ function ensureLocalGameReady(slot) {
 async function showLeaguesPage() {
     stopLobbyTimers(); 
     isSeasonStarting = false;
+    
+    // ✅ الحماية الأهم: إنشاء G إذا كان فارغاً
+    if (typeof G === 'undefined' || !G) window.G = {};
     
     if (typeof G !== 'undefined' && G && G.multiplayerLeagueId) {
         try {
@@ -82,6 +86,9 @@ async function showLeaguesPage() {
         if (mySlots && mySlots.length > 0) {
             const { data: lobbyData } = await _db.from('lobbies').select('*').eq('id', mySlots[0].lobby_id).single();
             currentLobby = lobbyData;
+            
+            // ✅ التأكد من أن G ليس null قبل الحفظ
+            if (typeof G === 'undefined' || !G) window.G = {};
             G.multiplayerLeagueId = currentLobby.id; save();
             
             await loadLobbyData();
@@ -287,6 +294,9 @@ async function claimLiveTeam(slotId, btnEl) {
 
         ensureLocalGameReady(chosenSlot);
 
+        // ✅ حماية إضافية قبل الحفظ
+        if (typeof G === 'undefined' || !G) window.G = {};
+
         const snap = { 
             name: T[G.my].name, R: T[G.my].R, c1: T[G.my].c1, c2: T[G.my].c2,
             form: G.form, tac: G.tac, starters: G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean) 
@@ -369,12 +379,10 @@ async function forceNewLobby() {
     } catch (e) { alert('خطأ: ' + e.message); showLeaguesPage(); }
 }
 
-// ✅ دالة العرض (تم إصلاحها لتحديث الصندوق في صفحة التشكيلة أو البطولات)
 async function loadMultiplayerCompData() {
     if (mpCompInterval) clearInterval(mpCompInterval);
     
     const fetchAndRender = async () => {
-        // تحديث الحاويتين (في صفحة التشكيلة وصفحة البطولات)
         const containerLu = document.getElementById('mp-mission-content');
         const containerComp = document.getElementById('mp-league-content');
         const container = containerLu || containerComp; 
@@ -385,6 +393,8 @@ async function loadMultiplayerCompData() {
         }
 
         try {
+            if (typeof G === 'undefined' || !G || !G.multiplayerLeagueId) return;
+            
             const { data: lobby } = await _db.from('lobbies').select('*').eq('id', G.multiplayerLeagueId).single();
             if (!lobby) return;
 

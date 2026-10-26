@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف المباشرة (نظام الـ 3 غرف)
+// multiplayer.js - نظام الغرف المباشرة (النسخة النهائية للانضمام للأصدقاء)
 // ============================================
 
 let currentLobby = null;
@@ -12,14 +12,19 @@ let mySlot = null;
 let isSeasonStarting = false;
 let globalWatcherInterval = null; 
 
+// إيقاف جميع المؤقتات
 function stopLobbyTimers() {
     if (liveInterval) clearInterval(liveInterval);
     if (timeLeftInterval) clearInterval(timeLeftInterval);
     if (mpCompInterval) clearInterval(mpCompInterval);
     if (globalWatcherInterval) clearInterval(globalWatcherInterval);
-    liveInterval = null; timeLeftInterval = null; mpCompInterval = null; globalWatcherInterval = null;
+    liveInterval = null; 
+    timeLeftInterval = null; 
+    mpCompInterval = null; 
+    globalWatcherInterval = null;
 }
 
+// تجهيز اللعبة محلياً إذا لم تكن جاهزة
 function ensureLocalGameReady(slot) {
     try {
         if (typeof T === 'undefined' || Object.keys(T).length === 0) {
@@ -46,7 +51,7 @@ function ensureLocalGameReady(slot) {
 }
 
 // ============================================
-// 1. صفحة اللوبي (توزيع عشوائي على 3 غرف)
+// 1. صفحة اللوبي (البحث عن الغرفة المناسبة)
 // ============================================
 async function showLeaguesPage() {
     stopLobbyTimers(); 
@@ -74,7 +79,7 @@ async function showLeaguesPage() {
         const { data: { user } } = await _db.auth.getUser();
         if (!user) throw new Error("يجب تسجيل الدخول أولاً");
 
-        // 1. البحث عن غرفة موجود بها المستخدم
+        // 1. البحث عن غرفة موجود بها المستخدم (في حال كان في غرفة سابقة)
         const { data: mySlots } = await _db.from('lobby_slots')
             .select('lobby_id, lobbies!inner(id, status)')
             .eq('user_id', user.id)
@@ -98,36 +103,39 @@ async function showLeaguesPage() {
             return;
         }
 
-        // 2. اللاعب ليس في غرفة. جلب الغرف المفتوحة
+        // 2. اللاعب ليس في غرفة. جلب جميع الغرف المفتوحة
         let { data: openLobbies } = await _db.from('lobbies')
             .select('*')
             .eq('status', 'waiting')
             .gt('expires_at', new Date().toISOString())
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: true });
 
-        // فلترة الغرف الممتلئة (10 لاعبين)
         let availableLobbies = [];
         if (openLobbies) {
             for (const l of openLobbies) {
                 const { count } = await _db.from('lobby_slots').select('*', { count: 'exact', head: true }).eq('lobby_id', l.id).not('user_id', 'is', null);
-                if (count < 10) availableLobbies.push(l);
+                if (count < 10) {
+                    availableLobbies.push({ lobby: l, count: count });
+                }
             }
         }
 
-        // 3. التأكد من وجود 3 غرف متاحة على الأقل
-        while (availableLobbies.length < 3) {
+        // ✅ الترتيب الذكي: الانضمام للغرفة التي بها أكبر عدد من اللاعبين (لكي ننضم لأصدقائنا)
+        availableLobbies.sort((a, b) => b.count - a.count);
+
+        if (availableLobbies.length > 0) {
+            // الانضمام للغرفة الأكثر امتلاءً
+            currentLobby = availableLobbies[0].lobby;
+        } else {
+            // إذا لم توجد أي غرف متاحة، قم بإنشاء غرفة جديدة
             const expDate = new Date(Date.now() + 60 * 60000).toISOString();
             const { data: newLobby, error } = await _db.from('lobbies').insert({ status: 'waiting', expires_at: expDate }).select().single();
             if (error) throw error;
             
             const teams = LEAGUES['egypt'].teams.slice(0, 10);
             await _db.from('lobby_slots').insert(teams.map(t => ({ lobby_id: newLobby.id, team_id: t[0], team_name: t[1] })));
-            availableLobbies.push(newLobby);
+            currentLobby = newLobby;
         }
-
-        // 4. توزيع اللاعب عشوائياً على واحدة من الغرف المتاحة
-        const randomIdx = Math.floor(Math.random() * availableLobbies.length);
-        currentLobby = availableLobbies[randomIdx];
 
         await loadLobbyData();
         renderWaitingRoom();
@@ -156,15 +164,19 @@ async function fetchUpdates() {
         if (lobby) currentLobby = lobby;
 
         if (currentLobby.status === 'active') { 
-            stopLobbyTimers(); ensureLocalGameReady(mySlot);
-            if (typeof dash === 'function') dash(); return; 
+            stopLobbyTimers(); 
+            ensureLocalGameReady(mySlot);
+            if (typeof dash === 'function') dash(); 
+            return; 
         }
 
         if (currentLobby.status === 'waiting') {
             const timeUp = new Date(currentLobby.expires_at).getTime() <= new Date().getTime();
             const isFull = currentSlots.filter(s => s.user_id).length >= 10;
             if ((timeUp || isFull) && !isSeasonStarting) {
-                isSeasonStarting = true; await tryStartSeason(); return;
+                isSeasonStarting = true; 
+                await tryStartSeason(); 
+                return;
             }
         }
 
@@ -200,20 +212,24 @@ async function tryStartSeason() {
         const activeSlots = currentSlots.filter(s => s.user_id);
         if (activeSlots.length < 2) {
             await _db.from('lobbies').update({ status: 'waiting', expires_at: new Date(Date.now() + 60 * 60000).toISOString() }).eq('id', currentLobby.id);
-            isSeasonStarting = false; return;
+            isSeasonStarting = false; 
+            return;
         }
 
         const fixtures = generateRoundRobin(activeSlots);
         await _db.from('lobby_matches').insert(fixtures.map(f => ({ lobby_id: currentLobby.id, round: f.round, home_slot_id: f.home.id, away_slot_id: f.away.id })));
         
         alert("⏳ بدأ الموسم رسمياً! تفقد صفحة البطولات.");
-        stopLobbyTimers(); startGlobalLobbyWatcher(); ensureLocalGameReady(mySlot);
+        stopLobbyTimers(); 
+        startGlobalLobbyWatcher(); 
+        ensureLocalGameReady(mySlot);
         if (typeof dash === 'function') dash(); 
     } catch (e) { console.error("tryStartSeason error:", e); }
 }
 
 function generateRoundRobin(teams) {
-    let ts = [...teams]; if (ts.length % 2 !== 0) ts.push(null);
+    let ts = [...teams]; 
+    if (ts.length % 2 !== 0) ts.push(null);
     const rounds = ts.length - 1, half = ts.length / 2, fixtures = [];
     for (let r = 1; r <= rounds; r++) {
         for (let i = 0; i < half; i++) {
@@ -355,7 +371,7 @@ function startGlobalLobbyWatcher() {
 async function forceNewLobby() {
     try {
         stopLobbyTimers();
-        $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);">⏳ جاري البحث عن غرفة جديدة...</div>`;
+        $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);">⏳ جاري إنشاء غرفة جديدة...</div>`;
         const { data: { user } } = await _db.auth.getUser();
         if (user && currentLobby) {
             await _db.from('lobby_slots').update({ user_id: null, manager_name: null, team_snapshot: null }).eq('lobby_id', currentLobby.id).eq('user_id', user.id);

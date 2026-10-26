@@ -2,7 +2,11 @@
 // ui.js - واجهة المستخدم الكاملة (مع تحديث VIP)
 // ============================================
 
-function switchTab(t){G.tab = t; dash();}
+function switchTab(t) {
+  if (!G) return; // ✅ حماية: إذا لم تكن اللعبة جاهزة، لا تفعل شيئاً
+  G.tab = t; 
+  dash();
+}
 
 function dash(){
   if(!G || !G.season){showSetup(); return;}

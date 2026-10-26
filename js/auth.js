@@ -1,5 +1,5 @@
 // ============================================
-// auth.js - نظام تسجيل الدخول (متصل بالأونلاين)
+// auth.js - نظام تسجيل الدخول
 // ============================================
 
 const SUPABASE_URL = 'https://yueqfoivwfpxuxrzokto.supabase.co';
@@ -60,17 +60,18 @@ async function loginUser(btn) {
   if (error) { btn.textContent = 'تسجيل الدخول'; btn.disabled = false; return alert('خطأ: ' + error.message); }
 
   await loadProfileFromCloud();
-  if (data.user && G) G._userId = data.user.id; // حفظ الآي دي للأونلاين
+  if (data.user && G) G._userId = data.user.id; 
   
-  $('main').innerHTML = '<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">✅ تم الدخول.. جاري الدخول للغرف...</div>';
+  $('main').innerHTML = '<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">✅ تم الدخول.. جاري التحويل للغرف...</div>';
   
-  // ✅ التوجيه للغرف (الأونلاين)
+  // ✅ توجيه قسري لصفحة الغرف
   setTimeout(() => {
       if (typeof showLeaguesPage === 'function') {
           showLeaguesPage();
+      } else if (typeof selTeam === 'function') {
+          selTeam();
       } else {
-          alert("خطأ: ملف multiplayer.js غير محمل!");
-          showSetup();
+          location.reload();
       }
   }, 100);
 }

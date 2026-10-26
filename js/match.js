@@ -1,5 +1,5 @@
 // ============================================
-// match.js - واجهة المباراة، الرسم، النتيجة (النسخة الكاملة والمحصنة نهائياً)
+// match.js - واجهة المباراة، الرسم، النتيجة (الحل الجذري النهائي لمنع تكرار المباريات)
 // ============================================
 
 function playTournamentMatch() { G.forcedMatchComp = 'tournament'; play(); }
@@ -14,13 +14,21 @@ function play(){
     const nm = getNextUserMatch(G.forcedMatchComp || null);
     if(!nm) return alert('لا توجد مباراة قادمة!');
     
+    // إذا كانت المباراة ملعوبة بالفعل، انتقل لليوم التالي فوراً دون حذفها
     if(nm.played) {
-        G.season.userCalendar = G.season.userCalendar.filter(m => !(m.comp === nm.comp && m.round === nm.round && m.day === nm.day));
         save();
         if(typeof nxt === 'function') return nxt();
+        return;
     }
 
-    if(daysUntilMatch(nm) > 0) return alert(`المباراة بعد ${daysUntilMatch(nm)} يوم!`);
+    // تقدم تلقائي لليوم إذا كان المستخدم يضغط على لعب المباراة مباشرة
+    if(daysUntilMatch(nm) > 0) {
+        if(typeof advanceToDay === 'function') {
+            advanceToDay(nm.day);
+        } else {
+            G.season.currentDay = nm.day;
+        }
+    }
 
     const hm = nm.home;
     const oid = nm.opp;
@@ -528,28 +536,35 @@ function finish(){
     const oppT = Mt.s[Mt.hu==='home' ? 'away' : 'home'].t;
     const cn = {league:'الدوري', cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
 
+    let rW = mg > og, rD = mg === og;
+    let pr = null;
+
     if(nm){
-      nm.played = true;
-      if(G.season && G.season.userCalendar){
-        G.season.userCalendar = G.season.userCalendar.filter(m => !(m.comp === nm.comp && m.round === nm.round && m.day === nm.day));
-      }
-      
-      let rW = mg > og, rD = mg === og;
       const isKO = ['cup','cafCL','cafCC','super','cafSuper','clubWC'].includes(nm.comp);
-      let pr = null;
       
       if(isKO && rD){
         try {
           pr = realPenaltyShootout(Mt.h, Mt.a);
           const pw = pr.winner === 'home' ? Mt.h.id : Mt.a.id;
-          if(pw === G.my) rW = true;
+          rW = (pw === G.my);
+          rD = false;
           showPenaltyModal(pr, Mt.h.name, Mt.a.name);
         } catch(err){ console.error('Penalty error:', err); }
       }
 
+      // 1. ختم المباراة كملعوبة في التقويم (دون حذفها لمنع إعادة توليد نفس الدور!)
+      nm.played = true;
       nm.result = {myGoals:mg, oppGoals:og, won:rW, draw:rD, penalty:pr};
-      save(); 
+      if(G.season && G.season.userCalendar){
+        G.season.userCalendar.forEach(m => {
+          if(m.comp === nm.comp && m.round === nm.round) {
+            m.played = true;
+            m.result = nm.result;
+          }
+        });
+      }
 
+      // 2. تسجيل الدوري ومحاكاة باقي مباريات الجولة فوراً
       if(nm.comp === 'league'){
         try {
           rec(Mt.h, Mt.a, s.home.g, s.away.g);
@@ -559,29 +574,103 @@ function finish(){
             if(!lf.played.includes(k)) lf.played.push(k);
             lf.results = lf.results || {};
             lf.results[k] = [s.home.g, s.away.g];
+
+            lf.round.forEach(([h,a]) => {
+              if(h === G.my || a === G.my) return;
+              const pk2 = h+'_'+a;
+              if(lf.played.includes(pk2)) return;
+              const tH = T[h], tA = T[a];
+              if(!tH || !tA) return;
+              let p1 = tH.R, p2 = tA.R+2;
+              const df2 = (p1-p2)/15;
+              const g1 = Math.max(0, Math.round(R()*1.8+df2*.5));
+              const g2 = Math.max(0, Math.round(R()*1.8-df2*.5));
+              rec(tH, tA, g1, g2);
+              lf.played.push(pk2);
+              lf.results[pk2] = [g1, g2];
+            });
           }
         } catch(e){ console.error('League rec error:', e); }
       }
 
+      // 3. تسجيل البطولات الإقصائية + إجبار محاكاة باقي فرق نفس الدور فوراً ليتقدم الجدول!
       try {
         if(nm.comp === 'cup' && G.season.cupBracket){
-          const m = G.season.cupBracket.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
-          if(m){ m.played = true; m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home); m.score = [s.home.g, s.away.g]; if(typeof advanceCupBracket === 'function') advanceCupBracket(); }
+          const roundArr = G.season.cupBracket.rounds[nm.round];
+          if(roundArr){
+            let m = roundArr.find(x => x.home===G.my || x.away===G.my);
+            if(m){ m.played = true; m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home); m.score = [s.home.g, s.away.g]; }
+            // محاكاة فورية لباقي مباريات الدور لضمان اكتماله والتأهل للدور القادم
+            roundArr.forEach(aiM => {
+              if(!aiM.played && aiM.home !== G.my && aiM.away !== G.my){
+                let g1 = Math.floor(R()*3), g2 = Math.floor(R()*3);
+                if(g1 === g2) g1++;
+                aiM.played = true;
+                aiM.score = [g1, g2];
+                aiM.winner = g1 > g2 ? aiM.home : aiM.away;
+              }
+            });
+          }
+          if(typeof advanceCupBracket === 'function') advanceCupBracket();
         }
-        if(nm.comp === 'cafCL' && G.season.cafCL){
-          const m = G.season.cafCL.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
-          if(m){ m.played = true; m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home); m.score = [s.home.g, s.away.g]; if(typeof advanceCafComp === 'function') advanceCafComp('cafCL'); }
+
+        if((nm.comp === 'cafCL' || nm.comp === 'cafCC') && G.season[nm.comp]){
+          const roundArr = G.season[nm.comp].rounds[nm.round];
+          if(roundArr){
+            let m = roundArr.find(x => x.home===G.my || x.away===G.my);
+            if(m){ m.played = true; m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home); m.score = [s.home.g, s.away.g]; }
+            roundArr.forEach(aiM => {
+              if(!aiM.played && aiM.home !== G.my && aiM.away !== G.my){
+                let g1 = Math.floor(R()*3), g2 = Math.floor(R()*3);
+                if(g1 === g2) g1++;
+                aiM.played = true;
+                aiM.score = [g1, g2];
+                aiM.winner = g1 > g2 ? aiM.home : aiM.away;
+              }
+            });
+          }
+          if(typeof advanceCafComp === 'function') advanceCafComp(nm.comp);
         }
-        if(nm.comp === 'cafCC' && G.season.cafCC){
-          const m = G.season.cafCC.rounds[nm.round]?.find(x => x.home===G.my || x.away===G.my);
-          if(m){ m.played = true; m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home); m.score = [s.home.g, s.away.g]; if(typeof advanceCafComp === 'function') advanceCafComp('cafCC'); }
+
+        if(nm.comp === 'clubWC' && G.season.clubWC){
+          const roundArr = G.season.clubWC.rounds[nm.round];
+          if(roundArr){
+            let m = roundArr.find(x => x.home===G.my || x.away===G.my);
+            if(m){ m.played = true; m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home); m.score = [s.home.g, s.away.g]; }
+            roundArr.forEach(aiM => {
+              if(!aiM.played && aiM.home !== G.my && aiM.away !== G.my){
+                let g1 = Math.floor(R()*3), g2 = Math.floor(R()*3);
+                if(g1 === g2) g1++;
+                aiM.played = true;
+                aiM.score = [g1, g2];
+                aiM.winner = g1 > g2 ? aiM.home : aiM.away;
+              }
+            });
+          }
+          if(typeof advanceClubWC === 'function') advanceClubWC();
+        }
+
+        if(nm.comp === 'super' && G.season.egyptSuper){
+          G.season.egyptSuper.played = true;
+          G.season.egyptSuper.winner = rW ? G.my : nm.opp;
+          G.season.egyptSuper.score = [mg, og];
+        }
+        if(nm.comp === 'cafSuper' && G.season.cafSuper){
+          G.season.cafSuper.played = true;
+          G.season.cafSuper.winner = rW ? G.my : nm.opp;
+          G.season.cafSuper.score = [mg, og];
         }
       } catch(e){ console.error('Tournament advancement error:', e); }
+
+      // 4. تقديم اليوم بمقدار يوم واحد بعد انتهاء المباراة لكسر التوقف في نفس اليوم
+      if(G.season && G.season.currentDay <= nm.day){
+        G.season.currentDay = nm.day + 1;
+      }
+      save(); 
     }
 
     try {
       syncMatchStats(Mt);
-      let rW = mg > og, rD = mg === og;
       if(typeof updateMorale === 'function') {
         updateMorale(myT, rW ? 'win' : (rD ? 'draw' : 'loss'));
         updateMorale(oppT, rW ? 'loss' : (rD ? 'draw' : 'win'));
@@ -591,7 +680,6 @@ function finish(){
 
     let netIncome = 0;
     try {
-      let rW = mg > og, rD = mg === og;
       const totalSalary = myT.ps.reduce((sum, p) => sum+(p.contract?.salary||0), 0);
       const baseIncome = rW ? 15 : rD ? 8 : 3;
       const sponsorInc = G.currentSponsor ? (G.currentSponsor.safe/20) : 0;
@@ -601,7 +689,6 @@ function finish(){
 
     save();
 
-    let rW = mg > og, rD = mg === og;
     const rsIcon = rW ? '🏆' : rD ? '🤝' : '😞';
     const rsTitle = rW ? 'فوز رائع!' : rD ? 'تعادل مثير' : 'خسارة صعبة';
     const rsClass = rW ? 'mc-success' : rD ? 'mc-warning' : 'mc-danger';
@@ -627,9 +714,7 @@ function finish(){
   } catch(e){
     console.error('Fatal finish error:', e);
     const nm = Mt.matchData || getNextUserMatch();
-    if(nm) {
-        G.season.userCalendar = G.season.userCalendar.filter(m => !(m.comp === nm.comp && m.round === nm.round && m.day === nm.day));
-    }
+    if(nm) nm.played = true;
     G.forcedMatchComp = null;
     save();
     if($('rs')) $('rs').hidden = false;

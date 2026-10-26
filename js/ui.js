@@ -751,6 +751,13 @@ function mgrH(){
       <button class="b sm ${soundEnabled?'g':'r'}" onclick="toggleSound()">${soundEnabled?'مفعل':'مكتوم'}</button>
     </div>
   </div>`;
+
+  // ✅ إضافة زر الدخول إلى الدوريات الجماعية
+  h += `<div class="c" style="margin-top:10px; border:1px solid #8b5cf6; box-shadow:0 0 15px rgba(139,92,246,.3);">
+    <div style="font-size:12px; color:#8b5cf6; font-weight:900; margin-bottom:8px; text-align:center;">🌍 اللعب الجماعي</div>
+    <button class="b full" style="padding:14px; font-size:13px; background:linear-gradient(135deg, #8b5cf6, #6d28d9); color:#fff; border:none;" onclick="if(typeof showLeaguesPage==='function') showLeaguesPage()">🏆 الدخول إلى الدوريات</button>
+  </div>`;
+  
   return h;
 }
 

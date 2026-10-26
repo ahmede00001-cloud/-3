@@ -1,12 +1,12 @@
 // ============================================
-// season.js - المنطق الأساسي (النسخة الكاملة والمصححة)
+// season.js - المنطق الأساسي (النسخة النهائية المحصنة ضد تكرار المباريات)
 // ============================================
 
 function mk(leagueId = 'egypt'){
   T = {};
   const leagueData = (typeof LEAGUES !== 'undefined' && LEAGUES[leagueId]) 
                      ? LEAGUES[leagueId].teams 
-                     : LEAGUES['egypt'].teams;
+                     : (typeof LEAGUES !== 'undefined' ? LEAGUES['egypt'].teams : D);
 
   leagueData.forEach(([id, name, Rt, c1, c2, s], i) => {
     const ps = [];
@@ -232,16 +232,17 @@ function generateSeason(myId, prev){
   return s;
 }
 
+// ============================================
+// ✅ جلب المباراة التالية (دون حذف السجل لمنع إعادة توليد نفس الدور)
+// ============================================
 function getNextUserMatch(filterComp){
   if(!G.season || !G.season.userCalendar) return null;
   
-  // ✅ إصلاح جذري: تصفية وحذف أي مباراة ملعوبة أو لها نتيجة من التقويم
-  G.season.userCalendar = G.season.userCalendar.filter(m => {
-    if (m.played || m.result) return false; 
-    return true;
-  });
+  // ترتيب التقويم تصاعدياً حسب الأيام
+  G.season.userCalendar.sort((a,b) => a.day - b.day);
 
-  let matches = G.season.userCalendar.filter(m => !m.played);
+  // قراءة المباريات غير الملعوبة فقط مع الاحتفاظ بالملعوبة في الذاكرة كمرجع
+  let matches = G.season.userCalendar.filter(m => m && !m.played && !m.result);
   
   if (filterComp === 'league') {
     matches = matches.filter(m => m.comp === 'league');
@@ -320,7 +321,7 @@ function simulateAIUpToDay(td){
                       d.results = d.results || {};
                       d.results[pk] = [g1, g2];
                       
-                      const userMatch = G.season.userCalendar.find(m => m.comp === 'league' && m.round === rn && !m.played);
+                      const userMatch = G.season.userCalendar.find(m => m.comp === 'league' && String(m.round) === String(rn) && !m.played);
                       if (userMatch) {
                           userMatch.played = true;
                           userMatch.result = { myGoals: h === G.my ? g1 : g2, oppGoals: h === G.my ? g2 : g1, won: (h === G.my ? g1 > g2 : g2 > g1), draw: g1 === g2 };
@@ -403,9 +404,8 @@ function simulateCupUpToDay(td){
             }
           }
         }
-        // ✅ إصلاح: البحث عن المباراة بدون شرط !x.played
         const um = cb.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === 'cup' && x.round === nr)){
+        if(um && !um.played && !G.season.userCalendar.find(x => x.comp === 'cup' && x.round === nr)){
           const home = um.home === G.my;
           G.season.userCalendar.push({
             day:CUP_DAYS[nr], comp:'cup', round:nr,
@@ -425,7 +425,6 @@ function simulateCafComp(name, td){
   const c = G.season[name];
   if(!c) return;
   const ro = ['R16','QF','SF','F'];
-  const compName = name === 'cafCL' ? 'دوري أبطال أفريقيا' : 'كأس الكونفدرالية';
   ro.forEach(round => {
     const rd = CAF_DAYS[round];
     if(!c.rounds[round]) return;
@@ -458,9 +457,8 @@ function simulateCafComp(name, td){
             }
           }
         }
-        // ✅ إصلاح: البحث عن المباراة بدون شرط !x.played
         const um = c.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === name && x.round === nr)){
+        if(um && !um.played && !G.season.userCalendar.find(x => x.comp === name && x.round === nr)){
           const home = um.home === G.my;
           G.season.userCalendar.push({
             day:CAF_DAYS[nr], comp:name, round:nr,
@@ -494,9 +492,8 @@ function advanceCupBracket(){
             }
           }
         }
-        // ✅ إصلاح: البحث عن المباراة بدون شرط !x.played
         const um = cb.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === 'cup' && x.round === nr)){
+        if(um && !um.played && !G.season.userCalendar.find(x => x.comp === 'cup' && x.round === nr)){
           const home = um.home === G.my;
           G.season.userCalendar.push({
             day:days[nr], comp:'cup', round:nr,
@@ -540,9 +537,8 @@ function advanceCafComp(name){
             }
           }
         }
-        // ✅ إصلاح: البحث عن المباراة بدون شرط !x.played
         const um = c.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === name && x.round === nr)){
+        if(um && !um.played && !G.season.userCalendar.find(x => x.comp === name && x.round === nr)){
           const home = um.home === G.my;
           G.season.userCalendar.push({
             day:days[nr], comp:name, round:nr,
@@ -586,9 +582,8 @@ function advanceClubWC(){
             }
           }
         }
-        // ✅ إصلاح: البحث عن المباراة بدون شرط !x.played
         const um = c.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === 'clubWC' && x.round === nr)){
+        if(um && !um.played && !G.season.userCalendar.find(x => x.comp === 'clubWC' && x.round === nr)){
           const home = um.home === G.my;
           G.season.userCalendar.push({
             day:days[nr], comp:'clubWC', round:nr,
@@ -1024,6 +1019,9 @@ function resolveSuperCups(){
   }
 }
 
+// ============================================
+// ✅ محاكاة المباراة السريعة (دون حذف السجل + إجبار إكمال الدور الإقصائي)
+// ============================================
 function simulateCurrentRound(filterComp) {
     const nm = getNextUserMatch(filterComp);
     if (!nm || nm.played) return;
@@ -1032,18 +1030,32 @@ function simulateCurrentRound(filterComp) {
         advanceToDay(nm.day);
     }
 
-    nm.played = true;
-    // ✅ إزالة المباراة من التقويم
-    G.season.userCalendar = G.season.userCalendar.filter(m => m !== nm);
-    
     const myT = T[G.my];
     const oppT = T[nm.opp] || createVirtualTeam(nm.opp, nm.opp, 75);
     const myR = myT.R + (nm.home ? 2 : 0);
     const oppR = oppT.R + (nm.home ? 0 : 2);
     const df = (myR - oppR) / 15;
-    const mg = Math.max(0, Math.round(R()*1.5 + df*.4));
-    const og = Math.max(0, Math.round(R()*1.5 - df*.4));
-    nm.result = {myGoals:mg, oppGoals:og, won:mg>og, draw:mg===og};
+    let mg = Math.max(0, Math.round(R()*1.5 + df*.4));
+    let og = Math.max(0, Math.round(R()*1.5 - df*.4));
+
+    const isKO = ['cup','cafCL','cafCC','super','cafSuper','clubWC'].includes(nm.comp);
+    if(isKO && mg === og){
+      if(R() < 0.55) mg++; else og++;
+    }
+
+    const rW = mg > og;
+    nm.played = true;
+    nm.result = {myGoals:mg, oppGoals:og, won:rW, draw:mg===og};
+
+    // ختم المباراة في التقويم دون حذفها لمنع إعادة توليدها
+    if(G.season && G.season.userCalendar){
+      G.season.userCalendar.forEach(m => {
+        if(m.comp === nm.comp && m.round === nm.round) {
+          m.played = true;
+          m.result = nm.result;
+        }
+      });
+    }
     
     if(nm.comp === 'league'){
         const d = G.season.leagueFixtures[nm.round];
@@ -1051,49 +1063,65 @@ function simulateCurrentRound(filterComp) {
         if(d && !d.played.includes(pk)){
           d.played.push(pk);
           d.results = d.results || {};
-          d.results[pk] = [nm.result.myGoals, nm.result.oppGoals];
+          d.results[pk] = [nm.home ? mg : og, nm.home ? og : mg];
           const hT = nm.home ? myT : oppT;
           const aT = nm.home ? oppT : myT;
-          const hG = nm.home ? nm.result.myGoals : nm.result.oppGoals;
-          const aG = nm.home ? nm.result.oppGoals : nm.result.myGoals;
+          const hG = nm.home ? mg : og;
+          const aG = nm.home ? og : mg;
           rec(hT, aT, hG, aG);
         }
-        d.round.forEach(([h,a]) => {
-            if(h === G.my || a === G.my) return;
-            const pk2 = h+'_'+a;
-            if(d.played.includes(pk2)) return;
-            const tH = T[h], tA = T[a];
-            if(!tH || !tA) return;
-            let p1 = tH.R, p2 = tA.R+2;
-            if(tH.tac === 'attack') p1 += 1; else if(tH.tac === 'defense') p1 += .5;
-            if(tA.tac === 'attack') p2 += 1; else if(tA.tac === 'defense') p2 += .5;
-            const df2 = (p1-p2)/15;
-            const g1 = Math.max(0, Math.round(R()*1.8+df2*.5));
-            const g2 = Math.max(0, Math.round(R()*1.8-df2*.5));
-            rec(tH, tA, g1, g2);
-            d.played.push(pk2);
-            d.results[pk2] = [g1, g2];
-        });
+        if(d){
+          d.round.forEach(([h,a]) => {
+              if(h === G.my || a === G.my) return;
+              const pk2 = h+'_'+a;
+              if(d.played.includes(pk2)) return;
+              const tH = T[h], tA = T[a];
+              if(!tH || !tA) return;
+              let p1 = tH.R, p2 = tA.R+2;
+              const df2 = (p1-p2)/15;
+              const g1 = Math.max(0, Math.round(R()*1.8+df2*.5));
+              const g2 = Math.max(0, Math.round(R()*1.8-df2*.5));
+              rec(tH, tA, g1, g2);
+              d.played.push(pk2);
+              d.results[pk2] = [g1, g2];
+          });
+        }
     } else {
         if(nm.comp === 'cup' && G.season.cupBracket?.rounds?.[nm.round]){
-            const m = G.season.cupBracket.rounds[nm.round].find(x => x.home===G.my || x.away===G.my);
-            if(m && !m.played){ m.played = true; m.winner = nm.result.won ? G.my : (m.home===G.my?m.away:m.home); m.score = [nm.result.myGoals, nm.result.oppGoals]; }
+            const roundArr = G.season.cupBracket.rounds[nm.round];
+            const m = roundArr.find(x => x.home===G.my || x.away===G.my);
+            if(m){ m.played = true; m.winner = rW ? G.my : (m.home===G.my?m.away:m.home); m.score = [nm.home?mg:og, nm.home?og:mg]; }
+            roundArr.forEach(aiM => {
+              if(!aiM.played && aiM.home !== G.my && aiM.away !== G.my){
+                let g1 = Math.floor(R()*3), g2 = Math.floor(R()*3);
+                if(g1 === g2) g1++;
+                aiM.played = true; aiM.score = [g1, g2]; aiM.winner = g1 > g2 ? aiM.home : aiM.away;
+              }
+            });
         }
         ['cafCL','cafCC','clubWC'].forEach(comp => {
             if(nm.comp === comp && G.season[comp]?.rounds?.[nm.round]){
-              const m = G.season[comp].rounds[nm.round].find(x => x.home===G.my || x.away===G.my);
-              if(m && !m.played){ m.played = true; m.winner = nm.result.won ? G.my : (m.home===G.my?m.away:m.home); m.score = [nm.result.myGoals, nm.result.oppGoals]; }
+              const roundArr = G.season[comp].rounds[nm.round];
+              const m = roundArr.find(x => x.home===G.my || x.away===G.my);
+              if(m){ m.played = true; m.winner = rW ? G.my : (m.home===G.my?m.away:m.home); m.score = [nm.home?mg:og, nm.home?og:mg]; }
+              roundArr.forEach(aiM => {
+                if(!aiM.played && aiM.home !== G.my && aiM.away !== G.my){
+                  let g1 = Math.floor(R()*3), g2 = Math.floor(R()*3);
+                  if(g1 === g2) g1++;
+                  aiM.played = true; aiM.score = [g1, g2]; aiM.winner = g1 > g2 ? aiM.home : aiM.away;
+                }
+              });
             }
         });
-        if(nm.comp === 'super' && G.season.egyptSuper && !G.season.egyptSuper.played){
+        if(nm.comp === 'super' && G.season.egyptSuper){
             G.season.egyptSuper.played = true;
-            G.season.egyptSuper.winner = nm.result.won ? G.my : nm.opp;
-            G.season.egyptSuper.score = [nm.result.myGoals, nm.result.oppGoals];
+            G.season.egyptSuper.winner = rW ? G.my : nm.opp;
+            G.season.egyptSuper.score = [mg, og];
         }
-        if(nm.comp === 'cafSuper' && G.season.cafSuper && !G.season.cafSuper.played){
+        if(nm.comp === 'cafSuper' && G.season.cafSuper){
             G.season.cafSuper.played = true;
-            G.season.cafSuper.winner = nm.result.won ? G.my : nm.opp;
-            G.season.cafSuper.score = [nm.result.myGoals, nm.result.oppGoals];
+            G.season.cafSuper.winner = rW ? G.my : nm.opp;
+            G.season.cafSuper.score = [mg, og];
         }
     }
 
@@ -1102,6 +1130,11 @@ function simulateCurrentRound(filterComp) {
     if(G.season.cafCC) advanceCafComp('cafCC');
     if(G.season.clubWC) advanceClubWC();
     
+    // تقديم اليوم لكسر التوقف في نفس اليوم
+    if(G.season.currentDay <= nm.day){
+      G.season.currentDay = nm.day + 1;
+    }
+
     checkLegendsMarket();
     checkPlayerOfMonth();
     resolveSuperCups();
@@ -1112,7 +1145,9 @@ function simulateCurrentRound(filterComp) {
       return;
     }
     
-    G.season.currentDay = Math.max(G.season.currentDay, nextMatch.day);
+    if(nextMatch.day > G.season.currentDay){
+      advanceToDay(nextMatch.day);
+    }
     
     simulateLivingWorld();
     save();
@@ -1121,8 +1156,8 @@ function simulateCurrentRound(filterComp) {
 
 function nxt(){
   try{
-    $('rs').hidden = true;
-    $('ms').hidden = true;
+    if($('rs')) $('rs').hidden = true;
+    if($('ms')) $('ms').hidden = true;
     pendingLvl = [];
     G.forcedMatchComp = null;
 
@@ -1130,6 +1165,11 @@ function nxt(){
       Mt.fin = 1;
       Mt = null;
     }
+
+    advanceCupBracket();
+    if(G.season.cafCL) advanceCafComp('cafCL');
+    if(G.season.cafCC) advanceCafComp('cafCC');
+    if(G.season.clubWC) advanceClubWC();
 
     const nextMatch = getNextUserMatch();
     if(!nextMatch || G.season.currentDay >= 360){
@@ -1145,11 +1185,6 @@ function nxt(){
       } else {
         G.season.currentDay = Math.max(G.season.currentDay, nextMatch.day);
       }
-
-      advanceCupBracket();
-      if(G.season.cafCL) advanceCafComp('cafCL');
-      if(G.season.cafCC) advanceCafComp('cafCC');
-      if(G.season.clubWC) advanceClubWC();
 
       simulateLivingWorld();
       save();
@@ -1207,7 +1242,7 @@ function showTournamentDetails(comp){
     html = roundsHtml;
   } 
   else if (comp === 'cup' || comp === 'cafCL' || comp === 'cafCC' || comp === 'clubWC') {
-    const bracket = G.season[comp];
+    const bracket = comp === 'cup' ? G.season.cupBracket : G.season[comp];
     if (bracket && bracket.rounds) {
       const ro = comp === 'clubWC' ? ['QF','SF','F'] : (comp === 'cup' ? ['R32','R16','QF','SF','F'] : ['R16','QF','SF','F']);
       let roundsHtml = '';
@@ -1218,8 +1253,8 @@ function showTournamentDetails(comp){
           <div style="display:flex; flex-direction:column; gap:4px;">`;
           
         bracket.rounds[r].forEach(m => {
-          const hN = T[m.home]?.name || m.home;
-          const aN = T[m.away]?.name || m.away;
+          const hN = T[m.home]?.name || AFRICAN.find(a=>a[0]===m.home)?.[1] || WORLD.find(w=>w[0]===m.home)?.[1] || m.home;
+          const aN = T[m.away]?.name || AFRICAN.find(a=>a[0]===m.away)?.[1] || WORLD.find(w=>w[0]===m.away)?.[1] || m.away;
           let score = m.played && m.score ? `${m.score[0]} - ${m.score[1]}` : (m.played ? '-' : '-');
           
           const isMyTeam = (m.home === G.my || m.away === G.my);
@@ -1241,7 +1276,7 @@ function showTournamentDetails(comp){
     }
   }
   else if (comp === 'super' || comp === 'cafSuper') {
-    const s = G.season[comp];
+    const s = comp === 'super' ? G.season.egyptSuper : G.season.cafSuper;
     if (s) {
       const oppN = T[s.opp]?.name || s.opp;
       const played = s.played;

@@ -1,5 +1,5 @@
 // ============================================
-// season.js - المنطق الأساسي (النسخة الكاملة)
+// season.js - المنطق الأساسي (النسخة الكاملة والمصححة)
 // ============================================
 
 function mk(leagueId = 'egypt'){
@@ -234,9 +234,15 @@ function generateSeason(myId, prev){
 
 function getNextUserMatch(filterComp){
   if(!G.season || !G.season.userCalendar) return null;
-  G.season.userCalendar.forEach(m => { if(m.result) m.played = true; });
   
+  // ✅ إصلاح جذري: تصفية وحذف أي مباراة ملعوبة أو لها نتيجة من التقويم
+  G.season.userCalendar = G.season.userCalendar.filter(m => {
+    if (m.played || m.result) return false; 
+    return true;
+  });
+
   let matches = G.season.userCalendar.filter(m => !m.played);
+  
   if (filterComp === 'league') {
     matches = matches.filter(m => m.comp === 'league');
   } else if (filterComp === 'tournament') {
@@ -397,8 +403,9 @@ function simulateCupUpToDay(td){
             }
           }
         }
+        // ✅ إصلاح: البحث عن المباراة بدون شرط !x.played
         const um = cb.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === 'cup' && x.round === nr && !x.played)){
+        if(um && !G.season.userCalendar.find(x => x.comp === 'cup' && x.round === nr)){
           const home = um.home === G.my;
           G.season.userCalendar.push({
             day:CUP_DAYS[nr], comp:'cup', round:nr,
@@ -451,8 +458,9 @@ function simulateCafComp(name, td){
             }
           }
         }
+        // ✅ إصلاح: البحث عن المباراة بدون شرط !x.played
         const um = c.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === name && x.round === nr && !x.played)){
+        if(um && !G.season.userCalendar.find(x => x.comp === name && x.round === nr)){
           const home = um.home === G.my;
           G.season.userCalendar.push({
             day:CAF_DAYS[nr], comp:name, round:nr,
@@ -486,8 +494,9 @@ function advanceCupBracket(){
             }
           }
         }
+        // ✅ إصلاح: البحث عن المباراة بدون شرط !x.played
         const um = cb.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === 'cup' && x.round === nr && !x.played)){
+        if(um && !G.season.userCalendar.find(x => x.comp === 'cup' && x.round === nr)){
           const home = um.home === G.my;
           G.season.userCalendar.push({
             day:days[nr], comp:'cup', round:nr,
@@ -531,8 +540,9 @@ function advanceCafComp(name){
             }
           }
         }
+        // ✅ إصلاح: البحث عن المباراة بدون شرط !x.played
         const um = c.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === name && x.round === nr && !x.played)){
+        if(um && !G.season.userCalendar.find(x => x.comp === name && x.round === nr)){
           const home = um.home === G.my;
           G.season.userCalendar.push({
             day:days[nr], comp:name, round:nr,
@@ -576,8 +586,9 @@ function advanceClubWC(){
             }
           }
         }
+        // ✅ إصلاح: البحث عن المباراة بدون شرط !x.played
         const um = c.rounds[nr].find(m => m && (m.home === G.my || m.away === G.my));
-        if(um && !G.season.userCalendar.find(x => x.comp === 'clubWC' && x.round === nr && !x.played)){
+        if(um && !G.season.userCalendar.find(x => x.comp === 'clubWC' && x.round === nr)){
           const home = um.home === G.my;
           G.season.userCalendar.push({
             day:days[nr], comp:'clubWC', round:nr,

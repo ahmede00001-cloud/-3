@@ -60,18 +60,30 @@ async function loginUser(btn) {
   if (error) { btn.textContent = 'تسجيل الدخول'; btn.disabled = false; return alert('خطأ: ' + error.message); }
 
   await loadProfileFromCloud();
-  if (data.user && G) G._userId = data.user.id; 
+  if (data.user && typeof G !== 'undefined' && G) G._userId = data.user.id; 
   
-  $('main').innerHTML = '<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">✅ تم الدخول.. جاري التحويل للغرف...</div>';
+  $('main').innerHTML = '<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">✅ تم الدخول.. جاري التحويل...</div>';
   
-  // ✅ توجيه قسري لصفحة الغرف
+  // ✅ التوجيه الذكي:
   setTimeout(() => {
-      if (typeof showLeaguesPage === 'function') {
-          showLeaguesPage();
-      } else if (typeof selTeam === 'function') {
-          selTeam();
+      if (typeof G !== 'undefined' && G) {
+          // إذا كان لديه غرفة أونلاين نشطة
+          if (G.multiplayerLeagueId && typeof showLeaguesPage === 'function') {
+              showLeaguesPage();
+          } 
+          // إذا كان لديه مسيرة محفوظة
+          else if (G.season) {
+              $('bottom-nav').hidden = false;
+              if (typeof dash === 'function') dash();
+          } 
+          // لاعب جديد
+          else {
+              if (typeof selTeam === 'function') selTeam();
+              else location.reload();
+          }
       } else {
-          location.reload();
+          if (typeof selTeam === 'function') selTeam();
+          else location.reload();
       }
   }, 100);
 }
@@ -89,7 +101,7 @@ async function loadProfileFromCloud() {
   if (!user) return;
   const { data } = await _db.from('profiles').select('*').eq('id', user.id).single();
   if (data) {
-    if (!G) G = {};
+    if (typeof G === 'undefined' || !G) window.G = {};
     G.managerName = data.manager_name || 'المدرب';
     G.trophies = data.trophies || 0;
     G.managerLevel = data.manager_level || 1;

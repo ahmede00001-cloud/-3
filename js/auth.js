@@ -1,8 +1,8 @@
 // ============================================
-// auth.js - نظام تسجيل الدخول والسحابة (مفصل)
+// auth.js - نظام تسجيل الدخول والسحابة (محدث)
 // ============================================
 
-// ✅ مفاتيحك
+// ✅ مفاتيح Supabase الخاصة بك
 const SUPABASE_URL = 'https://yueqfoivwfpxuxrzokto.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_L-TNPbuS3sslIa68v_oyiA_6GQ-hmuW';
 
@@ -103,7 +103,7 @@ async function registerUser(btnElement) {
 }
 
 // ============================================
-// 4. دالة تسجيل الدخول
+// 4. دالة تسجيل الدخول (توجيه لاختيار الدوري)
 // ============================================
 async function loginUser(btnElement) {
   const email = $('login-email').value.trim();
@@ -128,11 +128,17 @@ async function loginUser(btnElement) {
   
   // التحقق من وجود مسيرة محفوظة محلياً
   if (!G || !G.season) {
+      // ✅ تجهيز بيانات المدرب قبل اختيار الفريق
+      tempUserData.managerName = (G && G.managerName) ? G.managerName : 'المدرب';
+      tempUserData.username = (G && G.username) ? G.username : 'مستخدم';
+
       alert("تم تسجيل الدخول بنجاح!\nيرجى اختيار فريقك لبدء المسيرة.");
-      showSetup(); // التوجه لاختيار الفريق إذا لم تكن هناك لعبة محفوظة
+      
+      // ✅ التوجه مباشرة لصفحة اختيار الدوريات
+      selTeam(); 
   } else {
       $('bottom-nav').hidden = false;
-      dash(); // الدخول المباشر للعبة
+      dash(); // الدخول المباشر للعبة إذا كانت هناك مسيرة سابقة
   }
 }
 

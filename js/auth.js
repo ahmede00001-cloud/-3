@@ -103,7 +103,7 @@ async function registerUser(btnElement) {
 }
 
 // ============================================
-// 4. دالة تسجيل الدخول (توجيه ذكي)
+// 4. دالة تسجيل الدخول (توجيه ذكي + اللوبي)
 // ============================================
 async function loginUser(btnElement) {
   const email = $('login-email').value.trim();
@@ -123,22 +123,33 @@ async function loginUser(btnElement) {
     return alert('خطأ في الدخول: ' + error.message);
   }
 
+  // ✅ حفظ معرف المستخدم (مهم جداً لنظام اللوبي)
+  if (data && data.user) {
+      if (typeof G === 'undefined' || !G) G = {};
+      G._userId = data.user.id; 
+  }
+
   // جلب البيانات من السيرفر (الاسم، البطولات، إلخ)
   await loadProfileFromCloud();
   
   // ✅ التوجيه الذكي:
-  // نفحص ما إذا كان المتغير G موجوداً ويحتوي على موسم (أي أن هناك مسيرة محفوظة في المتصفح)
   if (typeof G !== 'undefined' && G && G.season) {
       // لاعب قديم ولديه مسيرة -> الدخول المباشر للعبة
       $('bottom-nav').hidden = false;
       dash();
   } else {
-      // لاعب جديد -> تجهيز بياناته وتوجيهه لاختيار الدوريات
+      // لاعب جديد -> تجهيز بياناته وتوجيهه لصفحة الغرف (اللوبي)
       tempUserData.managerName = (G && G.managerName) ? G.managerName : 'المدرب';
       tempUserData.username = (G && G.username) ? G.username : 'مستخدم';
 
-      alert("تم تسجيل الدخول بنجاح!\nيرجى اختيار فريقك لبدء المسيرة.");
-      selTeam(); 
+      alert("تم تسجيل الدخول بنجاح!\nيرجى اختيار فريقك للانضمام إلى الغرفة.");
+      
+      // التوجه لصفحة الغرف الجديدة (إذا كان ملف multiplayer.js موجوداً)
+      if(typeof showLeaguesPage === 'function') {
+          showLeaguesPage();
+      } else {
+          selTeam(); // احتياطي في حال لم يتم تحميل ملف اللوبي
+      }
   }
 }
 

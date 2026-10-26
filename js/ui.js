@@ -17,7 +17,17 @@ function switchTab(t) {
 
 function dash(){
   if(!G || !G.season){showSetup(); return;}
-  const t = T[G.my];
+  
+  // ✅ حماية إضافية: التأكد من وجود بيانات الفريق
+  let t = T[G.my];
+  if (!t) {
+      // محاولة إصلاح تلقائي إذا كانت البيانات مفقودة
+      if (typeof mk === 'function') mk(G.league || 'egypt');
+      t = T[G.my] || Object.values(T)[0];
+      if (t) G.my = t.id;
+      else { showSetup(); return; }
+  }
+  
   $('bottom-nav').hidden = false;
   
   // ✅ تحديث الملف الشخصي (VIP)
@@ -30,8 +40,8 @@ function dash(){
   if($('hdr-trophies')) $('hdr-trophies').innerHTML = `🏆 ${G.trophies || 0}`;
   
   // ✅ تحديث شريط الوقت والميزانية
-  if($('hdr-day')) $('hdr-day').textContent = G.season.currentDay;
-  if($('hdr-budget')) $('hdr-budget').textContent = `${t.budget.toFixed(1)}M`;
+  if($('hdr-day')) $('hdr-day').textContent = G.season ? G.season.currentDay : 1;
+  if($('hdr-budget')) $('hdr-budget').textContent = `${(t.budget || 0).toFixed(1)}M`;
 
   document.querySelectorAll('.nav-item').forEach((el, idx) => {
     const tabs = ['lu','tb','comp','tr','cr','mgr','news'];

@@ -5,8 +5,8 @@
 function switchTab(t) {
   if (!G) return; // ✅ حماية: إذا لم تكن اللعبة جاهزة، لا تفعل شيئاً
   
-  // ✅ إيقاف تحديث البث المباشر إذا غادر المستخدم صفحة البطولات
-  if (typeof mpCompInterval !== 'undefined' && mpCompInterval && t !== 'comp') {
+  // ✅ إيقاف تحديث البث المباشر إذا غادر المستخدم صفحة البطولات أو التشكيلة
+  if (typeof mpCompInterval !== 'undefined' && mpCompInterval && t !== 'comp' && t !== 'lu') {
       clearInterval(mpCompInterval);
       mpCompInterval = null;
   }
@@ -21,7 +21,6 @@ function dash(){
   // ✅ حماية إضافية: التأكد من وجود بيانات الفريق
   let t = T[G.my];
   if (!t) {
-      // محاولة إصلاح تلقائي إذا كانت البيانات مفقودة
       if (typeof mk === 'function') mk(G.league || 'egypt');
       t = T[G.my] || Object.values(T)[0];
       if (t) G.my = t.id;
@@ -269,7 +268,22 @@ function luH(t){
   const hintsBox = hints.length ? `<div class="hints-container"><div class="hints-title">💡 اقتراحات ذكية</div>${hints.map(h => `<div class="hint-item"><span>${h.icon}</span><span style="color:${h.color}">${h.text}</span></span></div>`).join('')}</div>` : '';
 
   let missionCard = '';
-  if (nm) {
+  
+  // ✅ التعديل هنا: إذا كان هناك دوري مباشر، يتم استبدال المهمة الفردية بصندوق الأونلاين
+  if (G.multiplayerLeagueId) {
+      missionCard = `<div id="mp-mission-container" style="margin-bottom:15px;">
+          <div class="c" style="text-align:center; border:2px solid #ef4444; background:rgba(239,68,68,.1); box-shadow:0 0 15px rgba(239,68,68,.2); padding:15px;">
+              <div style="color:#ef4444; font-weight:900; margin-bottom:10px; font-size:14px; display:flex; justify-content:center; align-items:center; gap:5px;">
+                  <span style="animation: badgeGlow 1s infinite alternate;">🔴</span> الدوري المباشر (أونلاين)
+              </div>
+              <div id="mp-mission-content" style="text-align:right; font-size:12px; color:#94a3b8;">
+                  ⏳ جاري تحميل بيانات الدوري...
+              </div>
+          </div>
+      </div>`;
+      setTimeout(() => { if(typeof loadMultiplayerCompData === 'function') loadMultiplayerCompData(); }, 100);
+  } else if (nm) {
+      // المهمة الفردية (تظهر فقط إذا لم يكن هناك دوري أونلاين)
       const isTournament = nm.comp !== 'league';
       const cn = {league:'الدوري', cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
       const compName = cn[nm.comp] || nm.comp;

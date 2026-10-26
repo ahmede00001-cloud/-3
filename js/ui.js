@@ -291,7 +291,7 @@ function luH(t){
     <div class="info-box">📖 <b>تأثيرات:</b> الكابتن +8% فريق • الجزاء +30% دقة • الحرة +35% تصويب</div>`;
 
   const pitch = `<div class="pitch-wrapper" id="pitch-wrapper">
-    <div class="pitch-lines"><div class="penalty-box-top"></div><div class="penalty-box-bot"></div></div>
+    <div class="pitch-lines" style="pointer-events:none;"><div class="penalty-box-top"></div><div class="penalty-box-bot"></div></div>
     ${slots.map((slot,i) => {
       const pid = G.lu[i];
       const p = pid ? t.ps.find(x => x.id === pid) : null;
@@ -1168,10 +1168,15 @@ function showSetup(){
   const sv = load();
   $('main').innerHTML = `<div class="setup-hero">
     <div class="setup-icon">⚽</div><div class="setup-title">محاكاة اتحاد الكرة</div><div class="setup-sub">v26 • Pro Edition</div>
+    
     ${sv ? '<button class="b a" style="margin-bottom:12px;padding:14px;font-size:14px" onclick="cont()">▶ متابعة المسيرة</button>' : ''}
+    
+    <!-- ✅ زر تسجيل الدخول الجديد -->
+    <button class="b" style="margin-bottom:15px; padding:12px; font-size:13px; background:#3b82f6; color:#fff;" onclick="if(typeof showAuthScreen === 'function') showAuthScreen()">☁️ تسجيل الدخول / حفظ سحابي</button>
+
     <input type="text" id="inp-user" placeholder="اسمك" value="مستخدم" style="margin-bottom:10px">
     <input type="text" id="inp-manager" placeholder="اسم المدرب" value="المدرب" style="margin-bottom:12px">
-    <button class="b" onclick="startNewCareer()" style="padding:14px;font-size:14px">⚽ اختر النادي</button>
+    <button class="b g" onclick="startNewCareer()" style="padding:14px;font-size:14px">⚽ اختر النادي (مسيرة جديدة)</button>
   </div>`;
 }
 
@@ -1195,35 +1200,77 @@ function selTeam(){
 
 function showLeagueTeams(leagueId){
   const league = LEAGUES[leagueId];
-  $('main').innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+  $('main').innerHTML = `
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; margin-top:20px;">
     <button class="b sm" onclick="selTeam()" style="padding:4px 10px; font-size:10px;">⬅ عودة</button>
     <h2 style="color:var(--gold);margin:0;font-size:15px">🏟️ ${league.name}</h2>
   </div>
-  <div class="g2">${league.teams.map(t => `<div class="team-select-card" onclick="choose('${t[0]}', '${leagueId}')">
-    <div class="bd" style="background:${t[3]};color:${t[4]==='#FFFFFF'?'#000':t[4]}">${t[1][0]}</div>
-    <b style="font-size:12px">${t[1]}</b><div style="color:var(--gold);font-size:11px;margin-top:4px">⭐${t[2]}</div>
-  </div>`).join('')}</div>`;
+  <div class="g2">
+    ${league.teams.map(t => `
+      <div class="team-select-card" onclick="choose('${t[0]}', '${leagueId}')" style="cursor:pointer; position:relative; z-index:10;">
+        <div class="bd" style="background:${t[3]};color:${t[4]==='#FFFFFF'?'#000':t[4]}">${t[1][0]}</div>
+        <b style="font-size:12px; pointer-events:none;">${t[1]}</b>
+        <div style="color:var(--gold);font-size:11px;margin-top:4px; pointer-events:none;">⭐${t[2]}</div>
+      </div>
+    `).join('')}
+  </div>`;
 }
 
 function choose(id, leagueId = 'egypt'){
-  mk(leagueId);
-  G = { 
-    my: id, league: leagueId, form:'4-3-3', tac:'balanced', tab:'lu', 
-    username: tempUserData.username, managerName: tempUserData.managerName, 
-    trophies:0, news:[], inst:{}, legendsMarket:[], usedLegends:[], lastLegendRound:0, 
-    seasonNumber:1, history:[], trophyCabinet:[], youthPlayers:[], pendingOffer:null, 
-    boardObjectives:null, managerXp:0, managerLevel:1, hallOfFame:[], monthlyAwards:[], 
-    lastPOTM:0, currentSponsor:null, lossStreak:0, boardAnger:0, captain:null, 
-    penaltyTaker:null, freeKickTaker:null, cornerTaker:null,
-    training: { focus: 'balanced', intensity: 'normal' },
-    facilities: { stadium: 1, training: 1, youth: 1 }
-  };
-  G.season = generateSeason(id, null); G.boardObjectives = setBoardObjectives(T[id]);
-  G.youthPlayers = [generateYouthPlayer(T[id]), generateYouthPlayer(T[id])];
-  G.lu = autoFillLineup(T[id], G.form); autoAssignRoles();
-  addNews(`🏆 يبدأ الموسم ${SEASON_YEAR}/${SEASON_YEAR+1}!`, `👨‍💼 ${G.managerName} يقود ${T[id].name}`);
-  
-  save(); dash(); setTimeout(() => showSponsorOffers(), 500);
+  try {
+    // 1. تهيئة البيانات
+    if (typeof mk === 'function') mk(leagueId);
+    
+    // 2. حماية: التأكد من وجود بيانات الفريق
+    if (!T[id]) {
+      const league = LEAGUES[leagueId];
+      const teamInfo = league ? league.teams.find(x => x[0] === id) : null;
+      if (teamInfo) {
+        T[id] = {
+          id: teamInfo[0], name: teamInfo[1], R: teamInfo[2], 
+          c1: teamInfo[3], c2: teamInfo[4],
+          budget: 50, ps: [], form: '4-3-3', 
+          pl: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0
+        };
+      } else {
+        return alert("خطأ: لم يتم العثور على بيانات هذا الفريق.");
+      }
+    }
+
+    // 3. إنشاء حالة اللعبة
+    G = { 
+      my: id, league: leagueId, form:'4-3-3', tac:'balanced', tab:'lu', 
+      username: tempUserData.username, managerName: tempUserData.managerName, 
+      trophies:0, news:[], inst:{}, legendsMarket:[], usedLegends:[], lastLegendRound:0, 
+      seasonNumber:1, history:[], trophyCabinet:[], youthPlayers:[], pendingOffer:null, 
+      boardObjectives:null, managerXp:0, managerLevel:1, hallOfFame:[], monthlyAwards:[], 
+      lastPOTM:0, currentSponsor:null, lossStreak:0, boardAnger:0, captain:null, 
+      penaltyTaker:null, freeKickTaker:null, cornerTaker:null,
+      training: { focus: 'balanced', intensity: 'normal' },
+      facilities: { stadium: 1, training: 1, youth: 1 }
+    };
+
+    // 4. توليد الموسم والبيانات
+    G.season = generateSeason(id, null); 
+    if (typeof setBoardObjectives === 'function') G.boardObjectives = setBoardObjectives(T[id]);
+    if (typeof generateYouthPlayer === 'function') G.youthPlayers = [generateYouthPlayer(T[id]), generateYouthPlayer(T[id])];
+    
+    // 5. التشكيلة التلقائية
+    G.lu = autoFillLineup(T[id], G.form); 
+    autoAssignRoles();
+    
+    // 6. أخبار البداية
+    addNews(`🏆 يبدأ الموسم ${SEASON_YEAR}/${SEASON_YEAR+1}!`, `👨‍💼 ${G.managerName} يقود ${T[id].name}`);
+    
+    // 7. الحفظ والانتقال للوحة التحكم
+    save(); 
+    dash(); 
+    setTimeout(() => { if(typeof showSponsorOffers === 'function') showSponsorOffers(); }, 500);
+
+  } catch (error) {
+    console.error("Error selecting team:", error);
+    alert("حدث خطأ أثناء اختيار الفريق: " + error.message);
+  }
 }
 
 function migrateSave(){

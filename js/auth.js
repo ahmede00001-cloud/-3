@@ -1,5 +1,5 @@
 // ============================================
-// auth.js - نظام تسجيل الدخول والسحابة
+// auth.js - نظام تسجيل الدخول والسحابة (مفصل)
 // ============================================
 
 // ✅ مفاتيحك
@@ -10,62 +10,78 @@ const SUPABASE_KEY = 'sb_publishable_L-TNPbuS3sslIa68v_oyiA_6GQ-hmuW';
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 window._db = _supabase;
 
-// دالة عرض شاشة تسجيل الدخول
+// ============================================
+// 1. شاشة تسجيل الدخول (الافتراضية)
+// ============================================
 function showAuthScreen() {
   $('main').innerHTML = `
     <div class="setup-hero" style="margin-top: 30px;">
       <div class="setup-icon">☁️</div>
-      <div class="setup-title">اللعب الجماعي</div>
+      <div class="setup-title">تسجيل الدخول</div>
       <div class="setup-sub">سجل دخولك لحفظ تقدمك ومنافسة الآخرين</div>
       
-      <input type="email" id="auth-email" placeholder="البريد الإلكتروني" style="margin-bottom:10px">
-      <input type="password" id="auth-pass" placeholder="كلمة المرور" style="margin-bottom:10px">
-      <input type="text" id="auth-name" placeholder="اسم المدرب (للتسجيل الجديد)" style="margin-bottom:15px">
+      <input type="email" id="login-email" placeholder="البريد الإلكتروني" style="margin-bottom:10px; text-align:left; direction:ltr;">
+      <input type="password" id="login-pass" placeholder="كلمة المرور" style="margin-bottom:15px; text-align:left; direction:ltr;">
       
-      <div style="display:flex; gap:10px;">
-        <button class="b a" style="flex:1; padding:14px;" onclick="loginUser()">تسجيل الدخول</button>
-        <button class="b g" style="flex:1; padding:14px;" onclick="registerUser()">حساب جديد</button>
-      </div>
-      <button class="b" style="margin-top:10px; background:#475569; padding:10px;" onclick="showSetup()">العودة للبداية</button>
+      <button class="b a full" style="padding:14px; font-size:14px; margin-bottom:10px;" onclick="loginUser(this)">تسجيل الدخول</button>
+      
+      <div style="text-align:center; font-size:12px; color:#94a3b8; margin-bottom:10px;">ليس لديك حساب؟</div>
+      <button class="b g full" style="padding:12px; font-size:13px; margin-bottom:15px;" onclick="showRegisterScreen()">إنشاء حساب جديد</button>
+      
+      <button class="b" style="background:#475569; padding:10px; font-size:12px;" onclick="showSetup()">تخطي (لعب محلي بدون حفظ سحابي)</button>
     </div>
   `;
 }
 
-// تسجيل الدخول
-async function loginUser() {
-  const email = $('auth-email').value.trim();
-  const pass = $('auth-pass').value.trim();
-  if(!email || !pass) return alert('أدخل البريد وكلمة المرور');
-
-  const { data, error } = await _db.auth.signInWithPassword({ email, password: pass });
-  if (error) return alert('خطأ: ' + error.message);
-
-  // جلب البيانات من السيرفر
-  await loadProfileFromCloud();
-  
-  // ✅ حماية: التحقق مما إذا كانت اللعبة موجودة في الذاكرة المحلية
-  if (!G || !G.season) {
-      alert("تم تسجيل الدخول! لا توجد مسيرة سابقة، يرجى اختيار فريق جديد.");
-      showSetup(); // إذا لم تكن هناك مسيرة محفوظة، اذهب لشاشة اختيار الفريق
-  } else {
-      $('bottom-nav').hidden = false;
-      dash();
-  }
+// ============================================
+// 2. شاشة إنشاء حساب جديد
+// ============================================
+function showRegisterScreen() {
+  $('main').innerHTML = `
+    <div class="setup-hero" style="margin-top: 30px;">
+      <div class="setup-icon">📝</div>
+      <div class="setup-title">حساب جديد</div>
+      <div class="setup-sub">أنشئ حسابك لحفظ مسيرتك في السحابة</div>
+      
+      <input type="text" id="reg-name" placeholder="اسم المدرب" style="margin-bottom:10px;">
+      <input type="email" id="reg-email" placeholder="البريد الإلكتروني" style="margin-bottom:10px; text-align:left; direction:ltr;">
+      <input type="password" id="reg-pass" placeholder="كلمة المرور" style="margin-bottom:15px; text-align:left; direction:ltr;">
+      
+      <button class="b g full" style="padding:14px; font-size:14px; margin-bottom:10px;" onclick="registerUser(this)">تسجيل الحساب</button>
+      
+      <div style="text-align:center; font-size:12px; color:#94a3b8; margin-bottom:10px;">لديك حساب بالفعل؟</div>
+      <button class="b a full" style="padding:12px; font-size:13px;" onclick="showAuthScreen()">العودة لتسجيل الدخول</button>
+    </div>
+  `;
 }
 
-// إنشاء حساب جديد
-async function registerUser() {
-  const email = $('auth-email').value.trim();
-  const pass = $('auth-pass').value.trim();
-  const name = $('auth-name').value.trim();
-  if(!email || !pass || !name) return alert('أدخل جميع البيانات');
+// ============================================
+// 3. دالة إنشاء الحساب (التسجيل)
+// ============================================
+async function registerUser(btnElement) {
+  const name = $('reg-name').value.trim();
+  const email = $('reg-email').value.trim();
+  const pass = $('reg-pass').value.trim();
+  
+  if(!name || !email || !pass) return alert('الرجاء إدخال جميع البيانات (الاسم، البريد، كلمة المرور)');
+  if(pass.length < 6) return alert('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
 
+  const originalText = btnElement.textContent;
+  btnElement.textContent = 'جاري التسجيل...';
+  btnElement.disabled = true;
+
+  // إنشاء المستخدم في Supabase
   const { data, error } = await _db.auth.signUp({ email, password: pass });
-  if (error) return alert('خطأ: ' + error.message);
+  
+  if (error) {
+    btnElement.textContent = originalText;
+    btnElement.disabled = false;
+    return alert('خطأ في التسجيل: ' + error.message);
+  }
 
-  // إنشاء الملف الشخصي في قاعدة البيانات
+  // إنشاء الملف الشخصي في جدول profiles
   if (data.user) {
-    await _db.from('profiles').insert({
+    const { error: profileError } = await _db.from('profiles').insert({
       id: data.user.id,
       email: email,
       manager_name: name,
@@ -73,15 +89,60 @@ async function registerUser() {
       manager_level: 1,
       manager_xp: 0
     });
-    alert('تم إنشاء الحساب! يمكنك الآن تسجيل الدخول.');
+
+    if (profileError) {
+      console.error("Profile Error:", profileError);
+      alert('تم إنشاء الحساب، لكن حدث خطأ في حفظ الملف الشخصي.');
+    } else {
+      alert('✅ تم إنشاء الحساب بنجاح!\n\nيرجى تسجيل الدخول الآن لبدء اللعبة.');
+    }
+    
+    // العودة لشاشة تسجيل الدخول
+    showAuthScreen(); 
   }
 }
 
-// حفظ التقدم في السيرفر (تُستدعى تلقائياً مع دالة save)
+// ============================================
+// 4. دالة تسجيل الدخول
+// ============================================
+async function loginUser(btnElement) {
+  const email = $('login-email').value.trim();
+  const pass = $('login-pass').value.trim();
+  
+  if(!email || !pass) return alert('أدخل البريد الإلكتروني وكلمة المرور');
+
+  const originalText = btnElement.textContent;
+  btnElement.textContent = 'جاري الدخول...';
+  btnElement.disabled = true;
+
+  const { data, error } = await _db.auth.signInWithPassword({ email, password: pass });
+  
+  if (error) {
+    btnElement.textContent = originalText;
+    btnElement.disabled = false;
+    return alert('خطأ في الدخول: ' + error.message);
+  }
+
+  // جلب البيانات من السيرفر
+  await loadProfileFromCloud();
+  
+  // التحقق من وجود مسيرة محفوظة محلياً
+  if (!G || !G.season) {
+      alert("تم تسجيل الدخول بنجاح!\nيرجى اختيار فريقك لبدء المسيرة.");
+      showSetup(); // التوجه لاختيار الفريق إذا لم تكن هناك لعبة محفوظة
+  } else {
+      $('bottom-nav').hidden = false;
+      dash(); // الدخول المباشر للعبة
+  }
+}
+
+// ============================================
+// 5. دوال السحابة (الحفظ والتحميل)
+// ============================================
 async function saveToCloud() {
   if (!G || !G.my) return;
   const { data: { user } } = await _db.auth.getUser();
-  if (!user) return; // إذا كان يلعب محلياً بدون حساب
+  if (!user) return; // إذا كان يلعب محلياً
 
   const t = T[G.my];
   await _db.from('profiles').update({
@@ -94,14 +155,13 @@ async function saveToCloud() {
   }).eq('id', user.id);
 }
 
-// جلب التقدم من السيرفر
 async function loadProfileFromCloud() {
   const { data: { user } } = await _db.auth.getUser();
   if (!user) return;
 
   const { data, error } = await _db.from('profiles').select('*').eq('id', user.id).single();
   if (data) {
-    if (!G) G = {}; // ✅ حماية
+    if (!G) G = {};
     G.managerName = data.manager_name || G.managerName || 'المدرب';
     G.trophies = data.trophies || 0;
     G.managerLevel = data.manager_level || 1;
@@ -109,7 +169,9 @@ async function loadProfileFromCloud() {
   }
 }
 
-// عرض لوحة المتصدرين (Top 50)
+// ============================================
+// 6. لوحة المتصدرين
+// ============================================
 async function showLeaderboard() {
   $('main').innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">⏳ جاري تحميل التصنيف العالمي...</div>`;
   

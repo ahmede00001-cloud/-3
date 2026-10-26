@@ -1,5 +1,5 @@
 // ============================================
-// auth.js - نظام تسجيل الدخول والسحابة (محدث بالمفاتيح الجديدة)
+// auth.js - نظام تسجيل الدخول والسحابة
 // ============================================
 
 // ✅ مفاتيحك الجديدة
@@ -42,8 +42,14 @@ async function loginUser() {
 
   // جلب البيانات من السيرفر
   await loadProfileFromCloud();
-  $('bottom-nav').hidden = false;
-  dash();
+  
+  // ✅ حماية: التحقق مما إذا كانت اللعبة موجودة في الذاكرة المحلية
+  if (!G || !G.season) {
+      showSetup(); // إذا لم تكن هناك مسيرة محفوظة، اذهب لشاشة اختيار الفريق
+  } else {
+      $('bottom-nav').hidden = false;
+      dash();
+  }
 }
 
 // إنشاء حساب جديد
@@ -94,12 +100,11 @@ async function loadProfileFromCloud() {
 
   const { data, error } = await _db.from('profiles').select('*').eq('id', user.id).single();
   if (data) {
-    if (G) {
-      G.managerName = data.manager_name || G.managerName;
-      G.trophies = data.trophies || 0;
-      G.managerLevel = data.manager_level || 1;
-      G.managerXp = data.manager_xp || 0;
-    }
+    if (!G) G = {}; // ✅ حماية
+    G.managerName = data.manager_name || G.managerName || 'المدرب';
+    G.trophies = data.trophies || 0;
+    G.managerLevel = data.manager_level || 1;
+    G.managerXp = data.manager_xp || 0;
   }
 }
 
@@ -121,7 +126,7 @@ async function showLeaderboard() {
     
   data.forEach((p, i) => {
     const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span style="color:#64748b; font-size:10px;">#${i+1}</span>`;
-    const isMe = p.manager_name === G.managerName ? 'border:1px solid var(--gold); background:rgba(251,191,36,.1);' : '';
+    const isMe = G && G.managerName === p.manager_name ? 'border:1px solid var(--gold); background:rgba(251,191,36,.1);' : '';
     
     html += `
       <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid rgba(255,255,255,.05); ${isMe}">

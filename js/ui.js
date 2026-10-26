@@ -1,5 +1,5 @@
 // ============================================
-// ui.js - واجهة المستخدم الكاملة
+// ui.js - واجهة المستخدم الكاملة (مع تحديث VIP)
 // ============================================
 
 function switchTab(t){G.tab = t; dash();}
@@ -8,7 +8,19 @@ function dash(){
   if(!G || !G.season){showSetup(); return;}
   const t = T[G.my];
   $('bottom-nav').hidden = false;
-  $('header-badge').textContent = `يوم ${G.season.currentDay} • ${t.budget.toFixed(1)}M`;
+  
+  // ✅ تحديث الملف الشخصي (VIP)
+  const lvl = G.managerLevel || 1;
+  const vipTier = Math.min(10, Math.floor(lvl / 2)); 
+  const vipEmoji = vipTier > 5 ? '👑' : (vipTier > 2 ? '💎' : '⭐');
+  
+  if($('hdr-name')) $('hdr-name').textContent = G.managerName || 'المدرب';
+  if($('hdr-vip')) $('hdr-vip').innerHTML = `${vipEmoji} VIP ${vipTier}`;
+  if($('hdr-trophies')) $('hdr-trophies').innerHTML = `🏆 ${G.trophies || 0}`;
+  
+  // ✅ تحديث شريط الوقت والميزانية
+  if($('hdr-day')) $('hdr-day').textContent = G.season.currentDay;
+  if($('hdr-budget')) $('hdr-budget').textContent = `${t.budget.toFixed(1)}M`;
 
   document.querySelectorAll('.nav-item').forEach((el, idx) => {
     const tabs = ['lu','tb','comp','tr','cr','mgr','news'];
@@ -28,6 +40,9 @@ function dash(){
   setTimeout(checkCupNotification, 100);
 }
 
+// ============================================
+// محرك الوقت المبني على الأحداث
+// ============================================
 function startFastForward(targetDay) {
     let ffModal = document.getElementById('ff-modal');
     if (!ffModal) {
@@ -1138,7 +1153,14 @@ function sellPlayer(pid){
 }
 
 function showSetup(){
-  $('bottom-nav').hidden = true; $('header-badge').textContent = 'إعداد';
+  $('bottom-nav').hidden = true; 
+  
+  if($('hdr-name')) $('hdr-name').textContent = 'إعداد';
+  if($('hdr-vip')) $('hdr-vip').textContent = '---';
+  if($('hdr-trophies')) $('hdr-trophies').textContent = '---';
+  if($('hdr-day')) $('hdr-day').textContent = '1';
+  if($('hdr-budget')) $('hdr-budget').textContent = '0.0M';
+
   const sv = load();
   $('main').innerHTML = `<div class="setup-hero">
     <div class="setup-icon">⚽</div><div class="setup-title">محاكاة اتحاد الكرة</div><div class="setup-sub">v26 • Pro Edition</div>

@@ -31,19 +31,23 @@ window.addEventListener('DOMContentLoaded', async () => {
     
     const savedData = (typeof load === 'function') ? load() : null;
     
-    if (savedData) {
+    if (savedData && typeof G !== 'undefined' && G) {
+      // ✅ إذا كان اللاعب مسجلاً في غرفة أونلاين، نستأنف الغرفة ونذهب للواجهة
+      if (G.multiplayerLeagueId) {
+          if (typeof showLeaguesPage === 'function') {
+              showLeaguesPage();
+              return;
+          }
+      }
+      // إذا كان يملك مسيرة عادية
       showSetup();
     } else {
       if (window._db) {
         try {
           const { data: { session } } = await window._db.auth.getSession();
           if (session) {
-            // ✅ يوجد حساب مسجل -> اذهب لصفحة الغرف مباشرة
-            if (typeof showLeaguesPage === 'function') {
-              showLeaguesPage();
-            } else {
-              showSetup();
-            }
+            if (typeof showAuthScreen === 'function') showAuthScreen(); // أو showLeaguesPage حسب رغبتك للمستخدم الجديد
+            else showSetup();
           } else {
             if (typeof showAuthScreen === 'function') showAuthScreen();
             else showSetup();

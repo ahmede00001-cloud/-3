@@ -1,5 +1,5 @@
 // ============================================
-// auth.js - نظام تسجيل الدخول والسحابة (محدث)
+// auth.js - نظام تسجيل الدخول والسحابة
 // ============================================
 
 // ✅ مفاتيح Supabase الخاصة بك
@@ -28,7 +28,7 @@ function showAuthScreen() {
       <div style="text-align:center; font-size:12px; color:#94a3b8; margin-bottom:10px;">ليس لديك حساب؟</div>
       <button class="b g full" style="padding:12px; font-size:13px; margin-bottom:15px;" onclick="showRegisterScreen()">إنشاء حساب جديد</button>
       
-      <button class="b" style="background:#475569; padding:10px; font-size:12px;" onclick="showSetup()">تخطي (لعب محلي بدون حفظ سحابي)</button>
+      <button class="b" style="background:#475569; padding:10px; font-size:12px;" onclick="showSetup()">العودة للبداية</button>
     </div>
   `;
 }
@@ -70,7 +70,6 @@ async function registerUser(btnElement) {
   btnElement.textContent = 'جاري التسجيل...';
   btnElement.disabled = true;
 
-  // إنشاء المستخدم في Supabase
   const { data, error } = await _db.auth.signUp({ email, password: pass });
   
   if (error) {
@@ -79,7 +78,6 @@ async function registerUser(btnElement) {
     return alert('خطأ في التسجيل: ' + error.message);
   }
 
-  // إنشاء الملف الشخصي في جدول profiles
   if (data.user) {
     const { error: profileError } = await _db.from('profiles').insert({
       id: data.user.id,
@@ -97,13 +95,12 @@ async function registerUser(btnElement) {
       alert('✅ تم إنشاء الحساب بنجاح!\n\nيرجى تسجيل الدخول الآن لبدء اللعبة.');
     }
     
-    // العودة لشاشة تسجيل الدخول
     showAuthScreen(); 
   }
 }
 
 // ============================================
-// 4. دالة تسجيل الدخول (توجيه ذكي + اللوبي)
+// 4. دالة تسجيل الدخول (توجيه إجباري لاختيار الدوري)
 // ============================================
 async function loginUser(btnElement) {
   const email = $('login-email').value.trim();
@@ -123,34 +120,19 @@ async function loginUser(btnElement) {
     return alert('خطأ في الدخول: ' + error.message);
   }
 
-  // ✅ حفظ معرف المستخدم (مهم جداً لنظام اللوبي)
-  if (data && data.user) {
-      if (typeof G === 'undefined' || !G) G = {};
-      G._userId = data.user.id; 
-  }
-
-  // جلب البيانات من السيرفر (الاسم، البطولات، إلخ)
+  // جلب بيانات الملف الشخصي
   await loadProfileFromCloud();
   
-  // ✅ التوجيه الذكي:
-  if (typeof G !== 'undefined' && G && G.season) {
-      // لاعب قديم ولديه مسيرة -> الدخول المباشر للعبة
-      $('bottom-nav').hidden = false;
-      dash();
-  } else {
-      // لاعب جديد -> تجهيز بياناته وتوجيهه لصفحة الغرف (اللوبي)
-      tempUserData.managerName = (G && G.managerName) ? G.managerName : 'المدرب';
-      tempUserData.username = (G && G.username) ? G.username : 'مستخدم';
-
-      alert("تم تسجيل الدخول بنجاح!\nيرجى اختيار فريقك للانضمام إلى الغرفة.");
-      
-      // التوجه لصفحة الغرف الجديدة (إذا كان ملف multiplayer.js موجوداً)
-      if(typeof showLeaguesPage === 'function') {
-          showLeaguesPage();
+  // ✅ إجبار المتصفح على الانتقال لصفحة اختيار الفريق بعد نجاح الدخول
+  setTimeout(() => {
+      alert("✅ تم تسجيل الدخول بنجاح!\nيرجى اختيار فريقك لبدء المسيرة.");
+      if (typeof selTeam === 'function') {
+          selTeam(); // الدالة الموجودة في ui.js التي تعرض الدوريات
       } else {
-          selTeam(); // احتياطي في حال لم يتم تحميل ملف اللوبي
+          // في حال لم يتم تحميل ui.js بشكل صحيح (احتياطي)
+          location.reload(); 
       }
-  }
+  }, 100);
 }
 
 // ============================================
@@ -159,7 +141,7 @@ async function loginUser(btnElement) {
 async function saveToCloud() {
   if (!G || !G.my) return;
   const { data: { user } } = await _db.auth.getUser();
-  if (!user) return; // إذا كان يلعب محلياً
+  if (!user) return; 
 
   const t = T[G.my];
   await _db.from('profiles').update({

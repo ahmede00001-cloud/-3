@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف (تحديث: 24 ساعة + جميع الفرق + ذكاء اصطناعي تنافسي)
+// multiplayer.js - نظام الغرف (تحديث: 24 ساعة + جميع الفرق + تنافس حقيقي)
 // ============================================
 
 let currentLobby = null;
@@ -46,7 +46,7 @@ async function resignFromLobby() {
     } catch (err) { alert('حدث خطأ: ' + err.message); dash(); }
 }
 
-// ✅ جعل الفرق الآلية تأخذ تقييمها الحقيقي من اللعبة لزيادة التنافس
+// ✅ جلب تقييم الفريق الحقيقي لزيادة التنافس
 function generateBotSnapshot(teamName, teamRating = 75) {
     const posList = ['GK','DEF','DEF','DEF','DEF','MID','MID','MID','FWD','FWD','FWD'];
     const starters = posList.map((pos, i) => ({
@@ -356,7 +356,6 @@ function renderWaitingRoom() {
             
             ${hasTeam && joinedCount >= 1 ? `<button class="b g full" style="margin-top:10px; padding:10px; font-weight:bold;" onclick="tryStartSeason()">🚀 بدء الموسم الآن</button>` : ''}
         </div>
-        <!-- جعل الغرفة قابلة للتمرير في حال وجود فرق كثيرة -->
         <div class="g2" style="max-height: 50vh; overflow-y: auto; padding-right: 5px;">`;
 
     currentSlots.forEach(slot => {
@@ -547,7 +546,6 @@ async function loadMultiplayerCompData() {
                             </div>
                         `;
                     } else {
-                        // حساب العد التنازلي بالدقائق والساعات
                         const diffSecs = Math.ceil((matchTime - now) / 1000);
                         const diffMins = Math.floor(diffSecs / 60);
                         const remSecs = diffSecs % 60;
@@ -590,7 +588,7 @@ async function loadMultiplayerCompData() {
     mpCompInterval = setInterval(fetchAndRender, 5000);
 }
 
-// ✅ دالة جديدة لتبويب الترتيب (جدول الترتيب فقط)
+// ✅ دالة جديدة لتبويب الترتيب (تظهر كل الفرق 18 فريق)
 async function showOnlineStandings() {
     if (!G.multiplayerLeagueId) return false;
     $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);">⏳ جاري تحميل الترتيب...</div>`;
@@ -601,7 +599,8 @@ async function showOnlineStandings() {
         
         if (!mySlot) { $('main').innerHTML = `<div style="color:#ef4444; text-align:center; padding:20px;">أنت لست مشاركاً في هذا الدوري.</div>`; return true; }
 
-        const sorted = slots.filter(s => s.user_id).sort((a, b) => (b.points||0) - (a.points||0) || ((b.goals_for||0) - (b.goals_against||0)) - ((a.goals_for||0) - (a.goals_against||0)));
+        // ✅ التعديل هنا: تم إزالة شرط (s.user_id) لكي تظهر كل الفرق (بما فيها البوتات)
+        const sorted = slots.sort((a, b) => (b.points||0) - (a.points||0) || ((b.goals_for||0) - (b.goals_against||0)) - ((a.goals_for||0) - (a.goals_against||0)));
         
         let html = `<div class="c" style="margin-top:10px;">
             <div style="text-align:center; margin-bottom:15px;">
@@ -612,11 +611,15 @@ async function showOnlineStandings() {
                     <tr style="color:#94a3b8; background:rgba(0,0,0,.3);"><th style="padding:8px;">#</th><th style="text-align:right;">الفريق</th><th>ل</th><th>ف</th><th>ت</th><th>خ</th><th>+/-</th><th>ن</th></tr>`;
         sorted.forEach((s, i) => {
             const isMe = s.id === mySlot.id;
+            const managerName = s.user_id === BOT_UUID ? '🤖 مدرب آلي' : (s.manager_name || 'مدرب');
+            const gd = (s.goals_for||0) - (s.goals_against||0);
+            const gdColor = gd > 0 ? '#4ade80' : (gd < 0 ? '#ef4444' : '#fff');
+            
             html += `<tr style="${isMe ? 'background:rgba(251,191,36,.1);font-weight:bold;color:#fff;' : 'color:#cbd5e1;'} border-bottom:1px solid rgba(255,255,255,.05);">
                 <td style="padding:8px 5px;">${i+1}</td>
-                <td style="text-align:right;">${s.team_name} <span style="font-size:9px; color:#94a3b8;">(${s.manager_name||'مدرب'})</span> ${isMe?'⭐':''}</td>
+                <td style="text-align:right;">${s.team_name} <span style="font-size:9px; color:#94a3b8;">(${managerName})</span> ${isMe?'⭐':''}</td>
                 <td>${s.played||0}</td><td>${s.won||0}</td><td>${s.drawn||0}</td><td>${s.lost||0}</td>
-                <td style="color:${(s.goals_for||0) - (s.goals_against||0) > 0 ? '#4ade80' : '#ef4444'};">${(s.goals_for||0) - (s.goals_against||0)}</td>
+                <td style="color:${gdColor};">${gd}</td>
                 <td style="color:#fbbf24; font-weight:bold;">${s.points||0}</td>
             </tr>`;
         });
@@ -629,7 +632,7 @@ async function showOnlineStandings() {
     }
 }
 
-// ✅ دالة جدول البطولات (يتم استدعاؤها من season.js)
+// ✅ دالة جدول البطولات
 async function showLiveLeagueSchedule() {
     if (!G.multiplayerLeagueId) return alert('أنت لست في دوري أونلاين حالياً.');
     $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);">⏳ جاري تحميل جدول الدوري...</div>`;

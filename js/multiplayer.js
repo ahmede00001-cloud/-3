@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف (ذهاب وإياب + إصلاح البوتات)
+// multiplayer.js - نظام الغرف (إصلاح ذاتي + ذهاب وإياب)
 // ============================================
 
 let currentLobby = null;
@@ -173,45 +173,52 @@ function startCountdownTimer() {
     }, 1000);
 }
 
-// ✅ تم إصلاح هذه الدالة لاستخدام UUID صحيح للبوتات
+// ✅ إصلاح ذاتي: توليد المباريات إذا لم تكن موجودة
+async function forceGenerateMatches(lobbyId) {
+    try {
+        const { data: slots } = await _db.from('lobby_slots').select('*').eq('lobby_id', lobbyId);
+        if (!slots || slots.length < 2) return false;
+
+        for (const slot of slots) {
+            if (!slot.user_id) {
+                const botSnap = generateBotSnapshot(slot.team_name);
+                await _db.from('lobby_slots').update({
+                    user_id: BOT_UUID, manager_name: 'مدرب آلي', team_snapshot: botSnap,
+                    played: 0, won: 0, drawn: 0, lost: 0, goals_for: 0, goals_against: 0, points: 0
+                }).eq('id', slot.id);
+            }
+        }
+
+        const { data: freshSlots } = await _db.from('lobby_slots').select('*').eq('lobby_id', lobbyId);
+        const fixtures = generateDoubleRoundRobin(freshSlots);
+
+        const now = Date.now();
+        const inserts = fixtures.map(f => ({
+            lobby_id: lobbyId, round: f.round, home_slot_id: f.home.id, away_slot_id: f.away.id,
+            scheduled_time: new Date(now + (f.round - 1) * 3 * 60000).toISOString()
+        }));
+        
+        const { error } = await _db.from('lobby_matches').insert(inserts);
+        if (error) throw error;
+        
+        return true;
+    } catch (e) {
+        console.error("Force Generate Error:", e);
+        return false;
+    }
+}
+
 async function tryStartSeason() {
     if (currentLobby.status !== 'waiting') return;
     try {
         const { data: updated } = await _db.from('lobbies').update({ status: 'active' }).eq('id', currentLobby.id).eq('status', 'waiting').select();
         if (!updated || updated.length === 0) { isSeasonStarting = false; return; }
 
-        // 1. إضافة البوتات باستخدام UUID صحيح
-        for (const slot of currentSlots) {
-            if (!slot.user_id) {
-                const botSnap = generateBotSnapshot(slot.team_name);
-                await _db.from('lobby_slots').update({
-                    user_id: BOT_UUID, 
-                    manager_name: 'مدرب آلي',
-                    team_snapshot: botSnap,
-                    played: 0, won: 0, drawn: 0, lost: 0, goals_for: 0, goals_against: 0, points: 0
-                }).eq('id', slot.id);
-            }
-        }
+        const success = await forceGenerateMatches(currentLobby.id);
+        if (!success) throw new Error("فشل في توليد المباريات، يرجى التأكد من إعدادات قاعدة البيانات.");
 
-        // 2. جلب الفرق بعد إضافة البوتات
-        const { data: freshSlots } = await _db.from('lobby_slots').select('*').eq('lobby_id', currentLobby.id);
-        
-        // 3. توليد المباريات (ذهاب وإياب)
-        const fixtures = generateDoubleRoundRobin(freshSlots);
-
-        // 4. جدولة المباريات
-        const now = Date.now();
-        const inserts = fixtures.map(f => ({
-            lobby_id: currentLobby.id, round: f.round, home_slot_id: f.home.id, away_slot_id: f.away.id,
-            scheduled_time: new Date(now + (f.round - 1) * 3 * 60000).toISOString()
-        }));
-        
-        // 5. إدخال المباريات في قاعدة البيانات
-        const { error: matchErr } = await _db.from('lobby_matches').insert(inserts);
-        if (matchErr) throw matchErr;
-        
         if (typeof broadcastEvent === 'function') broadcastEvent('🏆 بدأ الموسم رسمياً! (ذهاب وإياب)', true);
-        alert("⏳ بدأ الموسم رسمياً (ذهاب وإياب)!\nتم ملء الفرق الشاغرة بمدربين آليين.");
+        alert("⏳ بدأ الموسم رسمياً (ذهاب وإياب)!");
         stopLobbyTimers(); startGlobalLobbyWatcher(); ensureLocalGameReady(mySlot);
         if (typeof dash === 'function') dash(); 
     } catch (e) { 
@@ -257,7 +264,6 @@ async function processDueBotMatches(lobbyId) {
             const awaySlot = slots.find(s => s.id === m.away_slot_id);
             if (!homeSlot || !awaySlot) continue;
             
-            // ✅ التحقق من أن الطرفين بوت باستخدام UUID الوهمي
             const homeIsBot = homeSlot.user_id === BOT_UUID;
             const awayIsBot = awaySlot.user_id === BOT_UUID;
             
@@ -313,11 +319,14 @@ function renderWaitingRoom() {
             <button class="b sm" style="padding:5px 10px; font-size:11px; background:#475569;" onclick="stopLobbyTimers(); showSetup()">⬅ خروج</button>
             <button class="b sm" style="padding:5px 10px; font-size:11px; background:#0284c7;" onclick="forceNewLobby()">🔄 غرفة جديدة</button>
         </div>
+        
         <div style="text-align:center; margin-bottom:15px;">
             <div style="display:inline-block; background:rgba(239,68,68,.2); border:1px solid #ef4444; padding:4px 12px; border-radius:20px; color:#ef4444; font-size:12px; font-weight:bold; margin-bottom:8px;">🔴 غرفة الانتظار المباشرة</div>
             <h2 style="color:var(--gold); font-size:18px; margin-bottom:5px;">تحدي الـ 10 مدربين</h2>
             <div style="font-size:13px; color:#cbd5e1; margin-bottom:8px;">المنضمون: <b style="color:#4ade80">${joinedCount}</b> / 10</div>
             <div id="live-countdown" style="font-size:20px; font-weight:900; color:#fbbf24; background:rgba(0,0,0,.3); padding:6px 14px; border-radius:8px; display:inline-block;">--:--</div>
+            
+            ${hasTeam && joinedCount >= 2 ? `<button class="b g full" style="margin-top:10px; padding:10px; font-weight:bold;" onclick="tryStartSeason()">🚀 بدء الموسم الآن (${joinedCount} مدربين)</button>` : ''}
         </div>
         <div class="g2">`;
 
@@ -430,7 +439,17 @@ async function loadMultiplayerCompData() {
             if (!lobby) return;
 
             const { data: slots } = await _db.from('lobby_slots').select('*').eq('lobby_id', lobby.id).order('team_name');
-            const { data: matches } = await _db.from('lobby_matches').select('*').eq('lobby_id', lobby.id).order('round');
+            let { data: matches } = await _db.from('lobby_matches').select('*').eq('lobby_id', lobby.id).order('round');
+            
+            // ✅ الإصلاح الذاتي: إذا كانت الغرفة نشطة ولكن لا توجد مباريات
+            if (lobby.status === 'active' && (!matches || matches.length === 0)) {
+                const success = await forceGenerateMatches(lobby.id);
+                if (success) {
+                    const { data: retryMatches } = await _db.from('lobby_matches').select('*').eq('lobby_id', lobby.id).order('round');
+                    matches = retryMatches || [];
+                }
+            }
+
             const { data: { user } } = await _db.auth.getUser();
             if (!user || !slots) return;
             

@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف (موسم حقيقي + خيار المحاكاة)
+// multiplayer.js - نظام الغرف (تحديث الأقسام)
 // ============================================
 
 let currentLobby = null;
@@ -192,7 +192,7 @@ async function forceGenerateMatches(lobbyId) {
         const fixtures = generateDoubleRoundRobin(freshSlots);
 
         const now = Date.now();
-        const roundInterval = 24 * 60 * 60 * 1000; // ⏱️ 24 ساعة بين كل جولة
+        const roundInterval = 24 * 60 * 60 * 1000; // 24 ساعة بين كل جولة
 
         const inserts = fixtures.map(f => ({
             lobby_id: lobbyId, round: f.round, home_slot_id: f.home.id, away_slot_id: f.away.id,
@@ -442,6 +442,7 @@ async function forceNewLobby() {
     } catch (e) { alert('خطأ: ' + e.message); showLeaguesPage(); }
 }
 
+// ✅ 1. تبويب الدوري المباشر (يعرض المباراة الحالية فقط)
 async function loadMultiplayerCompData() {
     if (mpCompInterval) clearInterval(mpCompInterval);
     
@@ -502,22 +503,7 @@ async function loadMultiplayerCompData() {
                         <div style="font-size:20px; color:#4ade80; font-weight:900; margin-top:10px;">⏱️ ${m}:${s.toString().padStart(2, '0')}</div>
                     </div>`;
             } else {
-                const sorted = slots.filter(s => s.user_id).sort((a, b) => (b.points||0) - (a.points||0) || ((b.goals_for||0) - (b.goals_against||0)) - ((a.goals_for||0) - (a.goals_against||0)));
-                
-                html = `<div style="font-size:11px; text-align:center; color:var(--gold); margin-bottom:5px;">جدول الترتيب المباشر 🔴</div>
-                <table style="width:100%; font-size:11px; text-align:center; margin-bottom:15px;">
-                    <tr style="color:#94a3b8;"><th>#</th><th style="text-align:right">الفريق</th><th>ل</th><th>ف</th><th>ت</th><th>خ</th><th>+/-</th><th>ن</th></tr>`;
-                sorted.forEach((s, i) => {
-                    const isMe = s.id === mySlot.id;
-                    html += `<tr style="${isMe ? 'background:rgba(251,191,36,.1);font-weight:bold;color:#fff;' : 'color:#cbd5e1;'}">
-                        <td>${i+1}</td><td style="text-align:right;">${s.team_name} <span style="font-size:9px; color:#94a3b8;">(${s.manager_name||'مدرب'})</span> ${isMe?'⭐':''}</td>
-                        <td>${s.played||0}</td><td>${s.won||0}</td><td>${s.drawn||0}</td><td>${s.lost||0}</td>
-                        <td>${(s.goals_for||0) - (s.goals_against||0)}</td><td style="color:#4ade80; font-weight:bold;">${s.points||0}</td>
-                    </tr>`;
-                });
-                html += `</table>`;
-
-                // ✅ عرض المباراة الحالية فقط
+                // عرض المباراة الحالية فقط
                 let myMatches = (matches || []).filter(m => (m.home_slot_id === mySlot.id || m.away_slot_id === mySlot.id));
                 myMatches.sort((a, b) => new Date(a.scheduled_time) - new Date(b.scheduled_time));
                 
@@ -568,10 +554,6 @@ async function loadMultiplayerCompData() {
                         ${btnHtml}
                     </div>`;
                 }
-                
-                html += `<div style="text-align:center; margin-top:15px;">
-                    <button class="b sm" style="background:#1e293b; border:1px solid #475569; font-size:11px;" onclick="showLiveLeagueSchedule()">📅 عرض جدول المباريات كاملاً (في البطولات)</button>
-                </div>`;
             }
 
             if (containerLu) containerLu.innerHTML = html;
@@ -584,7 +566,45 @@ async function loadMultiplayerCompData() {
     mpCompInterval = setInterval(fetchAndRender, 5000);
 }
 
-// ✅ عرض جدول البطولات (الكامل)
+// ✅ 2. دالة جديدة لتبويب الترتيب (جدول الترتيب فقط)
+async function showOnlineStandings() {
+    if (!G.multiplayerLeagueId) return false;
+    $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);">⏳ جاري تحميل الترتيب...</div>`;
+    try {
+        const { data: slots } = await _db.from('lobby_slots').select('*').eq('lobby_id', G.multiplayerLeagueId);
+        const { data: { user } } = await _db.auth.getUser();
+        const mySlot = slots.find(s => s.user_id === user.id);
+        
+        if (!mySlot) { $('main').innerHTML = `<div style="color:#ef4444; text-align:center; padding:20px;">أنت لست مشاركاً في هذا الدوري.</div>`; return true; }
+
+        const sorted = slots.filter(s => s.user_id).sort((a, b) => (b.points||0) - (a.points||0) || ((b.goals_for||0) - (b.goals_against||0)) - ((a.goals_for||0) - (a.goals_against||0)));
+        
+        let html = `<div class="c" style="margin-top:10px;">
+            <div style="text-align:center; margin-bottom:15px;">
+                <h2 style="color:var(--gold); font-size:18px;">🔴 جدول الترتيب المباشر</h2>
+            </div>
+            <table style="width:100%; font-size:12px; text-align:center;">
+                <tr style="color:#94a3b8; background:rgba(0,0,0,.3);"><th style="padding:8px;">#</th><th style="text-align:right;">الفريق</th><th>ل</th><th>ف</th><th>ت</th><th>خ</th><th>+/-</th><th>ن</th></tr>`;
+        sorted.forEach((s, i) => {
+            const isMe = s.id === mySlot.id;
+            html += `<tr style="${isMe ? 'background:rgba(251,191,36,.1);font-weight:bold;color:#fff;' : 'color:#cbd5e1;'} border-bottom:1px solid rgba(255,255,255,.05);">
+                <td style="padding:10px 5px;">${i+1}</td>
+                <td style="text-align:right;">${s.team_name} <span style="font-size:9px; color:#94a3b8;">(${s.manager_name||'مدرب'})</span> ${isMe?'⭐':''}</td>
+                <td>${s.played||0}</td><td>${s.won||0}</td><td>${s.drawn||0}</td><td>${s.lost||0}</td>
+                <td style="color:${(s.goals_for||0) - (s.goals_against||0) > 0 ? '#4ade80' : '#ef4444'};">${(s.goals_for||0) - (s.goals_against||0)}</td>
+                <td style="color:#fbbf24; font-weight:bold;">${s.points||0}</td>
+            </tr>`;
+        });
+        html += `</table></div>`;
+        $('main').innerHTML = html;
+        return true;
+    } catch(e) {
+        console.error(e);
+        return false;
+    }
+}
+
+// ✅ 3. دالة جدول البطولات (يتم استدعاؤها من season.js)
 async function showLiveLeagueSchedule() {
     if (!G.multiplayerLeagueId) return alert('أنت لست في دوري أونلاين حالياً.');
     $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);">⏳ جاري تحميل جدول الدوري...</div>`;
@@ -636,7 +656,7 @@ async function showLiveLeagueSchedule() {
     }
 }
 
-// ✅ محاكاة مباراة المستخدم فوراً (تفتح المحاكي المرئي وتسرعه)
+// ✅ محاكاة مباراة المستخدم فوراً
 async function simulateUserMatch(matchId, lobbyId) {
     if (!confirm('هل أنت متأكد من محاكاة المباراة بدلاً من لعبها؟')) return;
     
@@ -723,7 +743,6 @@ async function simulateUserMatch(matchId, lobbyId) {
     }
 }
 
-// ✅ تشغيل المباراة المرئية (زر "العب" أو "مشاهدة")
 async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
     try {
         const { data: match } = await _db.from('lobby_matches').select('*').eq('id', matchId).single();

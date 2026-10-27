@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف (مع الجدولة والمدربين الآليين)
+// multiplayer.js - نظام الغرف المباشرة (النسخة المتكاملة)
 // ============================================
 
 let currentLobby = null;
@@ -31,7 +31,7 @@ function generateBotSnapshot(teamName) {
         id: 'BOT_' + Math.random().toString(36).substr(2, 9),
         name: 'لاعب ' + (i+1),
         pos: pos,
-        r: 70 + Math.floor(Math.random() * 15), // تقييم عشوائي بين 70 و 85
+        r: 70 + Math.floor(Math.random() * 15), 
         lvl: 1, age: 24,
         pace: 70, shooting: 70, passing: 70, dribbling: 70, defending: 70, physical: 70
     }));
@@ -61,6 +61,54 @@ function ensureLocalGameReady(slot) {
             G.season = generateSeason(G.my, null);
         }
     } catch (e) { console.error("Error in ensureLocalGameReady:", e); }
+}
+
+// ✅ دالة تقديم الاستقالة ومغادرة الغرفة
+async function resignFromLobby() {
+    if (!G || !G.multiplayerLeagueId) {
+        alert('أنت لست مشتركاً في أي غرفة حالياً.');
+        return;
+    }
+
+    const confirmResign = confirm("هل أنت متأكد من تقديم الاستقالة؟\nسيتم إخراجك من الغرفة الحالية ومسح فريقك منها، ولا يمكنك التراجع.");
+    if (!confirmResign) return;
+
+    try {
+        $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">⏳ جاري تقديم الاستقالة...</div>`;
+        
+        const { data: { user } } = await _db.auth.getUser();
+        if (!user) throw new Error("يجب تسجيل الدخول أولاً.");
+
+        const { error } = await _db.from('lobby_slots')
+            .update({ user_id: null, manager_name: null, team_snapshot: null })
+            .eq('lobby_id', G.multiplayerLeagueId)
+            .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        delete G.multiplayerLeagueId;
+        
+        if (typeof stopLobbyTimers === 'function') stopLobbyTimers();
+        if (typeof globalWatcherInterval !== 'undefined' && globalWatcherInterval) {
+            clearInterval(globalWatcherInterval);
+            globalWatcherInterval = null;
+        }
+
+        save();
+        
+        alert('✅ تم تقديم استقالتك بنجاح. سيتم توجيهك لصفحة الدوريات للبحث عن غرفة جديدة.');
+        
+        if (typeof showLeaguesPage === 'function') {
+            showLeaguesPage();
+        } else {
+            location.reload();
+        }
+
+    } catch (err) {
+        console.error("Resign Error:", err);
+        alert('حدث خطأ أثناء تقديم الاستقالة: ' + err.message);
+        if (typeof dash === 'function') dash();
+    }
 }
 
 async function showLeaguesPage() {
@@ -201,7 +249,6 @@ async function tryStartSeason() {
         const { data: updated } = await _db.from('lobbies').update({ status: 'active' }).eq('id', currentLobby.id).eq('status', 'waiting').select();
         if (!updated || updated.length === 0) { isSeasonStarting = false; return; }
 
-        // ملء الغرف الفارغة بمدربين آليين
         for (const slot of currentSlots) {
             if (!slot.user_id) {
                 const botSnap = generateBotSnapshot(slot.team_name);
@@ -214,18 +261,16 @@ async function tryStartSeason() {
             }
         }
 
-        // إعادة جلب الفرق لضمان وجود البوتات وتوليد جدول كامل
         const { data: freshSlots } = await _db.from('lobby_slots').select('*').eq('lobby_id', currentLobby.id);
         const fixtures = generateRoundRobin(freshSlots);
 
-        // جدولة المباريات: كل جولة تفتح بعد 3 دقائق من التي قبلها
         const now = Date.now();
         const inserts = fixtures.map(f => ({
             lobby_id: currentLobby.id,
             round: f.round,
             home_slot_id: f.home.id,
             away_slot_id: f.away.id,
-            scheduled_time: new Date(now + (f.round - 1) * 3 * 60000).toISOString() // 3 دقائق بين كل جولة
+            scheduled_time: new Date(now + (f.round - 1) * 3 * 60000).toISOString()
         }));
         
         await _db.from('lobby_matches').insert(inserts);
@@ -366,7 +411,6 @@ async function forceNewLobby() {
     } catch (e) { alert('خطأ: ' + e.message); showLeaguesPage(); }
 }
 
-// ✅ دالة العرض (مع الجدولة الزمنية)
 async function loadMultiplayerCompData() {
     if (mpCompInterval) clearInterval(mpCompInterval);
     
@@ -437,7 +481,6 @@ async function loadMultiplayerCompData() {
                     const oppId = isHome ? m.away_slot_id : m.home_slot_id;
                     const opp = slots.find(s => s.id === oppId) || { team_name: 'خصم' };
                     
-                    // ✅ نظام الجدولة: حساب ما إذا كان الوقت قد حان
                     const matchTime = m.scheduled_time ? new Date(m.scheduled_time).getTime() : 0;
                     const now = new Date().getTime();
                     const isTimeUp = now >= matchTime;
@@ -472,14 +515,12 @@ async function loadMultiplayerCompData() {
     mpCompInterval = setInterval(fetchAndRender, 5000);
 }
 
-// ✅ تشغيل المباراة (مع التحقق من الوقت)
 async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
     try {
         const { data: match } = await _db.from('lobby_matches').select('*').eq('id', matchId).single();
         if (!match) return alert('المباراة غير موجودة!');
         if (!isReplay && match.played) return alert('تم لعب هذه المباراة بالفعل!');
 
-        // التحقق من الوقت
         if (!isReplay) {
             const matchTime = match.scheduled_time ? new Date(match.scheduled_time).getTime() : 0;
             if (new Date().getTime() < matchTime) {
@@ -556,8 +597,6 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
     }
 }
 
-// ... (باقي دوال المحاكاة البصرية والحفظ `runVisualMultiplayerMatch` و `finalizeMultiplayerMatch` و `buildTeamFromSnapshot` كما هي في الكود السابق تماماً) ...
-// سأضيفها لضمان أن الملف كامل وجاهز للنسخ
 function runVisualMultiplayerMatch(matchConfig, matchId, lobbyId, isHome, mySlot, oppSlot, slots, isReplay) {
     $('main').hidden = true;
     $('ms').hidden = false;

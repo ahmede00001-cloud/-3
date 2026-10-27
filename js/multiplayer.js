@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف والمباريات والوقت الثابت وواجهة المدرب والسوق الحي (النسخة الكاملة النهائية)
+// multiplayer.js - نظام الغرف والمباريات والوقت الثابت وواجهة المدرب والسوق الحي
 // ============================================
 
 let currentLobby = null;
@@ -660,61 +660,83 @@ async function loadMultiplayerCompData() {
                 myMatches.sort((a, b) => new Date(a.scheduled_time) - new Date(b.scheduled_time));
                 
                 let currentMatch = myMatches.find(m => !m.played);
+                let lastPlayedMatch = [...myMatches].reverse().find(m => m.played); // جلب آخر مباراة لعبت
                 
                 html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; background:rgba(251,191,36,.15); padding:6px 12px; border-radius:8px;">
                     <span style="font-size:12px; color:#fbbf24; font-weight:bold;">🔥 مواجهة الدوري الأونلاين</span>
                     <button class="b sm" style="background:#0ea5e9; color:#fff; font-size:10px; padding:4px 10px;" onclick="loadLiveMarket()">🛒 سوق اللاعبين الحي</button>
                 </div>`;
 
-                if (!currentMatch) {
+                if (!currentMatch && !lastPlayedMatch) {
                     html += `<div style="text-align:center; color:#4ade80; padding:20px; font-size:14px; font-weight:bold; background:rgba(0,0,0,.3); border-radius:10px;">🏆 اكتمل الموسم! لقد خضت جميع مبارياتك.</div>`;
                 } else {
-                    const isHome = currentMatch.home_slot_id === mySlot.id;
-                    const oppId = isHome ? currentMatch.away_slot_id : currentMatch.home_slot_id;
-                    const opp = slots.find(s => s.id === oppId) || { team_name: 'خصم' };
-                    const isHumanOpp = opp.user_id && opp.user_id !== BOT_UUID;
-                    const matchTime = currentMatch.scheduled_time ? new Date(currentMatch.scheduled_time).getTime() : new Date().getTime();
-                    const now = getServerNow();
-                    const isTimeUp = now >= matchTime;
-                    const timeString = new Date(matchTime).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+                    if (currentMatch) {
+                        const isHome = currentMatch.home_slot_id === mySlot.id;
+                        const oppId = isHome ? currentMatch.away_slot_id : currentMatch.home_slot_id;
+                        const opp = slots.find(s => s.id === oppId) || { team_name: 'خصم' };
+                        const isHumanOpp = opp.user_id && opp.user_id !== BOT_UUID;
+                        const matchTime = currentMatch.scheduled_time ? new Date(currentMatch.scheduled_time).getTime() : new Date().getTime();
+                        const now = getServerNow();
+                        const isTimeUp = now >= matchTime;
+                        const timeString = new Date(matchTime).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
-                    let btnHtml = '';
-                    if (isTimeUp) {
-                        btnHtml = `
-                            <div style="display:flex; gap:8px; width:100%; margin-top:15px;">
-                                <button class="b g" style="flex:1; padding:12px; font-size:13px; font-weight:bold;" onclick="playMultiplayerMatch('${currentMatch.id}', '${lobby.id}', false)">▶ العب المباراة مباشرة 🔴</button>
-                                <button class="b sm" style="flex:1; padding:12px; font-size:13px; background:#8b5cf6; color:#fff; font-weight:bold;" onclick="simulateUserMatch('${currentMatch.id}', '${lobby.id}')">⏩ محاكاة سريعة</button>
+                        let btnHtml = '';
+                        if (isTimeUp) {
+                            btnHtml = `
+                                <div style="display:flex; gap:8px; width:100%; margin-top:15px;">
+                                    <button class="b g" style="flex:1; padding:12px; font-size:13px; font-weight:bold;" onclick="playMultiplayerMatch('${currentMatch.id}', '${lobby.id}', false)">▶ العب المباراة مباشرة 🔴</button>
+                                    <button class="b sm" style="flex:1; padding:12px; font-size:13px; background:#8b5cf6; color:#fff; font-weight:bold;" onclick="simulateUserMatch('${currentMatch.id}', '${lobby.id}')">⏩ محاكاة سريعة</button>
+                                </div>
+                            `;
+                        } else {
+                            const diffSecs = Math.ceil((matchTime - now) / 1000);
+                            const diffMins = Math.floor(diffSecs / 60);
+                            const diffHours = Math.floor(diffMins / 60);
+                            const remMins = diffMins % 60;
+
+                            let timeLeftText = '';
+                            if (diffHours > 0) timeLeftText += `${diffHours} ساعة و `;
+                            timeLeftText += `${remMins} دقيقة`;
+
+                            btnHtml = `<div style="font-size:12px; color:#fbbf24; font-weight:bold; background:rgba(251,191,36,.1); padding:10px; border-radius:8px; text-align:center; width:100%; margin-top:15px;">⏳ موعد الجولة الثابت بعد: ${timeLeftText}</div>`;
+                        }
+
+                        html += `<div style="display:flex; flex-direction:column; align-items:center; background:linear-gradient(135deg, rgba(15,34,56,.95), rgba(30,58,138,.95)); border:2px solid #fbbf24; padding:18px; border-radius:15px; box-shadow:0 4px 15px rgba(0,0,0,0.5);">
+                            <div style="font-size:11px; color:#22d3ee; font-weight:bold; margin-bottom:8px;">الجولة ${currentMatch.round} • ${timeString} ${isHumanOpp ? '• 👤 ضد مدرب حقيقي' : '• 🤖 ضد مدرب آلي'}</div>
+                            
+                            <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin:8px 0;">
+                                <div style="flex:1; text-align:center; font-size:15px; font-weight:bold; color:${isHome ? '#fbbf24' : '#fff'};">
+                                    ${isHome ? mySlot.team_name : opp.team_name}
+                                    <div style="font-size:10px; color:#94a3b8; margin-top:4px;">${isHome ? '(أنت)' : `(${opp.manager_name||'مدرب'})`}</div>
+                                </div>
+                                <div style="font-size:22px; color:#fff; font-weight:900; margin:0 12px;">VS</div>
+                                <div style="flex:1; text-align:center; font-size:15px; font-weight:bold; color:${!isHome ? '#fbbf24' : '#fff'};">
+                                    ${!isHome ? mySlot.team_name : opp.team_name}
+                                    <div style="font-size:10px; color:#94a3b8; margin-top:4px;">${!isHome ? '(أنت)' : `(${opp.manager_name||'مدرب'})`}</div>
+                                </div>
                             </div>
-                        `;
-                    } else {
-                        const diffSecs = Math.ceil((matchTime - now) / 1000);
-                        const diffMins = Math.floor(diffSecs / 60);
-                        const diffHours = Math.floor(diffMins / 60);
-                        const remMins = diffMins % 60;
-
-                        let timeLeftText = '';
-                        if (diffHours > 0) timeLeftText += `${diffHours} ساعة و `;
-                        timeLeftText += `${remMins} دقيقة`;
-
-                        btnHtml = `<div style="font-size:12px; color:#fbbf24; font-weight:bold; background:rgba(251,191,36,.1); padding:10px; border-radius:8px; text-align:center; width:100%; margin-top:15px;">⏳ موعد الجولة الثابت بعد: ${timeLeftText}</div>`;
+                            ${btnHtml}
+                        </div>`;
                     }
 
-                    html += `<div style="display:flex; flex-direction:column; align-items:center; background:linear-gradient(135deg, rgba(15,34,56,.95), rgba(30,58,138,.95)); border:2px solid #fbbf24; padding:18px; border-radius:15px; box-shadow:0 4px 15px rgba(0,0,0,0.5);">
-                        <div style="font-size:11px; color:#22d3ee; font-weight:bold; margin-bottom:8px;">الجولة ${currentMatch.round} • ${timeString} ${isHumanOpp ? '• 👤 ضد مدرب حقيقي' : '• 🤖 ضد مدرب آلي'}</div>
+                    // ✅ إضافة زر مشاهدة المباراة السابقة إذا كانت الجولة قد انتهت
+                    if (lastPlayedMatch) {
+                        const lpIsHome = lastPlayedMatch.home_slot_id === mySlot.id;
+                        const lpOppId = lpIsHome ? lastPlayedMatch.away_slot_id : lastPlayedMatch.home_slot_id;
+                        const lpOpp = slots.find(s => s.id === lpOppId) || { team_name: 'خصم' };
                         
-                        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin:8px 0;">
-                            <div style="flex:1; text-align:center; font-size:15px; font-weight:bold; color:${isHome ? '#fbbf24' : '#fff'};">
-                                ${isHome ? mySlot.team_name : opp.team_name}
-                                <div style="font-size:10px; color:#94a3b8; margin-top:4px;">${isHome ? '(أنت)' : `(${opp.manager_name||'مدرب'})`}</div>
+                        const myGoals = lpIsHome ? lastPlayedMatch.home_score : lastPlayedMatch.away_score;
+                        const oppGoals = lpIsHome ? lastPlayedMatch.away_score : lastPlayedMatch.home_score;
+
+                        html += `
+                        <div style="margin-top:15px; background:rgba(0,0,0,.4); border:1px solid #3b82f6; border-radius:10px; padding:12px; text-align:center;">
+                            <div style="color:#fbbf24; font-size:12px; font-weight:bold; margin-bottom:5px;">📺 إعادة المباراة السابقة (الجولة ${lastPlayedMatch.round})</div>
+                            <div style="font-size:14px; color:#fff; font-weight:bold; margin-bottom:10px;">
+                                ${mySlot.team_name} <span style="color:#4ade80; margin:0 5px;">${myGoals} - ${oppGoals}</span> ${lpOpp.team_name}
                             </div>
-                            <div style="font-size:22px; color:#fff; font-weight:900; margin:0 12px;">VS</div>
-                            <div style="flex:1; text-align:center; font-size:15px; font-weight:bold; color:${!isHome ? '#fbbf24' : '#fff'};">
-                                ${!isHome ? mySlot.team_name : opp.team_name}
-                                <div style="font-size:10px; color:#94a3b8; margin-top:4px;">${!isHome ? '(أنت)' : `(${opp.manager_name||'مدرب'})`}</div>
-                            </div>
-                        </div>
-                        ${btnHtml}
-                    </div>`;
+                            <button class="b sm" style="background:#3b82f6; color:#fff; width:100%; padding:8px; font-weight:bold;" onclick="playMultiplayerMatch('${lastPlayedMatch.id}', '${lobby.id}', true)">▶ مشاهدة المحاكاة الآن</button>
+                        </div>`;
+                    }
                 }
             }
 
@@ -808,8 +830,11 @@ async function showLiveLeagueSchedule() {
                     <span style="margin:0 8px;">${scoreHtml}</span> 
                     ${isHome ? opp.team_name : mySlot.team_name}
                 </div>
-                <div style="width:60px; text-align:left;">
-                    ${m.played ? `<span style="color:#4ade80; font-size:10px;">انتهت</span>` : `<span style="color:#fbbf24; font-size:10px;">قادمة</span>`}
+                <div style="width:80px; text-align:left; display:flex; flex-direction:column; gap:4px;">
+                    ${m.played ? `
+                        <span style="color:#4ade80; font-size:10px;">انتهت</span>
+                        <button class="b sm" style="background:#3b82f6; color:#fff; font-size:9px; padding:3px;" onclick="playMultiplayerMatch('${m.id}', '${G.multiplayerLeagueId}', true)">📺 مشاهدة</button>
+                    ` : `<span style="color:#fbbf24; font-size:10px;">قادمة</span>`}
                 </div>
             </div>`;
         });
@@ -867,6 +892,14 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay = false, autoSkip
             const updateData = isHome ? { home_snapshot: myTeamData } : { away_snapshot: myTeamData };
             await _db.from('lobby_matches').update(updateData).eq('id', matchId);
             await updateLobbySnapshot();
+        } else {
+            // في حال كانت إعادة، نستخدم البيانات المحفوظة إن وجدت
+            if (match.home_snapshot) {
+                if (isHome) myTeamData = match.home_snapshot;
+            }
+            if (match.away_snapshot) {
+                if (!isHome) myTeamData = match.away_snapshot;
+            }
         }
 
         let oppTeamId = 'OPP_' + oppSlot.id.substring(0, 6);
@@ -877,7 +910,12 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay = false, autoSkip
             T[oppTeamId] = buildTeamFromSnapshot(oppTeamData, oppTeamId);
         }
 
-        const myStarters = G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean);
+        let myTeamId = 'MY_' + mySlot.id.substring(0, 6);
+        if (isReplay && myTeamData) {
+             T[myTeamId] = buildTeamFromSnapshot(myTeamData, myTeamId);
+        }
+
+        const myStarters = isReplay ? T[myTeamId].ps.slice(0, 11) : G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean);
         const oppStarters = T[oppTeamId].ps.slice(0, 11);
 
         let currentSeed = match.match_seed || 543210;
@@ -890,8 +928,8 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay = false, autoSkip
         const w = (typeof WEATHERS !== 'undefined' && WEATHERS[0]) ? WEATHERS[0] : {type:'مشمس', emoji:'☀️', accuracy:1.0, stamina:1.0};
 
         Mt = new Match({
-            h: isHome ? T[G.my] : T[oppTeamId],
-            a: isHome ? T[oppTeamId] : T[G.my],
+            h: isHome ? (isReplay ? T[myTeamId] : T[G.my]) : T[oppTeamId],
+            a: isHome ? T[oppTeamId] : (isReplay ? T[myTeamId] : T[G.my]),
             hl: isHome ? myStarters : oppStarters,
             al: isHome ? oppStarters : myStarters,
             hf: isHome ? (myTeamData.form || '4-3-3') : (oppTeamData?.form || '4-3-3'),
@@ -899,22 +937,24 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay = false, autoSkip
             ht: isHome ? (myTeamData.tac || 'balanced') : (oppTeamData?.tac || 'balanced'),
             at: isHome ? (oppTeamData?.tac || 'balanced') : (myTeamData.tac || 'balanced'),
             human: isHome ? 'home' : 'away',
-            compName: `الدوري الأونلاين المباشر 🔴`,
+            compName: isReplay ? `📺 إعادة المباراة` : `الدوري الأونلاين المباشر 🔴`,
             weather: w
         });
 
-        Mt.isOnlineLeagueMatch = true;
+        Mt.isOnlineLeagueMatch = !isReplay;
         Mt.restoreRandom = () => { window.R = originalR; };
 
-        if (activeMatchChannel) _db.removeChannel(activeMatchChannel);
-        activeMatchChannel = _db.channel('live_match_' + matchId)
-            .on('broadcast', { event: 'tactic_change' }, (payload) => {
-                if (!Mt || !payload.payload) return;
-                const { side, tac, mgr } = payload.payload;
-                Mt.s[side].tc = tac;
-                showOnlineToast(`المدرب ${mgr} غيّر تكتيكه إلى ${TAC_STYLE[tac]?.label || tac}!`, '🎯');
-            })
-            .subscribe();
+        if (!isReplay) {
+            if (activeMatchChannel) _db.removeChannel(activeMatchChannel);
+            activeMatchChannel = _db.channel('live_match_' + matchId)
+                .on('broadcast', { event: 'tactic_change' }, (payload) => {
+                    if (!Mt || !payload.payload) return;
+                    const { side, tac, mgr } = payload.payload;
+                    Mt.s[side].tc = tac;
+                    showOnlineToast(`المدرب ${mgr} غيّر تكتيكه إلى ${TAC_STYLE[tac]?.label || tac}!`, '🎯');
+                })
+                .subscribe();
+        }
 
         window._mpMatchCallback = (hg, ag) => {
             if (Mt && Mt.restoreRandom) Mt.restoreRandom();
@@ -924,11 +964,11 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay = false, autoSkip
 
         if($('mh')) $('mh').textContent = Mt.h.name;
         if($('ma')) $('ma').textContent = Mt.a.name;
-        if($('weather-badge')) $('weather-badge').textContent = `🔴 مباشر • جولة ${match.round}`;
-        shown = 0; paused = false; speed = 2;
-        if($('bs')) $('bs').textContent = '×2';
+        if($('weather-badge')) $('weather-badge').textContent = isReplay ? '📺 إعادة' : `🔴 مباشر • جولة ${match.round}`;
+        shown = 0; paused = false; speed = isReplay ? 3 : 2;
+        if($('bs')) $('bs').textContent = '×'+speed;
         if($('lg')) $('lg').innerHTML = '';
-        if($('mr')) $('mr').textContent = `الدوري الأونلاين • الجولة ${match.round}`;
+        if($('mr')) $('mr').textContent = isReplay ? `إعادة: الدوري الأونلاين • الجولة ${match.round}` : `الدوري الأونلاين • الجولة ${match.round}`;
         if($('live-commentary')) $('live-commentary').style.display = 'none';
         if($('momentum-pointer')) $('momentum-pointer').style.left = '50%';
         if(typeof mtac === 'function') mtac(G.tac);

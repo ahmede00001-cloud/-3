@@ -25,6 +25,15 @@ function getLobbyMaxTeams() {
     return (typeof LEAGUES !== 'undefined' && LEAGUES['egypt']) ? LEAGUES['egypt'].teams.length : 18;
 }
 
+// دالة جلب اسم المدرب المعتمد في اللعبة
+function getManagerName() {
+    if (typeof G !== 'undefined' && G && G.managerName) return G.managerName;
+    if (mySlot && mySlot.manager_name) return mySlot.manager_name;
+    const saved = localStorage.getItem('managerName');
+    if (saved) return saved;
+    return 'المدرب';
+}
+
 // مزامنة وقت السيرفر الرسمي
 async function syncServerTime() {
     try {
@@ -373,21 +382,21 @@ async function processDueBotMatches(lobbyId) {
 }
 
 // ============================================
-// 👤 واجهة غرفة الانتظار (مع الهيدر وتفاصيل الفرق)
+// 👤 واجهة غرفة الانتظار (مع الهيدر وتفاصيل المدرب والفريق)
 // ============================================
 function renderWaitingRoom() {
     const maxTeams = getLobbyMaxTeams();
     const joinedCount = currentSlots.filter(s => s.user_id && s.user_id !== BOT_UUID).length;
     const hasTeam = !!mySlot;
     const isFull = joinedCount >= maxTeams;
-    const currentMgrName = (typeof G !== 'undefined' && G.managerName) ? G.managerName : 'مدرب';
+    const currentMgrName = getManagerName();
 
     let html = `<div class="c" style="margin-top:10px; position:relative;">
         <div style="background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.95)); border: 1px solid rgba(251,191,36,0.4); padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; display:flex; justify-content:space-between; align-items:center;">
             <div style="display:flex; align-items:center; gap:8px;">
                 <span style="font-size:20px;">👨‍💼</span>
                 <div>
-                    <div style="font-size:10px; color:#94a3b8;">المدرب الحالي</div>
+                    <div style="font-size:10px; color:#94a3b8;">المدرب المستخدم</div>
                     <div style="font-size:14px; font-weight:900; color:#fff;">${currentMgrName}</div>
                 </div>
             </div>
@@ -421,11 +430,12 @@ function renderWaitingRoom() {
         let bg = isMe ? 'rgba(251,191,36,.2)' : (isTaken ? 'rgba(15,34,56,.8)' : 'rgba(30,58,138,.4)');
         let border = isMe ? '#fbbf24' : (isTaken ? '#ef4444' : '#22c55e');
         
+        let teamManagerLabel = slot.user_id === BOT_UUID ? '🤖 آلي' : (slot.manager_name || 'مدرب');
         let statusHtml = isMe 
             ? `<div style="font-size:10px; color:#fbbf24; font-weight:bold; margin-top:2px;">⭐ فريقك (${currentMgrName})</div>` 
             : (isTaken 
-                ? `<div style="font-size:10px; color:#ef4444; font-weight:bold; margin-top:2px;">👤 ${slot.manager_name || 'مدرب محجوز'}</div>` 
-                : `<div style="font-size:10px; color:#4ade80; font-weight:bold; margin-top:2px;">🟢 متاح للاختيار</div>`);
+                ? `<div style="font-size:10px; color:#4ade80; font-weight:bold; margin-top:2px;">👤 ${teamManagerLabel}</div>` 
+                : `<div style="font-size:10px; color:#94a3b8; margin-top:2px;">🟢 متاح للاختيار</div>`);
         
         let actionBtn = !isTaken && !hasTeam && joinedCount < maxTeams 
             ? `<button class="b g sm" style="padding:3px 8px; font-size:10px; margin-top:4px;" onclick="event.stopPropagation(); claimLiveTeam('${slot.id}', this)">اختيار 🤝</button>` 
@@ -504,16 +514,20 @@ async function claimLiveTeam(slotId, btnEl) {
         if (!user) return alert('يجب تسجيل الدخول أولاً!');
         if (mySlot) return alert('لقد اخترت فريقاً في هذه الغرفة بالفعل!');
         if (btnEl) { btnEl.style.opacity = '0.5'; btnEl.style.pointerEvents = 'none'; }
+        
         const chosenSlot = currentSlots.find(s => String(s.id) === String(slotId));
         if (!chosenSlot) throw new Error('الفريق غير موجود!');
 
         ensureLocalGameReady(chosenSlot); ensureG(); 
 
+        const mgrName = getManagerName();
+        if (typeof G !== 'undefined') G.managerName = mgrName;
+        localStorage.setItem('managerName', mgrName);
+
         const snap = { 
             name: T[G.my].name, R: T[G.my].R, c1: T[G.my].c1, c2: T[G.my].c2,
             form: G.form, tac: G.tac, starters: G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean) 
         };
-        const mgrName = G.managerName || 'مدرب';
 
         const { data: updatedSlot, error } = await _db.from('lobby_slots')
             .update({ user_id: user.id, manager_name: mgrName, team_snapshot: snap, played: 0, won: 0, drawn: 0, lost: 0, goals_for: 0, goals_against: 0, points: 0 })
@@ -939,7 +953,7 @@ function syncOnlineTactic(newTac) {
         activeMatchChannel.send({
             type: 'broadcast',
             event: 'tactic_change',
-            payload: { side: Mt.hu, tac: newTac, mgr: G.managerName || 'الخصم' }
+            payload: { side: Mt.hu, tac: newTac, mgr: getManagerName() }
         });
     }
 }
@@ -1040,7 +1054,7 @@ async function loadLiveMarket() {
     }
 }
 
-// نافذة مصممة بالكامل لتحديد سعر البيع (بدلاً من prompt الخارجية)
+// نافذة مصممة بالكامل لتحديد سعر البيع
 function openSellPriceModal(pid) {
     if (!G.multiplayerLeagueId) return;
     const me = T[G.my];
@@ -1090,7 +1104,7 @@ async function confirmListPlayerForSale(pid) {
         const { error: marketErr } = await _db.from('market_listings').insert({
             lobby_id: G.multiplayerLeagueId,
             user_id: user.id,
-            manager_name: G.managerName,
+            manager_name: getManagerName(),
             team_name: me.name,
             player_data: snap,
             asking_price: price
@@ -1188,6 +1202,6 @@ async function updateLobbySnapshot() {
             form: G.form, tac: G.tac, starters: G.lu.map(id => me.ps.find(p => p.id === id)).filter(Boolean) 
         };
         
-        await _db.from('lobby_slots').update({ team_snapshot: snap }).eq('lobby_id', G.multiplayerLeagueId).eq('user_id', user.id);
+        await _db.from('lobby_slots').update({ team_snapshot: snap, manager_name: getManagerName() }).eq('lobby_id', G.multiplayerLeagueId).eq('user_id', user.id);
     } catch (e) { console.error(e); }
 }

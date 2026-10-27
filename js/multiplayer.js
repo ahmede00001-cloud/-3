@@ -149,7 +149,10 @@ async function showLeaguesPage() {
             ensureLocalGameReady(mySlot);
             startGlobalLobbyWatcher();
             
-            if (currentLobby.status === 'active') {
+            // ✅ التعديل هنا: إذا كان اللاعب يملك فريقاً في الغرفة، انتقل مباشرة للتشكيلة وتجاهل صفحة الانتظار
+            if (mySlot) {
+                if (typeof dash === 'function') { dash(); return; }
+            } else if (currentLobby.status === 'active') {
                 if (typeof dash === 'function') { dash(); return; }
             } else {
                 renderWaitingRoom(); startCountdownTimer(); liveInterval = setInterval(fetchUpdates, 3000);

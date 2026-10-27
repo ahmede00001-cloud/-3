@@ -570,12 +570,12 @@ async function loadMultiplayerCompData() {
     mpCompInterval = setInterval(fetchAndRender, 5000);
 }
 
-// ✅ محاكاة مباراة المستخدم فوراً
+// ✅ محاكاة مباراة المستخدم فوراً (تفتح المحاكي المرئي وتسرعه)
 async function simulateUserMatch(matchId, lobbyId) {
     if (!confirm('هل أنت متأكد من محاكاة المباراة بدلاً من لعبها؟')) return;
     
     try {
-        $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">⏳ جاري محاكاة المباراة...</div>`;
+        $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">⏳ جاري تحضير المحاكاة...</div>`;
         
         const { data: match } = await _db.from('lobby_matches').select('*').eq('id', matchId).single();
         if (!match) throw new Error('المباراة غير موجودة!');
@@ -628,14 +628,29 @@ async function simulateUserMatch(matchId, lobbyId) {
             weather: (typeof WEATHERS !== 'undefined' && WEATHERS[0]) ? WEATHERS[0] : {type:'مشمس', emoji:'☀️', accuracy:1.0, stamina:1.0}
         };
 
-        const matchEng = new Match(matchConfig);
-        let safety = 0;
-        while (!matchEng.done && safety < 40000) { matchEng.step(); safety++; }
-        
-        const hg = matchEng.s.home.g;
-        const ag = matchEng.s.away.g;
+        // ✅ إضافة الـ Callback المفقود لحفظ النتيجة
+        window._mpMatchCallback = (hg, ag) => {
+            finalizeMultiplayerMatch(matchId, lobbyId, isHome, hg, ag, mySlot, oppSlot, slots);
+        };
 
-        await finalizeMultiplayerMatch(matchId, lobbyId, isHome, hg, ag, mySlot, oppSlot, slots);
+        window._mpMatchConfig = matchConfig;
+        window._mpMatchId = matchId;
+        window._mpLobbyId = lobbyId;
+        window._mpIsHome = isHome;
+        window._mpMySlot = mySlot;
+        window._mpOppSlot = oppSlot;
+        window._mpSlots = slots;
+        window._mpIsReplay = false;
+
+        if (typeof play === 'function') {
+            play();
+            // تسريع المحاكاة تلقائياً
+            setTimeout(() => {
+                if (typeof skip === 'function') skip();
+            }, 1000);
+        } else {
+            alert('محرك المباريات (match.js) غير محمل!');
+        }
 
     } catch (e) {
         console.error("Simulate Error:", e);
@@ -644,6 +659,7 @@ async function simulateUserMatch(matchId, lobbyId) {
     }
 }
 
+// ✅ تشغيل المباراة المرئية (زر "العب")
 async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
     try {
         const { data: match } = await _db.from('lobby_matches').select('*').eq('id', matchId).single();
@@ -710,6 +726,11 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
             human: isHome ? 'home' : 'away',
             compName: `الدوري المباشر 🌐`,
             weather: (typeof WEATHERS !== 'undefined' && WEATHERS[0]) ? WEATHERS[0] : {type:'مشمس', emoji:'☀️', accuracy:1.0, stamina:1.0}
+        };
+
+        // ✅ إضافة الـ Callback المفقود لحفظ النتيجة
+        window._mpMatchCallback = (hg, ag) => {
+            finalizeMultiplayerMatch(matchId, lobbyId, isHome, hg, ag, mySlot, oppSlot, slots);
         };
 
         window._mpMatchConfig = matchConfig;

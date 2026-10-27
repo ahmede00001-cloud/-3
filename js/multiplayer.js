@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف والمباريات (بدون رسائل متصفح - تصميم داخلي)
+// multiplayer.js - نظام الغرف والمباريات (النسخة الاحترافية الكاملة)
 // ============================================
 
 let currentLobby = null;
@@ -1057,90 +1057,145 @@ function buildTeamFromSnapshot(snap, teamId) {
 }
 
 // ============================================
-// 💰 5. سوق الانتقالات
+// 💰 5. سوق الانتقالات الاحترافي (صفحة كاملة)
 // ============================================
 async function loadLiveMarket() {
     if (!G || !G.multiplayerLeagueId) return showGameAlert('السوق الحي متاح داخل الدوري الأونلاين فقط!', '⚠️');
 
-    $('cmc').innerHTML = `<div class="mc" style="text-align:center; padding:30px; color:#fbbf24;">⏳ جاري فتح سوق الانتقالات المباشر...</div>`;
-    $('cm').hidden = false;
+    $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);"><div style="font-size:30px; animation: logoBounce 1s infinite alternate;">🛒</div><br>جاري فتح سوق الانتقالات...</div>`;
+    window._currentMarketTab = 'all'; // التبويب الافتراضي
 
     try {
         const { data: { user } } = await _db.auth.getUser();
-        const { data: listings, error } = await _db.from('market_listings').select('*').eq('lobby_id', G.multiplayerLeagueId).order('created_at', { ascending: false }).limit(30);
+        const { data: listings, error } = await _db.from('market_listings').select('*').eq('lobby_id', G.multiplayerLeagueId).order('created_at', { ascending: false });
         if (error) throw error;
 
         const me = T[G.my];
+        
+        // تصفية اللاعبين
+        const allListings = listings || [];
+        const myListings = allListings.filter(l => l.user_id === user.id);
+        const otherListings = allListings.filter(l => l.user_id !== user.id);
 
-        let itemsHtml = (listings || []).map(item => {
-            const p = item.player_data;
-            const isMine = user && item.user_id === user.id;
-            return `
-            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.35); padding:10px; border-radius:10px; margin-bottom:8px; border-right:4px solid ${isMine ? '#fbbf24' : '#4ade80'};">
-                <div style="text-align:right;">
-                    <div style="font-size:13px; font-weight:bold; color:#fff;">${p.name} <span style="font-size:10px; color:#fbbf24;">(⭐${p.r} • ${p.pos})</span></div>
-                    <div style="font-size:10px; color:#94a3b8;">البائع: ${item.team_name} (${item.manager_name || 'مدرب'})</div>
+        let html = `
+        <div class="c" style="padding: 0; overflow: hidden; border: 1px solid rgba(251,191,36,.4);">
+            <!-- الهيدر -->
+            <div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,58,138,0.95)); padding: 15px; border-bottom: 1px solid rgba(251,191,36,.3); display: flex; justify-content: space-between; align-items: center;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <button class="b sm" style="background:#475569; padding:8px 12px;" onclick="dash()">⬅ عودة</button>
+                    <h2 style="color:var(--gold); font-size:16px; margin:0; font-weight:900; text-shadow:0 2px 4px rgba(0,0,0,.5);">🛒 سوق الانتقالات</h2>
                 </div>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="color:#4ade80; font-weight:900; font-size:13px;">${item.asking_price}M</span>
-                    ${isMine 
-                        ? `<button class="b r sm" style="padding:5px 10px; font-size:10px;" onclick="cancelMarketListing('${item.id}', '${p.id}')">استرجاع ↩</button>`
-                        : `<button class="b g sm" style="padding:5px 12px; font-size:10px;" onclick="buyMarketPlayer('${item.id}')">شراء 💰</button>`
-                    }
-                </div>
-            </div>`;
-        }).join('');
-
-        $('cmc').innerHTML = `
-            <div class="mc mc-warning" style="max-height:85vh; display:flex; flex-direction:column; width:95%; max-width:480px;">
-                <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
-                <div class="mc-head">
-                    <div class="mc-icon" style="font-size:32px;">🛒</div>
-                    <div class="mc-title">سوق الانتقالات المباشر 🔴</div>
-                    <div class="mc-sub">ميزانيتك الحالية: <b style="color:#4ade80">${me.budget.toFixed(1)}M</b></div>
-                </div>
-
-                <button class="b g full" style="margin:10px 0; padding:10px; font-weight:bold;" onclick="showSellPlayerListModal()">➕ اعرض لاعباً من فريقك للبيع</button>
-
-                <div style="overflow-y:auto; flex:1; padding-right:4px;">
-                    ${itemsHtml || '<div style="text-align:center; color:#94a3b8; padding:25px;">لا يوجد لاعبون معروضون حالياً.. كن أول من يعرض نجمه!</div>'}
+                <div style="text-align:left; background:rgba(0,0,0,.4); padding:5px 12px; border-radius:8px; border:1px solid rgba(74,222,128,.3);">
+                    <div style="font-size:9px; color:#94a3b8;">ميزانيتك</div>
+                    <div style="font-size:14px; color:#4ade80; font-weight:900;">${me.budget.toFixed(1)}M</div>
                 </div>
             </div>
-        `;
+
+            <!-- التبويبات (Tabs) -->
+            <div style="display:flex; background:rgba(0,0,0,.3);">
+                <div style="flex:1; text-align:center; padding:12px; font-size:12px; font-weight:bold; cursor:pointer; border-bottom:3px solid ${window._currentMarketTab === 'all' ? 'var(--gold)' : 'transparent'}; color:${window._currentMarketTab === 'all' ? 'var(--gold)' : '#94a3b8'};" onclick="switchMarketTab('all')">🌍 السوق (${otherListings.length})</div>
+                <div style="flex:1; text-align:center; padding:12px; font-size:12px; font-weight:bold; cursor:pointer; border-bottom:3px solid ${window._currentMarketTab === 'my' ? 'var(--gold)' : 'transparent'}; color:${window._currentMarketTab === 'my' ? 'var(--gold)' : '#94a3b8'};" onclick="switchMarketTab('my')">📋 عروضي (${myListings.length})</div>
+            </div>
+
+            <!-- محتوى السوق -->
+            <div style="padding: 15px; max-height: 65vh; overflow-y: auto;" id="market-content-area">
+                ${renderMarketItems(window._currentMarketTab === 'all' ? otherListings : myListings, user.id)}
+            </div>
+            
+            <!-- زر عرض لاعب للبيع (ثابت في الأسفل) -->
+            <div style="padding: 10px 15px; background: rgba(0,0,0,.4); border-top: 1px solid rgba(255,255,255,.1);">
+                <button class="b g full" style="padding:12px; font-weight:bold; font-size:14px;" onclick="showSellPlayerListPage()">➕ اعرض لاعباً من فريقك للبيع</button>
+            </div>
+        </div>`;
+        
+        $('main').innerHTML = html;
+
     } catch (e) {
-        $('cmc').innerHTML = `<div class="mc" style="padding:20px; text-align:center; color:#ef4444;">تعذر تحميل السوق: ${e.message}</div>`;
+        $('main').innerHTML = `<div class="c" style="text-align:center; color:#ef4444; padding:20px;">تعذر تحميل السوق: ${e.message}<br><br><button class="b a" onclick="dash()">عودة</button></div>`;
     }
 }
 
-// دالة جديدة: قائمة مخصصة لاختيار اللاعب للبيع
-function showSellPlayerListModal() {
+function switchMarketTab(tab) {
+    window._currentMarketTab = tab;
+    loadLiveMarket(); // إعادة تحميل السوق بالتبويب الجديد
+}
+
+function renderMarketItems(listings, myUserId) {
+    if (listings.length === 0) {
+        return `<div style="text-align:center; color:#94a3b8; padding:40px 20px;">
+            <div style="font-size:40px; opacity:0.5; margin-bottom:10px;">🕸️</div>
+            <div style="font-size:14px; font-weight:bold;">لا يوجد لاعبون هنا حالياً</div>
+            <div style="font-size:11px; margin-top:5px;">${window._currentMarketTab === 'all' ? 'كن أول من يعرض لاعباً في السوق!' : 'لم تقم بعرض أي لاعب للبيع بعد.'}</div>
+        </div>`;
+    }
+
+    return listings.map(item => {
+        const p = item.player_data;
+        const isMine = item.user_id === myUserId;
+        
+        let rColor = '#fff';
+        if(p.r >= 85) rColor = '#fbbf24'; // ذهبي
+        else if(p.r >= 75) rColor = '#4ade80'; // أخضر
+        else if(p.r >= 65) rColor = '#22d3ee'; // أزرق
+
+        return `
+        <div style="display:flex; align-items:center; justify-content:space-between; background:linear-gradient(135deg, rgba(30,41,59,.9), rgba(15,23,42,.9)); border:1px solid rgba(255,255,255,.1); border-right:4px solid ${isMine ? '#fbbf24' : '#3b82f6'}; border-radius:12px; padding:10px 12px; margin-bottom:10px; box-shadow:0 4px 10px rgba(0,0,0,.3);">
+            
+            <div style="display:flex; align-items:center; gap:12px; flex:1;">
+                <div style="width:45px; height:45px; border-radius:50%; background:rgba(0,0,0,.5); border:2px solid ${rColor}; display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 0 10px ${rColor}44;">
+                    <span style="font-size:16px; font-weight:900; color:${rColor}; line-height:1;">${p.r}</span>
+                    <span style="font-size:8px; color:#94a3b8; font-weight:bold; margin-top:2px;">${p.pos}</span>
+                </div>
+                
+                <div style="display:flex; flex-direction:column;">
+                    <div style="font-size:14px; font-weight:bold; color:#fff;">${p.name}</div>
+                    <div style="font-size:10px; color:#94a3b8; margin-top:2px;">البائع: <span style="color:#cbd5e1;">${item.team_name}</span> (${item.manager_name || 'مدرب'})</div>
+                </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; border-right:1px solid rgba(255,255,255,.1); padding-right:12px;">
+                <div style="font-size:15px; font-weight:900; color:#4ade80;">${item.asking_price}M</div>
+                ${isMine 
+                    ? `<button class="b r sm" style="padding:4px 10px; font-size:10px;" onclick="cancelMarketListing('${item.id}', '${p.id}')">استرجاع ↩</button>`
+                    : `<button class="b g sm" style="padding:4px 12px; font-size:11px; font-weight:bold;" onclick="buyMarketPlayer('${item.id}')">شراء 💰</button>`
+                }
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function showSellPlayerListPage() {
     const me = T[G.my];
-    if (me.ps.length <= 14) return showGameAlert('لا يمكنك بيع لاعب، تحتاج 14 لاعباً على الأقل.', '⚠️');
+    if (me.ps.length <= 14) return showGameAlert('لا يمكنك بيع لاعب، تحتاج 14 لاعباً على الأقل في فريقك.', '⚠️');
 
-    let listHtml = me.ps.map(p => `
-        <div style="cursor:pointer; margin-bottom:6px; padding:10px; border-radius:8px; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.1); display:flex; justify-content:space-between; align-items:center;" onclick="openSellPriceModal('${p.id}')">
-            <div style="text-align:right;">
-                <div style="font-size:13px; font-weight:bold; color:#fff;">${p.name}</div>
-                <div style="font-size:10px; color:#94a3b8;">${p.pos} • العمر: ${p.age}</div>
-            </div>
-            <div style="text-align:left;">
-                <div style="color:#fbbf24; font-weight:bold; font-size:14px;">⭐ ${p.r}</div>
-                <div style="font-size:10px; color:#4ade80;">${p.value}M</div>
-            </div>
-        </div>
-    `).join('');
+    const sortedPlayers = [...me.ps].sort((a,b) => b.r - a.r);
 
-    $('cmc').innerHTML = `
-        <div class="mc mc-warning" style="max-height:85vh; display:flex; flex-direction:column; width:95%; max-width:400px;">
-            <button class="mc-close" onclick="loadLiveMarket()">✕</button>
-            <div class="mc-head" style="margin-bottom:10px;">
-                <div class="mc-icon" style="font-size:30px;">👥</div>
-                <div class="mc-title">اختر لاعباً للبيع</div>
+    let listHtml = sortedPlayers.map(p => {
+        let rColor = p.r >= 85 ? '#fbbf24' : (p.r >= 75 ? '#4ade80' : '#fff');
+        return `
+        <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.05); border-radius:10px; padding:10px; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div style="width:35px; height:35px; border-radius:50%; background:rgba(255,255,255,.05); border:1px solid ${rColor}; display:flex; align-items:center; justify-content:center; font-weight:bold; color:${rColor}; font-size:14px;">
+                    ${p.r}
+                </div>
+                <div>
+                    <div style="font-size:13px; font-weight:bold; color:#fff;">${p.name}</div>
+                    <div style="font-size:10px; color:#94a3b8;">${p.pos} • ${p.age} سنة • القيمة: <span style="color:#fbbf24;">${p.value}M</span></div>
+                </div>
             </div>
-            <div style="overflow-y:auto; flex:1; padding-right:5px; max-height:55vh;">
+            <button class="b g sm" style="padding:6px 12px; font-size:11px; font-weight:bold;" onclick="openSellPriceModal('${p.id}')">عرض للبيع 🏷️</button>
+        </div>`;
+    }).join('');
+
+    $('main').innerHTML = `
+        <div class="c">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:10px;">
+                <button class="b sm" style="background:#475569;" onclick="loadLiveMarket()">⬅ عودة للسوق</button>
+                <h2 style="color:var(--gold); font-size:16px; margin:0;">اختر لاعباً للبيع</h2>
+            </div>
+            <div style="max-height: 65vh; overflow-y: auto; padding-right:4px;">
                 ${listHtml}
             </div>
-            <button class="b r full" style="margin-top:10px;" onclick="loadLiveMarket()">إلغاء</button>
         </div>
     `;
 }
@@ -1148,31 +1203,31 @@ function showSellPlayerListModal() {
 function openSellPriceModal(pid) {
     if (!G.multiplayerLeagueId) return;
     const me = T[G.my];
-    
     const p = me.ps.find(x => x.id === pid);
     if (!p) return;
 
     $('cmc').innerHTML = `
-        <div class="mc mc-warning" style="width:95%; max-width:380px; text-align:center;">
-            <button class="mc-close" onclick="showSellPlayerListModal()">✕</button>
-            <div class="mc-head" style="margin-bottom:12px;">
-                <div style="font-size:35px;">🏷️</div>
-                <div class="mc-title" style="font-size:16px;">تحديد سعر البيع</div>
-                <div class="mc-sub" style="font-size:12px; color:#fff; margin-top:4px;">اللاعب: <b>${p.name}</b> (⭐${p.r})</div>
-                <div style="font-size:11px; color:#94a3b8; margin-top:2px;">القيمة السوقية المقدرة: ${p.value}M</div>
+        <div class="mc mc-warning" style="width:90%; max-width:380px; text-align:center; padding:25px 20px;">
+            <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
+            <div class="mc-head" style="margin-bottom:15px;">
+                <div style="font-size:40px; margin-bottom:10px;">🏷️</div>
+                <div class="mc-title" style="font-size:18px; color:#fff;">تحديد سعر البيع</div>
+                <div class="mc-sub" style="font-size:12px; color:#4ade80; margin-top:5px; font-weight:bold;">${p.name} (${p.pos} • ⭐${p.r})</div>
+                <div style="font-size:11px; color:#94a3b8; margin-top:4px;">القيمة السوقية المقدرة: ${p.value}M</div>
             </div>
 
-            <div style="margin-bottom:15px;">
-                <input type="number" id="custom-sell-price" value="${p.value}" step="0.5" style="width:80%; background:#0f172a; border:1px solid #334155; color:#fff; padding:10px; border-radius:8px; text-align:center; font-size:16px; font-family:Cairo; font-weight:bold;">
-                <div style="font-size:10px; color:#94a3b8; margin-top:5px;">أدخل السعر المطلوب بالمليون (M)</div>
+            <div style="margin-bottom:20px; background:rgba(0,0,0,.4); padding:15px; border-radius:12px; border:1px solid rgba(251,191,36,.2);">
+                <label style="display:block; font-size:11px; color:#fbbf24; font-weight:bold; margin-bottom:8px;">السعر المطلوب (بالمليون M)</label>
+                <input type="number" id="custom-sell-price" value="${p.value}" step="0.5" style="width:100%; background:#0f172a; border:2px solid #334155; color:#4ade80; padding:12px; border-radius:10px; text-align:center; font-size:22px; font-family:Cairo; font-weight:900; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='#4ade80'" onblur="this.style.borderColor='#334155'">
             </div>
 
-            <div style="display:flex; gap:8px;">
-                <button class="b r" style="flex:1; padding:10px;" onclick="showSellPlayerListModal()">رجوع ⬅</button>
-                <button class="b g" style="flex:1; padding:10px;" onclick="confirmListPlayerForSale('${p.id}')">تأكيد العرض 📢</button>
+            <div style="display:flex; gap:10px;">
+                <button class="b r" style="flex:1; padding:12px; font-weight:bold;" onclick="$('cm').hidden=true">إلغاء</button>
+                <button class="b g" style="flex:1; padding:12px; font-weight:bold;" onclick="confirmListPlayerForSale('${p.id}')">تأكيد العرض 📢</button>
             </div>
         </div>
     `;
+    $('cm').hidden = false;
 }
 
 async function confirmListPlayerForSale(pid) {
@@ -1208,19 +1263,21 @@ async function confirmListPlayerForSale(pid) {
         
         await updateLobbySnapshot();
         broadcastEvent(`💼 عرض نادي ${me.name} اللاعب ${p.name} (⭐${p.r}) للبيع بـ ${price}M!`, true, '🛒');
-        loadLiveMarket();
+        
+        $('cm').hidden = true;
+        showOnlineToast('تم عرض اللاعب في السوق بنجاح', '✅');
+        loadLiveMarket(); // العودة للسوق لرؤية اللاعب
         
     } catch (e) {
         console.error(e);
         showGameAlert('حدث خطأ أثناء عرض اللاعب', '❌');
-        loadLiveMarket();
     }
 }
 
 async function buyMarketPlayer(listingId) {
     if (!G.multiplayerLeagueId) return;
     const me = T[G.my];
-    if (me.ps.length >= 25) return showGameAlert('فريقك ممتلئ!', '⚠️');
+    if (me.ps.length >= 25) return showGameAlert('فريقك ممتلئ! لا يمكنك شراء المزيد.', '⚠️');
     
     try {
         const { data: { user } } = await _db.auth.getUser();
@@ -1233,50 +1290,66 @@ async function buyMarketPlayer(listingId) {
         const price = listing.asking_price;
         if (me.budget < price) return showGameAlert(`ميزانيتك غير كافية! تحتاج ${price}M.`, '⚠️');
         
-        me.budget = Math.round((me.budget - price) * 10) / 10;
-        
-        const newPlayer = { ...listing.player_data, id: 'M_' + Date.now() };
-        me.ps.push(newPlayer);
-        autoAssignRoles();
-        
-        const { error: delErr } = await _db.from('market_listings').delete().eq('id', listingId);
-        if (delErr) throw delErr;
-        
-        save();
-        await updateLobbySnapshot();
-        broadcastEvent(`🔥 صفقة مدوية! اشترى ${me.name} النجم ${newPlayer.name} من ${listing.team_name} مقابل ${price}M!`, true, '💰');
-        loadLiveMarket();
+        showGameConfirm(`هل أنت متأكد من شراء <b>${listing.player_data.name}</b> مقابل <b>${price}M</b>؟`, async () => {
+            me.budget = Math.round((me.budget - price) * 10) / 10;
+            
+            const newPlayer = { ...listing.player_data, id: 'M_' + Date.now() };
+            me.ps.push(newPlayer);
+            autoAssignRoles();
+            
+            const { error: delErr } = await _db.from('market_listings').delete().eq('id', listingId);
+            if (delErr) throw delErr;
+            
+            save();
+            await updateLobbySnapshot();
+            broadcastEvent(`🔥 صفقة مدوية! اشترى ${me.name} النجم ${newPlayer.name} من ${listing.team_name} مقابل ${price}M!`, true, '💰');
+            showOnlineToast(`مبروك! انضم ${newPlayer.name} لفريقك`, '🎉');
+            loadLiveMarket();
+        }, '💰', 'تأكيد الشراء');
         
     } catch (e) {
         console.error(e);
-        showGameAlert('حدث خطأ أثناء الشراء', '❌');
+        showGameAlert('حدث خطأ أثناء الشراء: ' + e.message, '❌');
     }
 }
 
 async function cancelMarketListing(listingId, playerId) {
-    try {
-        const { data: { user } } = await _db.auth.getUser();
-        if (!user) return;
-        
-        const { data: listing } = await _db.from('market_listings').select('*').eq('id', listingId).single();
-        if (!listing) return;
-        
-        const me = T[G.my];
-        const newPlayer = { ...listing.player_data, id: playerId || ('R_' + Date.now()) };
-        me.ps.push(newPlayer);
-        autoAssignRoles();
-        
-        await _db.from('market_listings').delete().eq('id', listingId);
-        save();
-        await updateLobbySnapshot();
-        
-        showOnlineToast(`استعدت اللاعب ${newPlayer.name} لتشكيلتك`, '✅');
-        loadLiveMarket();
-        
-    } catch (e) {
-        console.error(e);
-        showGameAlert('حدث خطأ', '❌');
+    showGameConfirm('هل أنت متأكد من إلغاء عرض البيع؟ سيعود اللاعب لفريقك.', async () => {
+        try {
+            const { data: { user } } = await _db.auth.getUser();
+            if (!user) return;
+            
+            const { data: listing } = await _db.from('market_listings').select('*').eq('id', listingId).single();
+            if (!listing) return;
+            
+            const me = T[G.my];
+            const newPlayer = { ...listing.player_data, id: playerId || ('R_' + Date.now()) };
+            me.ps.push(newPlayer);
+            autoAssignRoles();
+            
+            await _db.from('market_listings').delete().eq('id', listingId);
+            save();
+            await updateLobbySnapshot();
+            
+            showOnlineToast(`استعدت اللاعب ${newPlayer.name} لتشكيلتك`, '✅');
+            loadLiveMarket();
+            
+        } catch (e) {
+            console.error(e);
+            showGameAlert('حدث خطأ', '❌');
+        }
+    }, '↩', 'إلغاء العرض');
+}
+
+async function listPlayerForSale(pid) {
+    if (!G.multiplayerLeagueId) {
+        return showGameAlert('هذا الخيار متاح فقط في اللعب الجماعي (الأونلاين).', '⚠️');
     }
+    
+    const me = T[G.my];
+    if (me.ps.length <= 14) return showGameAlert('لا يمكنك بيع لاعب، تحتاج 14 لاعباً على الأقل.', '⚠️');
+    
+    openSellPriceModal(pid);
 }
 
 async function updateLobbySnapshot() {

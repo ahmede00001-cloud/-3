@@ -1,11 +1,10 @@
 // ============================================
-// ui.js - واجهة المستخدم الكاملة (مع الدوري المباشر)
+// ui.js - واجهة المستخدم الكاملة (لوحة الإدارة)
 // ============================================
 
 function switchTab(t) {
-  if (!G) return; // ✅ حماية: إذا لم تكن اللعبة جاهزة، لا تفعل شيئاً
+  if (!G) return; 
   
-  // ✅ إيقاف تحديث البث المباشر إذا غادر المستخدم صفحة البطولات أو التشكيلة
   if (typeof mpCompInterval !== 'undefined' && mpCompInterval && t !== 'comp' && t !== 'lu') {
       clearInterval(mpCompInterval);
       mpCompInterval = null;
@@ -18,7 +17,6 @@ function switchTab(t) {
 function dash(){
   if(!G || !G.season){showSetup(); return;}
   
-  // ✅ حماية إضافية: التأكد من وجود بيانات الفريق
   let t = T[G.my];
   if (!t) {
       if (typeof mk === 'function') mk(G.league || 'egypt');
@@ -29,7 +27,6 @@ function dash(){
   
   $('bottom-nav').hidden = false;
   
-  // ✅ تحديث الملف الشخصي (VIP)
   const lvl = G.managerLevel || 1;
   const vipTier = Math.min(10, Math.floor(lvl / 2)); 
   const vipEmoji = vipTier > 5 ? '👑' : (vipTier > 2 ? '💎' : '⭐');
@@ -38,7 +35,6 @@ function dash(){
   if($('hdr-vip')) $('hdr-vip').innerHTML = `${vipEmoji} VIP ${vipTier}`;
   if($('hdr-trophies')) $('hdr-trophies').innerHTML = `🏆 ${G.trophies || 0}`;
   
-  // ✅ تحديث شريط الوقت والميزانية
   if($('hdr-day')) $('hdr-day').textContent = G.season ? G.season.currentDay : 1;
   if($('hdr-budget')) $('hdr-budget').textContent = `${(t.budget || 0).toFixed(1)}M`;
 
@@ -61,7 +57,7 @@ function dash(){
 }
 
 // ============================================
-// محرك الوقت المبني على الأحداث
+// محرك الوقت
 // ============================================
 function startFastForward(targetDay) {
     let ffModal = document.getElementById('ff-modal');
@@ -269,7 +265,6 @@ function luH(t){
 
   let missionCard = '';
   
-  // ✅ التعديل هنا: إذا كان هناك دوري مباشر، يتم استبدال المهمة الفردية بصندوق الأونلاين
   if (G.multiplayerLeagueId) {
       missionCard = `<div id="mp-mission-container" style="margin-bottom:15px;">
           <div class="c" style="text-align:center; border:2px solid #ef4444; background:rgba(239,68,68,.1); box-shadow:0 0 15px rgba(239,68,68,.2); padding:15px;">
@@ -283,7 +278,6 @@ function luH(t){
       </div>`;
       setTimeout(() => { if(typeof loadMultiplayerCompData === 'function') loadMultiplayerCompData(); }, 100);
   } else if (nm) {
-      // المهمة الفردية (تظهر فقط إذا لم يكن هناك دوري أونلاين)
       const isTournament = nm.comp !== 'league';
       const cn = {league:'الدوري', cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
       const compName = cn[nm.comp] || nm.comp;
@@ -441,7 +435,6 @@ function compH(){
   const projSup = st[0]?.id === G.my || cupW === G.my;
   const projColor = projCL ? '#4ade80' : projCC ? '#60a5fa' : '#f87171';
 
-  // ✅ قسم الدوري المباشر (Multiplayer)
   let multiplayerSection = '';
   if (G.multiplayerLeagueId) {
       multiplayerSection = `<div id="mp-league-container" style="margin-bottom:15px;">
@@ -454,7 +447,6 @@ function compH(){
               </div>
           </div>
       </div>`;
-      // استدعاء دالة تحميل البيانات بعد رسم الواجهة
       setTimeout(() => { if(typeof loadMultiplayerCompData === 'function') loadMultiplayerCompData(); }, 100);
   }
 
@@ -727,6 +719,9 @@ function crH(t){
   return h;
 }
 
+// ============================================
+// 🏢 لوحة إدارة النادي (محدثة)
+// ============================================
 function mgrH(){
   const lvl = G.managerLevel || 1;
   const xp = G.managerXp || 0;
@@ -741,10 +736,10 @@ function mgrH(){
   t.ps.forEach(p => totalSal += (p.contract?.salary || 0));
 
   let h = `<div class="profile-header">
-    <div class="profile-avatar">👨‍💼</div>
+    <div class="profile-avatar">🏢</div>
     <div style="flex:1">
-      <h2 style="color:var(--gold);margin:0 0 4px;font-size:18px;">${G.managerName}</h2>
-      <div style="font-size:12px;color:#fff">${t.name} • المركز #${myPos}</div>
+      <h2 style="color:var(--gold);margin:0 0 4px;font-size:18px;">إدارة النادي</h2>
+      <div style="font-size:12px;color:#fff">${G.managerName} • ${t.name}</div>
       <div style="font-size:11px;color:#4ade80">🏆 ${G.trophies||0} بطولة</div>
     </div>
   </div>
@@ -757,6 +752,29 @@ function mgrH(){
     <div style="font-size:10px;color:var(--m);text-align:right">XP: ${xp} ${nxt?'/ '+nxt.xp:'— أقصى'}</div>
     <div class="xp-bar"><div style="width:${pct}%"></div></div>
   </div>`;
+
+  // ✅ قسم أهداف مجلس الإدارة
+  if (G.boardObjectives) {
+      const obj = G.boardObjectives;
+      h += `<div class="c" style="border:1px solid #fbbf24; background:rgba(251,191,36,.05);">
+          <div class="sec" style="color:#fbbf24;">🎯 أهداف مجلس الإدارة</div>
+          <div style="font-size:12px; color:#fff; margin-bottom:5px;">الهدف: <b>${obj.target}</b></div>
+          <div style="font-size:11px; color:#94a3b8;">المكافأة: <b style="color:#4ade80;">${obj.reward}M</b></div>
+          <div style="font-size:10px; color:${obj.status === 'success' ? '#4ade80' : (obj.status === 'failed' ? '#ef4444' : '#cbd5e1')}; margin-top:5px;">
+              الحالة: ${obj.status === 'success' ? '✅ تم تحقيق الهدف' : (obj.status === 'failed' ? '❌ فشل الهدف' : '⏳ جاري التقييم')}
+          </div>
+      </div>`;
+  }
+
+  // ✅ قسم خزانة البطولات
+  if (G.trophyCabinet && G.trophyCabinet.length > 0) {
+      h += `<div class="c">
+          <div class="sec">🏆 خزانة البطولات</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              ${G.trophyCabinet.map(trophy => `<div style="font-size:12px; background:rgba(0,0,0,.4); padding:6px 10px; border-radius:8px; border:1px solid rgba(251,191,36,.3);">🏆 ${trophy}</div>`).join('')}
+          </div>
+      </div>`;
+  }
 
   const fac = G.facilities || {stadium: 1, training: 1, youth: 1};
   
@@ -800,7 +818,7 @@ function mgrH(){
     </div>
   </div>`;
 
-  // ✅ إضافة زر الدخول إلى الدوريات الجماعية
+  // ✅ زر الدخول إلى الدوريات الجماعية
   h += `<div class="c" style="margin-top:10px; border:1px solid #8b5cf6; box-shadow:0 0 15px rgba(139,92,246,.3);">
     <div style="font-size:12px; color:#8b5cf6; font-weight:900; margin-bottom:8px; text-align:center;">🌍 اللعب الجماعي</div>
     <button class="b full" style="padding:14px; font-size:13px; background:linear-gradient(135deg, #8b5cf6, #6d28d9); color:#fff; border:none;" onclick="if(typeof showLeaguesPage==='function') showLeaguesPage()">🏆 الدخول إلى الدوريات</button>
@@ -1226,7 +1244,6 @@ function showSetup(){
     
     ${sv ? '<button class="b a" style="margin-bottom:12px;padding:14px;font-size:14px" onclick="cont()">▶ متابعة المسيرة</button>' : ''}
     
-    <!-- ✅ زر تسجيل الدخول الجديد -->
     <button class="b" style="margin-bottom:15px; padding:12px; font-size:13px; background:#3b82f6; color:#fff;" onclick="if(typeof showAuthScreen === 'function') showAuthScreen()">☁️ تسجيل الدخول / حفظ سحابي</button>
 
     <input type="text" id="inp-user" placeholder="اسمك" value="مستخدم" style="margin-bottom:10px">
@@ -1273,10 +1290,8 @@ function showLeagueTeams(leagueId){
 
 function choose(id, leagueId = 'egypt'){
   try {
-    // 1. تهيئة البيانات
     if (typeof mk === 'function') mk(leagueId);
     
-    // 2. حماية: التأكد من وجود بيانات الفريق
     if (!T[id]) {
       const league = LEAGUES[leagueId];
       const teamInfo = league ? league.teams.find(x => x[0] === id) : null;
@@ -1292,7 +1307,6 @@ function choose(id, leagueId = 'egypt'){
       }
     }
 
-    // 3. إنشاء حالة اللعبة
     G = { 
       my: id, league: leagueId, form:'4-3-3', tac:'balanced', tab:'lu', 
       username: tempUserData.username, managerName: tempUserData.managerName, 
@@ -1305,19 +1319,15 @@ function choose(id, leagueId = 'egypt'){
       facilities: { stadium: 1, training: 1, youth: 1 }
     };
 
-    // 4. توليد الموسم والبيانات
     G.season = generateSeason(id, null); 
     if (typeof setBoardObjectives === 'function') G.boardObjectives = setBoardObjectives(T[id]);
     if (typeof generateYouthPlayer === 'function') G.youthPlayers = [generateYouthPlayer(T[id]), generateYouthPlayer(T[id])];
     
-    // 5. التشكيلة التلقائية
     G.lu = autoFillLineup(T[id], G.form); 
     autoAssignRoles();
     
-    // 6. أخبار البداية
     addNews(`🏆 يبدأ الموسم ${SEASON_YEAR}/${SEASON_YEAR+1}!`, `👨‍💼 ${G.managerName} يقود ${T[id].name}`);
     
-    // 7. الحفظ والانتقال للوحة التحكم
     save(); 
     dash(); 
     setTimeout(() => { if(typeof showSponsorOffers === 'function') showSponsorOffers(); }, 500);

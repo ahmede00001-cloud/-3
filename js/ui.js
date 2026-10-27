@@ -720,7 +720,7 @@ function crH(t){
 }
 
 // ============================================
-// 🏢 لوحة إدارة النادي (محدثة)
+// 🏢 لوحة إدارة النادي (مفصولة عن الملف الشخصي + زر استقالة)
 // ============================================
 function mgrH(){
   const lvl = G.managerLevel || 1;
@@ -735,25 +735,29 @@ function mgrH(){
   let totalSal = 0;
   t.ps.forEach(p => totalSal += (p.contract?.salary || 0));
 
-  let h = `<div class="profile-header">
-    <div class="profile-avatar">🏢</div>
+  // ✅ 1. قسم الملف الشخصي (منفصل)
+  let h = `<div class="profile-header" style="border-bottom:2px solid rgba(251,191,36,.3); padding-bottom:15px; margin-bottom:15px;">
+    <div class="profile-avatar" style="background:var(--gold);">👨‍💼</div>
     <div style="flex:1">
-      <h2 style="color:var(--gold);margin:0 0 4px;font-size:18px;">إدارة النادي</h2>
-      <div style="font-size:12px;color:#fff">${G.managerName} • ${t.name}</div>
+      <div style="font-size:10px; color:#94a3b8; font-weight:bold; margin-bottom:2px;">الملف الشخصي للمدرب</div>
+      <h2 style="color:#fff;margin:0 0 4px;font-size:18px;">${G.managerName}</h2>
+      <div style="font-size:12px;color:#cbd5e1">مستوى المدرب: <b style="color:var(--gold)">${lvl}</b> - ${cur.name}</div>
       <div style="font-size:11px;color:#4ade80">🏆 ${G.trophies||0} بطولة</div>
     </div>
   </div>
 
-  <div class="mgr-card">
+  <div class="mgr-card" style="background:linear-gradient(135deg,rgba(30,58,138,.5),rgba(15,34,56,.9));">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div class="mgr-level-badge">👑 L${lvl} - ${cur.name}</div>
+      <div class="mgr-level-badge">👑 نقاط الخبرة (XP)</div>
       <div style="font-size:11px;color:#4ade80">${cur.perk}</div>
     </div>
-    <div style="font-size:10px;color:var(--m);text-align:right">XP: ${xp} ${nxt?'/ '+nxt.xp:'— أقصى'}</div>
+    <div style="font-size:10px;color:var(--m);text-align:right">${xp} ${nxt?'/ '+nxt.xp:'— أقصى'}</div>
     <div class="xp-bar"><div style="width:${pct}%"></div></div>
   </div>`;
 
-  // ✅ قسم أهداف مجلس الإدارة
+  // ✅ 2. قسم إدارة النادي
+  h += `<div class="sec" style="margin-top:20px; font-size:14px; color:var(--gold);">🏢 إدارة النادي</div>`;
+
   if (G.boardObjectives) {
       const obj = G.boardObjectives;
       h += `<div class="c" style="border:1px solid #fbbf24; background:rgba(251,191,36,.05);">
@@ -766,18 +770,7 @@ function mgrH(){
       </div>`;
   }
 
-  // ✅ قسم خزانة البطولات
-  if (G.trophyCabinet && G.trophyCabinet.length > 0) {
-      h += `<div class="c">
-          <div class="sec">🏆 خزانة البطولات</div>
-          <div style="display:flex; flex-wrap:wrap; gap:8px;">
-              ${G.trophyCabinet.map(trophy => `<div style="font-size:12px; background:rgba(0,0,0,.4); padding:6px 10px; border-radius:8px; border:1px solid rgba(251,191,36,.3);">🏆 ${trophy}</div>`).join('')}
-          </div>
-      </div>`;
-  }
-
   const fac = G.facilities || {stadium: 1, training: 1, youth: 1};
-  
   h += `<div class="c">
     <div class="sec">🏗️ تطوير المنشآت</div>
     
@@ -806,6 +799,15 @@ function mgrH(){
     </div>
   </div>`;
 
+  if (G.trophyCabinet && G.trophyCabinet.length > 0) {
+      h += `<div class="c">
+          <div class="sec">🏆 خزانة البطولات</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              ${G.trophyCabinet.map(trophy => `<div style="font-size:12px; background:rgba(0,0,0,.4); padding:6px 10px; border-radius:8px; border:1px solid rgba(251,191,36,.3);">🏆 ${trophy}</div>`).join('')}
+          </div>
+      </div>`;
+  }
+
   h += `<div class="c"><div class="sec">💰 الاقتصاد</div>
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#fff;margin-bottom:6px"><span>الميزانية:</span><b style="color:${t.budget>=0?'#4ade80':'#f87171'}">${t.budget.toFixed(1)}M</b></div>
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#fff;margin-bottom:6px"><span>رواتب/مباراة:</span><b style="color:#f87171">-${totalSal.toFixed(2)}M</b></div>
@@ -818,10 +820,14 @@ function mgrH(){
     </div>
   </div>`;
 
-  // ✅ زر الدخول إلى الدوريات الجماعية
+  // ✅ 3. أزرار اللعب الجماعي والاستقالة
   h += `<div class="c" style="margin-top:10px; border:1px solid #8b5cf6; box-shadow:0 0 15px rgba(139,92,246,.3);">
     <div style="font-size:12px; color:#8b5cf6; font-weight:900; margin-bottom:8px; text-align:center;">🌍 اللعب الجماعي</div>
-    <button class="b full" style="padding:14px; font-size:13px; background:linear-gradient(135deg, #8b5cf6, #6d28d9); color:#fff; border:none;" onclick="if(typeof showLeaguesPage==='function') showLeaguesPage()">🏆 الدخول إلى الدوريات</button>
+    <button class="b full" style="padding:14px; font-size:13px; background:linear-gradient(135deg, #8b5cf6, #6d28d9); color:#fff; border:none; margin-bottom:10px;" onclick="if(typeof showLeaguesPage==='function') showLeaguesPage()">🏆 الدخول إلى الدوريات</button>
+    
+    ${G.multiplayerLeagueId ? `
+    <button class="b full" style="padding:12px; font-size:12px; background:#ef4444; color:#fff; border:none;" onclick="resignFromLobby()">🚪 تقديم استقالة (مغادرة الغرفة)</button>
+    ` : ''}
   </div>`;
   
   return h;

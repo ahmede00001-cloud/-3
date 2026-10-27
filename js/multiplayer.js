@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف المباشرة (نسخة محمية ضد الأخطاء)
+// multiplayer.js - نظام الغرف المباشرة (حل نهائي للخطأ)
 // ============================================
 
 let currentLobby = null;
@@ -11,6 +11,13 @@ let mpCompInterval = null;
 let mySlot = null;
 let isSeasonStarting = false;
 let globalWatcherInterval = null; 
+
+// دالة لضمان وجود المتغير G
+function ensureG() {
+    if (typeof G === 'undefined' || !G) {
+        G = {}; // تعديل المتغير الأساسي وليس window.G
+    }
+}
 
 function stopLobbyTimers() {
     if (liveInterval) clearInterval(liveInterval);
@@ -25,11 +32,11 @@ function stopLobbyTimers() {
 
 function ensureLocalGameReady(slot) {
     try {
+        ensureG(); // استدعاء الحماية
+        
         if (typeof T === 'undefined' || Object.keys(T).length === 0) {
             if (typeof mk === 'function') mk('egypt');
         }
-        // ✅ حماية المتغير G
-        if (typeof G === 'undefined' || !G) window.G = {};
         
         if (slot && slot.team_id && T[slot.team_id]) {
             G.my = slot.team_id;
@@ -53,10 +60,9 @@ async function showLeaguesPage() {
     stopLobbyTimers(); 
     isSeasonStarting = false;
     
-    // ✅ الحماية الأهم: إنشاء G إذا كان فارغاً
-    if (typeof G === 'undefined' || !G) window.G = {};
+    ensureG(); // ✅ الحماية الأهم هنا لمنع الخطأ
     
-    if (typeof G !== 'undefined' && G && G.multiplayerLeagueId) {
+    if (G.multiplayerLeagueId) {
         try {
             const { data: { user } } = await _db.auth.getUser();
             if (user) {
@@ -87,8 +93,7 @@ async function showLeaguesPage() {
             const { data: lobbyData } = await _db.from('lobbies').select('*').eq('id', mySlots[0].lobby_id).single();
             currentLobby = lobbyData;
             
-            // ✅ التأكد من أن G ليس null قبل الحفظ
-            if (typeof G === 'undefined' || !G) window.G = {};
+            ensureG(); // ✅ تأكيد وجود G قبل الحفظ
             G.multiplayerLeagueId = currentLobby.id; save();
             
             await loadLobbyData();
@@ -294,8 +299,7 @@ async function claimLiveTeam(slotId, btnEl) {
 
         ensureLocalGameReady(chosenSlot);
 
-        // ✅ حماية إضافية قبل الحفظ
-        if (typeof G === 'undefined' || !G) window.G = {};
+        ensureG(); // ✅ تأكيد وجود G قبل التعديل
 
         const snap = { 
             name: T[G.my].name, R: T[G.my].R, c1: T[G.my].c1, c2: T[G.my].c2,

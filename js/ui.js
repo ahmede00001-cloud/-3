@@ -1,6 +1,9 @@
 // ============================================
-// ui.js - واجهة المستخدم الكاملة (مع الملف الشخصي المنفصل)
+// ui.js - واجهة المستخدم الكاملة (تحديث الترتيب والسوق المباشر)
 // ============================================
+
+let liveTbInterval = null;
+let liveMarketInterval = null;
 
 function switchTab(t) {
   if (!G) return; 
@@ -9,6 +12,8 @@ function switchTab(t) {
       clearInterval(mpCompInterval);
       mpCompInterval = null;
   }
+  if (liveTbInterval) { clearInterval(liveTbInterval); liveTbInterval = null; }
+  if (liveMarketInterval) { clearInterval(liveMarketInterval); liveMarketInterval = null; }
   
   G.tab = t; 
   dash();
@@ -57,7 +62,7 @@ function dash(){
 }
 
 // ============================================
-// 👤 صفحة الملف الشخصي (مفصولة)
+// 👤 صفحة الملف الشخصي
 // ============================================
 function showUserProfile() {
   if (!G || !G.season) return;
@@ -70,7 +75,7 @@ function showUserProfile() {
   const have = nxt ? xp-cur.xp : 1;
   const pct = nxt ? Math.min(100, Math.round((have/need)*100)) : 100;
 
-  $('bottom-nav').hidden = true; // إخفاء الشريط السفلي في الملف الشخصي
+  $('bottom-nav').hidden = true;
 
   let h = `<div class="c" style="margin-top: 15px; border: 2px solid var(--gold); padding: 20px 15px; position: relative;">
     <button class="b sm" style="position: absolute; top: 10px; right: 10px; padding: 4px 10px; font-size: 10px;" onclick="dash()">⬅ عودة</button>
@@ -104,7 +109,6 @@ function showUserProfile() {
     </div>
   </div>`;
 
-  // خزانة البطولات
   if (G.trophyCabinet && G.trophyCabinet.length > 0) {
       h += `<div class="c">
           <div class="sec">🏆 خزانة البطولات</div>
@@ -114,7 +118,6 @@ function showUserProfile() {
       </div>`;
   }
 
-  // أهداف مجلس الإدارة (تخص المدرب وتاريخه)
   if (G.boardObjectives) {
       const obj = G.boardObjectives;
       h += `<div class="c" style="border:1px solid #fbbf24; background:rgba(251,191,36,.05);">
@@ -482,7 +485,16 @@ function luH(t){
     ${benchBlock}`;
 }
 
+// ============================================
+// 🏆 الترتيب المباشر (Live Standings)
+// ============================================
 function tbH(){
+  if (G.multiplayerLeagueId) {
+      setTimeout(loadLiveStandings, 100);
+      return `<div id="live-tb-container" style="text-align:center; padding:50px; color:var(--gold);">⏳ جاري تحميل جدول الترتيب المباشر...</div>`;
+  }
+  
+  // الجدول القديم (الفردي)
   return `<div class="c" style="padding:6px">
     <table>
       <tr><th>#</th><th style="text-align:right">الفريق</th><th>ل</th><th>ف</th><th>ت</th><th>خ</th><th>+/-</th><th>ن</th></tr>
@@ -496,143 +508,63 @@ function tbH(){
   </div>`;
 }
 
-function compH(){
-  const t = T[G.my], s = G.season, st = tbl();
-  const myPos = st.findIndex(x => x.id === G.my)+1;
-  const leagueRound = Object.values(s.leagueFixtures).filter(d => d.played.length >= d.round.length).length;
-  const totalRounds = Object.keys(s.leagueFixtures).length;
-  const tName = id => { if(!id) return null; return T[id]?.name || AFRICAN.find(a=>a[0]===id)?.[1] || WORLD.find(w=>w[0]===id)?.[1] || (DIV2.includes(id)?id:null) || id; };
-  const cupW = s.cupBracket?.winner, clW = s.cafCL?.winner, ccW = s.cafCC?.winner;
-  const supW = s.egyptSuper?.winner, cafSupW = s.cafSuper?.winner, cwcW = s.clubWC?.winner;
-  const projCL = myPos <= 2 || clW === G.my || ccW === G.my;
-  const projCC = !projCL && ((myPos >= 3 && myPos <= 4) || cupW === G.my);
-  const projSup = st[0]?.id === G.my || cupW === G.my;
-  const projColor = projCL ? '#4ade80' : projCC ? '#60a5fa' : '#f87171';
-
-  let multiplayerSection = '';
-  if (G.multiplayerLeagueId) {
-      multiplayerSection = `<div id="mp-league-container" style="margin-bottom:15px;">
-          <div class="c" style="text-align:center; border:2px solid #ef4444; background:rgba(239,68,68,.1); box-shadow:0 0 15px rgba(239,68,68,.2);">
-              <div style="color:#ef4444; font-weight:900; margin-bottom:10px; font-size:14px; display:flex; justify-content:center; align-items:center; gap:5px;">
-                  <span style="animation: badgeGlow 1s infinite alternate;">🔴</span> الدوري المباشر (أونلاين)
-              </div>
-              <div id="mp-league-content" style="text-align:right; font-size:12px; color:#94a3b8;">
-                  ⏳ جاري تحميل بيانات الدوري...
-              </div>
-          </div>
-      </div>`;
-      setTimeout(() => { if(typeof loadMultiplayerCompData === 'function') loadMultiplayerCompData(); }, 100);
-  }
-
-  const nextTourn = getNextUserMatch('tournament');
-  let tournActionHTML = '';
-  if (nextTourn && nextTourn.day === G.season.currentDay) {
-      const oppName = T[nextTourn.opp]?.name || AFRICAN.find(a=>a[0]===nextTourn.opp)?.[1] || WORLD.find(w=>w[0]===nextTourn.opp)?.[1] || nextTourn.opp;
-      const cn = {cup:'كأس مصر', cafCL:'أبطال أفريقيا', cafCC:'الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم'};
-      
-      tournActionHTML = `
-      <div class="c" style="border:2px solid #fbbf24; background:linear-gradient(135deg,rgba(251,191,36,.2),rgba(15,34,56,.9)); margin-bottom:15px; box-shadow:0 0 20px rgba(251,191,36,.3)">
-        <div style="font-size:14px;color:#fbbf24;font-weight:900;margin-bottom:12px;display:flex;align-items:center;gap:8px; justify-content:center;">🏆 مباراتك القادمة في البطولات</div>
-        <div style="text-align:center; margin-bottom:15px; background:rgba(0,0,0,.4); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,.1);">
-          <div style="font-size:20px;font-weight:900;color:#fff; margin-bottom:5px;">${T[G.my].name} <span style="color:#fbbf24; font-size:16px;">${nextTourn.home?'vs':'@'}</span> ${oppName}</div>
-          <div style="font-size:12px;color:#cbd5e1; font-weight:bold;">${cn[nextTourn.comp] || nextTourn.comp} • ${nextTourn.round}</div>
-          <div style="font-size:11px;color:#4ade80; margin-top:8px; background:rgba(74,222,128,.1); display:inline-block; padding:4px 10px; border-radius:8px;">📅 ${dayToDate(nextTourn.day)}</div>
-        </div>
+async function loadLiveStandings() {
+    if (liveTbInterval) { clearInterval(liveTbInterval); liveTbInterval = null; }
+    
+    const fetchAndRender = async () => {
+        const container = document.getElementById('live-tb-container');
+        if (!container) {
+            if (liveTbInterval) { clearInterval(liveTbInterval); liveTbInterval = null; }
+            return;
+        }
         
-        <div style="display:flex;gap:8px">
-           <button class="b g" style="flex:1;padding:14px;font-size:14px" onclick="playTournamentMatch()">▶️ العب المباراة</button>
-           <button class="b" style="flex:1;padding:14px;font-size:14px;background:#8b5cf6;color:#fff;border:none" onclick="startSimulationWithTimer('tournament')">⏩ محاكاة المباراة</button>
-        </div>
-      </div>`;
-  } else if (nextTourn) {
-      tournActionHTML = `
-      <div class="c" style="border:1px solid #475569; background:rgba(15,34,56,.8); margin-bottom:15px;">
-        <div style="font-size:12px;color:#94a3b8;font-weight:900;margin-bottom:8px;text-align:center;">⏳ مباراتك القادمة في البطولات</div>
-        <div style="text-align:center;font-size:11px; color:#cbd5e1;">
-          ${T[G.my].name} ضد ${T[nextTourn.opp]?.name || nextTourn.opp}<br>
-          <b style="color:#fbbf24;">يوم ${nextTourn.day}</b> (لم يحن الموعد بعد)
-        </div>
-      </div>`;
-  }
+        try {
+            const { data: slots } = await _db.from('lobby_slots').select('*').eq('lobby_id', G.multiplayerLeagueId);
+            if (!slots) return;
+            
+            const sorted = slots.sort((a, b) => (b.points||0) - (a.points||0) || ((b.goals_for||0) - (b.goals_against||0)) - ((a.goals_for||0) - (a.goals_against||0)));
+            
+            let html = `<div class="c" style="padding:6px">
+                <div class="sec" style="color:var(--gold); text-align:center; margin-bottom:10px;">🏆 جدول ترتيب الدوري المباشر</div>
+                <table>
+                    <tr><th>#</th><th style="text-align:right">الفريق / المدرب</th><th>ل</th><th>ف</th><th>ت</th><th>خ</th><th>+/-</th><th>ن</th></tr>`;
+            
+            sorted.forEach((s, i) => {
+                const isMe = s.user_id === G._userId;
+                const gd = (s.goals_for||0) - (s.goals_against||0);
+                html += `<tr style="${isMe ? 'background:rgba(251,191,36,.15); border:1px solid var(--gold);' : ''}">
+                    <td>${i+1}</td>
+                    <td style="text-align:right;">
+                        <b style="color:#fff; font-size:12px;">${s.team_name} ${isMe?'⭐':''}</b>
+                        <div style="font-size:9px; color:#94a3b8;">👤 ${s.manager_name}</div>
+                    </td>
+                    <td>${s.played||0}</td>
+                    <td>${s.won||0}</td>
+                    <td>${s.drawn||0}</td>
+                    <td>${s.lost||0}</td>
+                    <td>${gd > 0 ? '+' : ''}${gd}</td>
+                    <td style="color:var(--gold); font-weight:900; font-size:14px;">${s.points||0}</td>
+                </tr>`;
+            });
+            html += `</table></div>`;
+            container.innerHTML = html;
+        } catch(e) { console.error("Standings error:", e); }
+    };
 
-  let h = multiplayerSection + tournActionHTML + `<div class="c"><div class="sec">🌳 خريطة البطولات والتأهل</div>`;
-  
-  h += `<div onclick="showTournamentDetails('league')" style="cursor:pointer;background:linear-gradient(135deg,rgba(30,58,138,.6),rgba(15,34,56,.9));border:1px solid rgba(251,191,36,.4);border-radius:10px;padding:8px;margin-bottom:6px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-      <b style="color:#fbbf24;font-size:11px">🏆 الدوري المصري</b>
-      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">ج ${leagueRound}/${totalRounds} • مركزك ${myPos} • 👆 التفاصيل</span>
-    </div>
-    <div style="font-size:9px;color:#e5e7eb;line-height:1.6;padding-right:8px;border-right:2px solid rgba(251,191,36,.3)">
-      <div>🥇 1-2 ← <b style="color:#4ade80">🌍 أبطال أفريقيا</b></div>
-      <div>🥉 3-4 ← <b style="color:#60a5fa">🌍 الكونفدرالية</b></div>
-      <div>👑 الفائز ← <b style="color:#fbbf24">⚡ السوبر المصري</b></div>
-    </div>
-  </div>`;
-  
-  h += `<div onclick="showTournamentDetails('cup')" style="cursor:pointer;background:linear-gradient(135deg,rgba(30,58,138,.6),rgba(15,34,56,.9));border:1px solid rgba(251,191,36,.4);border-radius:10px;padding:8px;margin-bottom:6px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-      <b style="color:#fbbf24;font-size:11px">🥇 كأس مصر</b>
-      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">${cupW ? '🏆 '+tName(cupW) : '⏳ جارية'} • 👆 التفاصيل</span>
-    </div>
-    <div style="font-size:9px;color:#e5e7eb;line-height:1.6;padding-right:8px;border-right:2px solid rgba(251,191,36,.3)">
-      <div>🏆 الفائز ← <b style="color:#60a5fa">🌍 الكونفدرالية</b></div>
-      <div>👑 الفائز ← <b style="color:#fbbf24">⚡ السوبر المصري</b></div>
-    </div>
-  </div>`;
-  
-  h += `<div style="text-align:center;font-size:10px;color:var(--m);margin:2px 0">↓</div>`;
-  
-  h += `<div onclick="showTournamentDetails('super')" style="cursor:pointer;background:linear-gradient(135deg,rgba(34,211,238,.15),rgba(15,34,56,.9));border:1px solid rgba(34,211,238,.4);border-radius:10px;padding:8px;margin-bottom:6px">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <b style="color:#22d3ee;font-size:11px">⚡ السوبر المصري</b>
-      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">${supW ? '🏆 '+tName(supW) : '⏳'} • 👆 التفاصيل</span>
-    </div>
-    <div style="font-size:9px;color:#e5e7eb;margin-top:4px">بطل الدوري × بطل الكأس</div>
-  </div>`;
-  
-  h += `<div style="text-align:center;font-size:10px;color:var(--m);margin:2px 0">↓</div>`;
-  
-  h += `<div onclick="showTournamentDetails('cafCL')" style="cursor:pointer;background:linear-gradient(135deg,rgba(168,85,247,.2),rgba(15,34,56,.9));border:1px solid rgba(168,85,247,.4);border-radius:10px;padding:8px;margin-bottom:6px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-      <b style="color:#a855f7;font-size:11px">🌍 أبطال أفريقيا</b>
-      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">${clW ? '🏆 '+tName(clW) : s.cafCL ? '⏳ جارية' : '❌ لم تتأهل'} • 👆 التفاصيل</span>
-    </div>
-    <div style="font-size:9px;color:#e5e7eb;line-height:1.6;padding-right:8px;border-right:2px solid rgba(168,85,247,.3)">
-      <div>🏆 الفائز ← <b style="color:#fbbf24">⚡ السوبر الأفريقي</b></div>
-      <div>🌐 الفائز ← <b style="color:#22d3ee">كأس العالم للأندية</b></div>
-    </div>
-  </div>`;
-  
-  h += `<div onclick="showTournamentDetails('cafCC')" style="cursor:pointer;background:linear-gradient(135deg,rgba(96,165,250,.2),rgba(15,34,56,.9));border:1px solid rgba(96,165,250,.4);border-radius:10px;padding:8px;margin-bottom:6px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-      <b style="color:#60a5fa;font-size:11px">🌍 كأس الكونفدرالية</b>
-      <span style="font-size:9px;color:#fff;background:rgba(0,0,0,.4);padding:2px 6px;border-radius:6px">${ccW ? '🏆 '+tName(ccW) : s.cafCC ? '⏳ جارية' : '❌ لم تتأهل'} • 👆 التفاصيل</span>
-    </div>
-    <div style="font-size:9px;color:#e5e7eb;line-height:1.6;padding-right:8px;border-right:2px solid rgba(96,165,250,.3)">
-      <div>🏆 الفائز ← <b style="color:#fbbf24">⚡ السوبر الأفريقي</b></div>
-    </div>
-  </div>`;
-  
-  h += `</div>`;
-
-  h += `<div class="c" style="border:2px solid ${projColor}">
-    <div class="sec">🎯 لو انتهى الموسم الآن</div>
-    <div style="font-size:11px;line-height:1.9">
-      <div>🏆 الدوري: <b style="color:${projColor}">المركز ${myPos}</b></div>
-      <div>🌍 التأهل القاري: <b style="color:${projColor}">${projCL ? '🌍 دوري أبطال أفريقيا' : projCC ? '🌍 كأس الكونفدرالية' : '❌ لن تتأهل'}</b></div>
-      ${projSup ? '<div style="color:#fbbf24">⚡ متأهل للسوبر المصري</div>' : ''}
-    </div>
-  </div>`;
-
-  if(G.youthPlayers && G.youthPlayers.length){
-    h += `<div class="c"><div class="sec">🌱 أكاديمية الشباب</div>`;
-    h += G.youthPlayers.map(yp => `<div class="youth-card"><div style="display:flex;justify-content:space-between;align-items:center"><div><b style="font-size:12px;color:#fff">${yp.name}</b><div style="font-size:10px;color:var(--m)">${yp.pos} • ⭐${yp.r} • ${yp.age}س</div></div><button class="b g sm" onclick="promoteYouth()">ترقية</button></div></div>`).join('');
-    h += `</div>`;
-  }
-  return h;
+    await fetchAndRender();
+    liveTbInterval = setInterval(fetchAndRender, 5000);
 }
 
+// ============================================
+// 💰 السوق المباشر (Live Market)
+// ============================================
 function trH(t){
+  if (G.multiplayerLeagueId) {
+      setTimeout(loadLiveMarket, 100);
+      return `<div id="live-market-container" style="text-align:center; padding:50px; color:var(--gold);">⏳ جاري تحميل السوق المباشر...</div>`;
+  }
+
+  // السوق القديم (الفردي)
   const me = T[G.my];
   const isWindowOpen = checkTransferWindow();
   const surplus = [];
@@ -705,6 +637,79 @@ function trH(t){
     </div>`;
 }
 
+async function loadLiveMarket() {
+    if (liveMarketInterval) { clearInterval(liveMarketInterval); liveMarketInterval = null; }
+    
+    const fetchAndRender = async () => {
+        const container = document.getElementById('live-market-container');
+        if (!container) {
+            if (liveMarketInterval) { clearInterval(liveMarketInterval); liveMarketInterval = null; }
+            return;
+        }
+
+        try {
+            const { data: { user } } = await _db.auth.getUser();
+            const { data: listings } = await _db.from('market_listings').select('*').order('listed_at', { ascending: false });
+            
+            let html = `<div class="c" style="border:2px solid #22d3ee; padding:10px; margin-bottom:15px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <div style="font-size:14px; font-weight:900; color:#22d3ee;">🌐 السوق المباشر (أونلاين)</div>
+                    <div style="font-size:12px; font-weight:bold; color:var(--gold);">ميزانيتك: ${T[G.my].budget.toFixed(1)}M</div>
+                </div>`;
+                
+            if (!listings || listings.length === 0) {
+                html += `<div style="text-align:center; padding:20px; color:#94a3b8;">لا يوجد لاعبون معروضون للبيع حالياً من قبل المستخدمين.</div>`;
+            } else {
+                html += `<div style="max-height:300px; overflow:auto;">`;
+                listings.forEach(list => {
+                    const p = list.player_data;
+                    html += `<div class="pl" style="background:rgba(0,0,0,.3); border-radius:8px; padding:8px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between;">
+                        <div style="display:flex; flex-direction:column;">
+                            <span style="font-size:12px; font-weight:bold; color:#fff;">${p.name} <span style="font-size:9px; color:#94a3b8;">(${p.pos})</span></span>
+                            <span style="font-size:9px; color:#22d3ee;">بواسطة: ${list.manager_name} • ${list.team_name}</span>
+                        </div>
+                        <div style="text-align:center;">
+                            <span style="color:var(--gold); font-size:14px; font-weight:900;">⭐${p.r}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="color:#4ade80; font-size:12px; font-weight:bold;">${list.asking_price}M</span>
+                            ${list.user_id !== user.id ? `
+                                <button class="b g sm" style="padding:4px 8px; font-size:10px;" onclick="buyMarketPlayer('${list.id}')">شراء</button>
+                            ` : `
+                                <button class="b r sm" style="padding:4px 8px; font-size:10px;" onclick="cancelMarketListing('${list.id}', '${p.id}')">إلغاء</button>
+                            `}
+                        </div>
+                    </div>`;
+                });
+                html += `</div>`;
+            }
+            html += `</div>`;
+
+            // قسم لاعبوك للبيع
+            const mine = [...T[G.my].ps].sort((a,b) => b.r - a.r);
+            html += `<div class="sec">📤 لاعبوك (اضغط لعرضهم للبيع)</div>
+                <div style="max-height:250px;overflow:auto;background:rgba(15,34,56,.5);border-radius:10px;padding:6px;border:1px solid rgba(251,191,36,.2)">
+                ${mine.map(p => `
+                    <div class="pl" style="cursor:pointer;" onclick="showCard('${p.id}')">
+                        <span style="flex:1;font-size:11px">${p.injury ? '🚑 ' : ''}${p.name}</span>
+                        <span style="color:#c4b5fd;font-size:9px">L${p.lvl}</span>
+                        <span style="color:var(--gold);font-size:10px">⭐${p.r}</span>
+                        <span style="color:#4ade80;font-size:10px">${p.value}M</span>
+                    </div>`).join('')}
+                </div>`;
+
+            container.innerHTML = html;
+
+        } catch (e) { console.error("Market error:", e); }
+    };
+
+    await fetchAndRender();
+    liveMarketInterval = setInterval(fetchAndRender, 5000);
+}
+
+// ============================================
+// باقي الدوال (مثل crH, mgrH, newsH...)
+// ============================================
 function crH(t){
   let h = `<div class="c" style="text-align:center;padding:10px">
     <div style="font-size:10px;color:var(--m)">الفريق</div>
@@ -793,22 +798,17 @@ function crH(t){
   return h;
 }
 
-// ============================================
-// 🏢 لوحة إدارة النادي (مفصولة عن الملف الشخصي)
-// ============================================
 function mgrH(){
   const t = T[G.my];
   const myPos = tbl().findIndex(x => x.id === G.my)+1;
   let totalSal = 0;
   t.ps.forEach(p => totalSal += (p.contract?.salary || 0));
 
-  // ✅ 1. عنوان الإدارة
   let h = `<div class="c" style="text-align:center; margin-top:10px;">
     <h2 style="color:var(--gold); margin:0; font-size:18px;">🏢 إدارة النادي</h2>
     <div style="font-size:12px; color:#94a3b8; margin-top:5px;">${t.name} • المركز #${myPos}</div>
   </div>`;
 
-  // ✅ 2. قسم إدارة النادي (المنشآت)
   const fac = G.facilities || {stadium: 1, training: 1, youth: 1};
   h += `<div class="c">
     <div class="sec">🏗️ تطوير المنشآت</div>
@@ -838,7 +838,6 @@ function mgrH(){
     </div>
   </div>`;
 
-  // الاقتصاد
   h += `<div class="c"><div class="sec">💰 الاقتصاد</div>
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#fff;margin-bottom:6px"><span>الميزانية:</span><b style="color:${t.budget>=0?'#4ade80':'#f87171'}">${t.budget.toFixed(1)}M</b></div>
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#fff;margin-bottom:6px"><span>رواتب/مباراة:</span><b style="color:#f87171">-${totalSal.toFixed(2)}M</b></div>
@@ -851,7 +850,6 @@ function mgrH(){
     </div>
   </div>`;
 
-  // ✅ 3. أزرار اللعب الجماعي والاستقالة
   h += `<div class="c" style="margin-top:10px; border:1px solid #8b5cf6; box-shadow:0 0 15px rgba(139,92,246,.3);">
     <div style="font-size:12px; color:#8b5cf6; font-weight:900; margin-bottom:8px; text-align:center;">🌍 اللعب الجماعي</div>
     <button class="b full" style="padding:14px; font-size:13px; background:linear-gradient(135deg, #8b5cf6, #6d28d9); color:#fff; border:none; margin-bottom:10px;" onclick="if(typeof showLeaguesPage==='function') showLeaguesPage()">🏆 الدخول إلى الدوريات</button>
@@ -1231,7 +1229,8 @@ function showCard(pid, teamId){
     
     <div style="display:flex; gap:10px; margin-top:15px;">
       ${isO ? `<button class="b a full" style="flex:2; padding:12px;" onclick="makeOffer('${p.id}','${teamId}')">💰 عرض شراء</button>` : ''}
-      <button class="b ${isO?'':'full'}" style="background:#334155; color:#fff; flex:1; padding:12px;" onclick="$('cm').hidden=true">إغلاق</button>
+      ${!isO && G.multiplayerLeagueId ? `<button class="b" style="background:#8b5cf6; color:#fff; flex:2; padding:12px;" onclick="listPlayerForSale('${p.id}')">📤 عرض للبيع</button>` : ''}
+      <button class="b ${isO || G.multiplayerLeagueId ? '':'full'}" style="background:#334155; color:#fff; flex:1; padding:12px;" onclick="$('cm').hidden=true">إغلاق</button>
     </div>
   </div>`;
   $('cm').hidden = false;

@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف (إصلاح ذاتي + ذهاب وإياب + سوق مباشر)
+// multiplayer.js - نظام الغرف (بدء تلقائي + ذهاب وإياب + سوق مباشر)
 // ============================================
 
 let currentLobby = null;
@@ -147,7 +147,7 @@ async function fetchUpdates() {
 
         if (currentLobby.status === 'waiting') {
             const timeUp = new Date(currentLobby.expires_at).getTime() <= new Date().getTime();
-            const isFull = currentSlots.filter(s => s.user_id).length >= 10;
+            const isFull = currentSlots.filter(s => s.user_id && s.user_id !== BOT_UUID).length >= 10;
             if ((timeUp || isFull) && !isSeasonStarting) { isSeasonStarting = true; await tryStartSeason(); return; }
         }
 
@@ -208,8 +208,18 @@ async function forceGenerateMatches(lobbyId) {
 }
 
 async function tryStartSeason() {
-    if (currentLobby.status !== 'waiting') return;
+    if (!currentLobby || currentLobby.status !== 'waiting') return;
     try {
+        const { data: freshSlots } = await _db.from('lobby_slots').select('*').eq('lobby_id', currentLobby.id);
+        const activeSlots = freshSlots.filter(s => s.user_id && s.user_id !== BOT_UUID);
+        
+        // ✅ السماح بالبدء حتى لو كان هناك لاعب حقيقي واحد فقط (سيُكمل بالبوتات)
+        if (activeSlots.length < 1) {
+            await _db.from('lobbies').update({ status: 'waiting', expires_at: new Date(Date.now() + 60 * 60000).toISOString() }).eq('id', currentLobby.id);
+            isSeasonStarting = false; 
+            return;
+        }
+
         const { data: updated } = await _db.from('lobbies').update({ status: 'active' }).eq('id', currentLobby.id).eq('status', 'waiting').select();
         if (!updated || updated.length === 0) { isSeasonStarting = false; return; }
 
@@ -325,7 +335,7 @@ function renderWaitingRoom() {
             <div style="font-size:13px; color:#cbd5e1; margin-bottom:8px;">المنضمون: <b style="color:#4ade80">${joinedCount}</b> / 10</div>
             <div id="live-countdown" style="font-size:20px; font-weight:900; color:#fbbf24; background:rgba(0,0,0,.3); padding:6px 14px; border-radius:8px; display:inline-block;">--:--</div>
             
-            ${hasTeam && joinedCount >= 2 ? `<button class="b g full" style="margin-top:10px; padding:10px; font-weight:bold;" onclick="tryStartSeason()">🚀 بدء الموسم الآن (${joinedCount} مدربين)</button>` : ''}
+            ${hasTeam && joinedCount >= 1 ? `<button class="b g full" style="margin-top:10px; padding:10px; font-weight:bold;" onclick="tryStartSeason()">🚀 بدء الموسم الآن (${joinedCount} مدربين)</button>` : ''}
         </div>
         <div class="g2">`;
 
@@ -394,15 +404,29 @@ function startGlobalLobbyWatcher() {
 
     globalWatcherInterval = setInterval(async () => {
         try {
-            await processDueBotMatches(G.multiplayerLeagueId);
+            if (!G || !G.multiplayerLeagueId) return;
             const { data: lobby } = await _db.from('lobbies').select('*').eq('id', G.multiplayerLeagueId).single();
             if (!lobby) return;
-            if (lobby.status === 'active') {
-                clearInterval(globalWatcherInterval);
+
+            if (lobby.status === 'waiting') {
+                const timeUp = new Date(lobby.expires_at).getTime() <= new Date().getTime();
+                const { data: slots } = await _db.from('lobby_slots').select('*').eq('lobby_id', lobby.id);
+                const realCount = slots.filter(s => s.user_id && s.user_id !== BOT_UUID).length;
+                
+                if ((timeUp || realCount >= 10) && !isSeasonStarting) {
+                    isSeasonStarting = true;
+                    currentLobby = lobby; 
+                    await tryStartSeason();
+                }
+            } else if (lobby.status === 'active') {
+                await processDueBotMatches(G.multiplayerLeagueId);
                 if (G.tab === 'comp' || typeof G.tab === 'undefined') switchTab('comp');
+                else if (G.tab === 'lu' || G.tab === 'tb' || G.tab === 'tr') {
+                    // يتم التحديث تلقائياً بواسطة دوال العرض
+                }
             }
         } catch(e) { console.error(e); }
-    }, 10000); 
+    }, 3000); 
 }
 
 async function forceNewLobby() {
@@ -436,6 +460,7 @@ async function loadMultiplayerCompData() {
 
             const { data: lobby } = await _db.from('lobbies').select('*').eq('id', G.multiplayerLeagueId).single();
             if (!lobby) return;
+            currentLobby = lobby; // تحديث المتغير العام
 
             const { data: slots } = await _db.from('lobby_slots').select('*').eq('lobby_id', lobby.id).order('team_name');
             let { data: matches } = await _db.from('lobby_matches').select('*').eq('lobby_id', lobby.id).order('round');
@@ -458,6 +483,16 @@ async function loadMultiplayerCompData() {
 
             if (lobby.status === 'waiting') {
                 const joinedCount = slots.filter(s => s.user_id && s.user_id !== BOT_UUID).length;
+                const timeUp = new Date(lobby.expires_at).getTime() <= new Date().getTime();
+                const isFull = joinedCount >= 10;
+                
+                // ✅ التحقق التلقائي لبدء الموسم
+                if ((timeUp || isFull) && !isSeasonStarting) {
+                    isSeasonStarting = true;
+                    await tryStartSeason();
+                    return;
+                }
+
                 const diff = Math.max(0, new Date(lobby.expires_at).getTime() - new Date().getTime());
                 const m = Math.floor(diff / 60000), s = Math.floor((diff % 60000) / 1000);
                 html = `
@@ -708,7 +743,6 @@ async function listPlayerForSale(pid) {
         $('cm').hidden = true;
         $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">⏳ جاري عرض اللاعب في السوق...</div>`;
         
-        // 1. إضافة اللاعب للسوق
         const snap = { ...p }; 
         const { error: marketErr } = await _db.from('market_listings').insert({
             user_id: user.id,
@@ -719,18 +753,16 @@ async function listPlayerForSale(pid) {
         });
         if (marketErr) throw marketErr;
         
-        // 2. إزالة اللاعب من الفريق
         me.ps = me.ps.filter(x => x.id !== pid);
         G.lu = G.lu.map(id => id === pid ? null : id);
         if (G.lu.includes(null)) G.lu = autoFillLineup(me, G.form);
         autoAssignRoles();
         save();
         
-        // 3. تحديث اللقطة في الأونلاين
         if (typeof updateLobbySnapshot === 'function') await updateLobbySnapshot();
         
         alert(`✅ تم عرض ${p.name} في السوق بسعر ${price}M.`);
-        dash(); // العودة للصفحة
+        dash(); 
         
     } catch (e) {
         console.error(e);
@@ -748,7 +780,6 @@ async function buyMarketPlayer(listingId) {
         const { data: { user } } = await _db.auth.getUser();
         if (!user) return alert('يجب تسجيل الدخول.');
         
-        // 1. جلب بيانات العرض
         const { data: listing } = await _db.from('market_listings').select('*').eq('id', listingId).single();
         if (!listing) return alert('هذا العرض لم يعد متاحاً (ربما تم شراؤه أو إلغاؤه).');
         if (listing.user_id === user.id) return alert('لا يمكنك شراء لاعبك!');
@@ -756,15 +787,12 @@ async function buyMarketPlayer(listingId) {
         const price = listing.asking_price;
         if (me.budget < price) return alert(`ميزانيتك غير كافية! تحتاج ${price}M.`);
         
-        // 2. إتمام الشراء
         me.budget = Math.round((me.budget - price) * 10) / 10;
         
-        // ننشئ معرف جديد للاعب لتفادي تداخل المعرفات
         const newPlayer = { ...listing.player_data, id: 'M_' + Date.now() };
         me.ps.push(newPlayer);
         autoAssignRoles();
         
-        // 3. مسح العرض من السوق
         const { error: delErr } = await _db.from('market_listings').delete().eq('id', listingId);
         if (delErr) throw delErr;
         

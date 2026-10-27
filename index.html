@@ -7,6 +7,27 @@
 <title>المدرب الأفضل - v26</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
+<style>
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+#live-ticker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: linear-gradient(90deg, rgba(10,14,39,0.98), rgba(30,58,138,0.6));
+  border-bottom: 1px solid rgba(251,191,36,.2);
+  font-size: 11px;
+  color: #fff;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  z-index: 8;
+  transition: all .3s ease;
+}
+</style>
 </head>
 <body>
 <div class="splash">
@@ -20,7 +41,6 @@
   <header style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;">
     <div class="app-logo">⚽ المدرب الأفضل <span style="font-size:9px;opacity:.6">v26</span></div>
     
-    <!-- ✅ تعديل: فتح الملف الشخصي عند الضغط على الهيدر -->
     <div class="user-profile-header" onclick="if(typeof showUserProfile==='function') showUserProfile()" style="display:flex; align-items:center; gap:8px; cursor:pointer; background:linear-gradient(135deg, rgba(30,58,138,.8), rgba(15,34,56,.9)); padding:4px 12px; border-radius:20px; border:1px solid var(--gold); box-shadow: 0 4px 10px rgba(0,0,0,.3); transition: transform 0.2s;">
       <div style="width:32px; height:32px; border-radius:50%; background:var(--gold); display:flex; align-items:center; justify-content:center; font-size:18px; border: 2px solid #fff; box-shadow: 0 0 10px rgba(251,191,36,.6);">👨‍💼</div>
       <div style="display:flex; flex-direction:column; align-items:flex-start;">
@@ -33,7 +53,11 @@
     </div>
   </header>
 
-  <!-- شريط اليوم والميزانية -->
+  <!-- ✅ شريط البث المباشر -->
+  <div id="live-ticker">
+    <span style="color:#ef4444;">🔴</span> <span style="color:#94a3b8;">البث المباشر جاهز...</span>
+  </div>
+
   <div id="game-info-bar" style="display: flex; justify-content: space-between; padding: 6px 16px; background: rgba(10,14,39,.95); border-bottom: 1px solid rgba(251,191,36,.2); font-size: 11px; color: #fff; z-index: 9;">
     <div>📅 اليوم: <b id="hdr-day" style="color:var(--gold)">1</b></div>
     <div>💰 الميزانية: <b id="hdr-budget" style="color:#4ade80">0.0M</b></div>
@@ -47,13 +71,12 @@
     <div class="nav-item" onclick="switchTab('comp')"><span>🏆</span>البطولات</div>
     <div class="nav-item" onclick="switchTab('tr')"><span>🛒</span>السوق</div>
     <div class="nav-item" onclick="switchTab('cr')"><span>🎴</span>الفريق</div>
-    <!-- ✅ تعديل: زر الإدارة -->
     <div class="nav-item" onclick="switchTab('mgr')"><span>🏢</span>الإدارة</div>
     <div class="nav-item" onclick="switchTab('news')"><span>📰</span>الأخبار</div>
   </nav>
 </div>
 
-<!-- النوافذ المنبثقة (Modals) -->
+<!-- باقي النوافذ المنبثقة (Modals) كما هي -->
 <div id="ms" class="ov" hidden>
   <div style="display:flex;justify-content:space-between;padding:8px 12px;background:rgba(10,22,40,.95);border-bottom:1px solid rgba(251,191,36,.3);align-items:center">
     <b id="mr" style="font-size:11px;color:var(--gold)"></b>
@@ -98,6 +121,7 @@
   <div id="lg" style="flex:1;overflow:auto;padding:6px 10px"></div>
 </div>
 
+<!-- باقي الـ Modals (sm, pm, rs, cm, om, pen-m, game-over) -->
 <div id="sm" class="md" hidden onclick="if(event.target===this)this.hidden=true">
   <div class="mc mc-info">
     <button class="mc-close" onclick="$('sm').hidden=true">✕</button>
@@ -183,7 +207,8 @@
 <script src="js/match.js"></script>
 <script src="js/main.js"></script>
 
-<!-- ⚠️ إضافة نظام الدوريات الجماعية ⚠️ -->
+<!-- ⚠️ إضافة نظام البث المباشر والدوريات ⚠️ -->
+<script src="js/realtime.js"></script>
 <script src="js/multiplayer.js"></script>
 
 <!-- إضافات Supabase (يجب أن تكون في النهاية) -->

@@ -65,9 +65,10 @@
 
   <main id="main"></main>
   
+  <!-- ✅ تم تعديل زر الترتيب هنا ليستدعي الدالة الذكية -->
   <nav class="bottom-nav" id="bottom-nav" hidden>
     <div class="nav-item" onclick="switchTab('lu')"><span>📋</span>التشكيلة</div>
-    <div class="nav-item" onclick="switchTab('tb')"><span>📊</span>الترتيب</div>
+    <div class="nav-item" onclick="handleTabClick('tb', this)"><span>📊</span>الترتيب</div>
     <div class="nav-item" onclick="switchTab('comp')"><span>🏆</span>البطولات</div>
     <div class="nav-item" onclick="switchTab('tr')"><span>🛒</span>السوق</div>
     <div class="nav-item" onclick="switchTab('cr')"><span>🎴</span>الفريق</div>
@@ -214,6 +215,24 @@
 <!-- إضافات Supabase (يجب أن تكون في النهاية) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/auth.js"></script>
+
+<!-- ✅ سكربت توجيه التبويبات (تمت إضافته لربط جدول ترتيب الأونلاين) -->
+<script>
+async function handleTabClick(tab, el) {
+    // التحقق مما إذا كنا في تبويب الترتيب ونلعب أونلاين
+    if (tab === 'tb' && typeof G !== 'undefined' && G.multiplayerLeagueId && typeof showOnlineStandings === 'function') {
+        const success = await showOnlineStandings();
+        if (success) {
+            // تحديث شكل التبويبات النشطة
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            if (el) el.classList.add('active');
+            return;
+        }
+    }
+    // إذا لم نكن أونلاين، نفتح التبويب العادي
+    switchTab(tab);
+}
+</script>
 
 </body>
 </html>

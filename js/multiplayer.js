@@ -1091,8 +1091,6 @@ async function loadLiveMarket() {
             </div>`;
         }).join('');
 
-        let myPlayersOptions = me.ps.map(p => `<option value="${p.id}">${p.name} (${p.pos} • ⭐${p.r}) - القيمة: ${p.value}M</option>`).join('');
-
         $('cmc').innerHTML = `
             <div class="mc mc-warning" style="max-height:85vh; display:flex; flex-direction:column; width:95%; max-width:480px;">
                 <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
@@ -1102,15 +1100,7 @@ async function loadLiveMarket() {
                     <div class="mc-sub">ميزانيتك الحالية: <b style="color:#4ade80">${me.budget.toFixed(1)}M</b></div>
                 </div>
 
-                <div style="background:rgba(255,255,255,.05); padding:10px; border-radius:10px; margin:10px 0;">
-                    <div style="font-size:11px; color:#fbbf24; font-weight:bold; margin-bottom:6px;">➕ اعرض لاعباً من فريقك للبيع:</div>
-                    <div style="display:flex; gap:6px;">
-                        <select id="market-sell-select" style="flex:1; background:#0f172a; color:#fff; border:1px solid #334155; border-radius:8px; padding:6px; font-family:Cairo; font-size:11px;">
-                            ${myPlayersOptions}
-                        </select>
-                        <button class="b g sm" style="padding:6px 12px; font-size:11px;" onclick="openSellPriceModal(document.getElementById('market-sell-select').value)">عرض للبيع 📢</button>
-                    </div>
-                </div>
+                <button class="b g full" style="margin:10px 0; padding:10px; font-weight:bold;" onclick="showSellPlayerListModal()">➕ اعرض لاعباً من فريقك للبيع</button>
 
                 <div style="overflow-y:auto; flex:1; padding-right:4px;">
                     ${itemsHtml || '<div style="text-align:center; color:#94a3b8; padding:25px;">لا يوجد لاعبون معروضون حالياً.. كن أول من يعرض نجمه!</div>'}
@@ -1122,17 +1112,49 @@ async function loadLiveMarket() {
     }
 }
 
+// دالة جديدة: قائمة مخصصة لاختيار اللاعب للبيع
+function showSellPlayerListModal() {
+    const me = T[G.my];
+    if (me.ps.length <= 14) return showGameAlert('لا يمكنك بيع لاعب، تحتاج 14 لاعباً على الأقل.', '⚠️');
+
+    let listHtml = me.ps.map(p => `
+        <div style="cursor:pointer; margin-bottom:6px; padding:10px; border-radius:8px; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.1); display:flex; justify-content:space-between; align-items:center;" onclick="openSellPriceModal('${p.id}')">
+            <div style="text-align:right;">
+                <div style="font-size:13px; font-weight:bold; color:#fff;">${p.name}</div>
+                <div style="font-size:10px; color:#94a3b8;">${p.pos} • العمر: ${p.age}</div>
+            </div>
+            <div style="text-align:left;">
+                <div style="color:#fbbf24; font-weight:bold; font-size:14px;">⭐ ${p.r}</div>
+                <div style="font-size:10px; color:#4ade80;">${p.value}M</div>
+            </div>
+        </div>
+    `).join('');
+
+    $('cmc').innerHTML = `
+        <div class="mc mc-warning" style="max-height:85vh; display:flex; flex-direction:column; width:95%; max-width:400px;">
+            <button class="mc-close" onclick="loadLiveMarket()">✕</button>
+            <div class="mc-head" style="margin-bottom:10px;">
+                <div class="mc-icon" style="font-size:30px;">👥</div>
+                <div class="mc-title">اختر لاعباً للبيع</div>
+            </div>
+            <div style="overflow-y:auto; flex:1; padding-right:5px; max-height:55vh;">
+                ${listHtml}
+            </div>
+            <button class="b r full" style="margin-top:10px;" onclick="loadLiveMarket()">إلغاء</button>
+        </div>
+    `;
+}
+
 function openSellPriceModal(pid) {
     if (!G.multiplayerLeagueId) return;
     const me = T[G.my];
-    if (me.ps.length <= 14) return showGameAlert('لا يمكنك بيع لاعب، تحتاج 14 لاعباً على الأقل.', '⚠️');
     
     const p = me.ps.find(x => x.id === pid);
     if (!p) return;
 
     $('cmc').innerHTML = `
         <div class="mc mc-warning" style="width:95%; max-width:380px; text-align:center;">
-            <button class="mc-close" onclick="loadLiveMarket()">✕</button>
+            <button class="mc-close" onclick="showSellPlayerListModal()">✕</button>
             <div class="mc-head" style="margin-bottom:12px;">
                 <div style="font-size:35px;">🏷️</div>
                 <div class="mc-title" style="font-size:16px;">تحديد سعر البيع</div>
@@ -1146,7 +1168,7 @@ function openSellPriceModal(pid) {
             </div>
 
             <div style="display:flex; gap:8px;">
-                <button class="b r" style="flex:1; padding:10px;" onclick="loadLiveMarket()">إلغاء</button>
+                <button class="b r" style="flex:1; padding:10px;" onclick="showSellPlayerListModal()">رجوع ⬅</button>
                 <button class="b g" style="flex:1; padding:10px;" onclick="confirmListPlayerForSale('${p.id}')">تأكيد العرض 📢</button>
             </div>
         </div>

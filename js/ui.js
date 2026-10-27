@@ -1,5 +1,5 @@
 // ============================================
-// ui.js - واجهة المستخدم الكاملة (لوحة الإدارة)
+// ui.js - واجهة المستخدم الكاملة (مع الملف الشخصي المنفصل)
 // ============================================
 
 function switchTab(t) {
@@ -54,6 +54,80 @@ function dash(){
 
   $('main').innerHTML = content;
   setTimeout(checkCupNotification, 100);
+}
+
+// ============================================
+// 👤 صفحة الملف الشخصي (مفصولة)
+// ============================================
+function showUserProfile() {
+  if (!G || !G.season) return;
+  const t = T[G.my];
+  const lvl = G.managerLevel || 1;
+  const xp = G.managerXp || 0;
+  const cur = MGR_LEVELS[lvl-1];
+  const nxt = MGR_LEVELS[lvl] || null;
+  const need = nxt ? nxt.xp-cur.xp : 1;
+  const have = nxt ? xp-cur.xp : 1;
+  const pct = nxt ? Math.min(100, Math.round((have/need)*100)) : 100;
+
+  $('bottom-nav').hidden = true; // إخفاء الشريط السفلي في الملف الشخصي
+
+  let h = `<div class="c" style="margin-top: 15px; border: 2px solid var(--gold); padding: 20px 15px; position: relative;">
+    <button class="b sm" style="position: absolute; top: 10px; right: 10px; padding: 4px 10px; font-size: 10px;" onclick="dash()">⬅ عودة</button>
+    
+    <div style="text-align: center; margin-bottom: 20px; margin-top: 10px;">
+      <div style="width: 80px; height: 80px; border-radius: 50%; background: var(--gold); margin: 0 auto 10px; display: flex; align-items: center; justify-content: center; font-size: 40px; border: 3px solid #fff; box-shadow: 0 0 20px rgba(251,191,36,.6);">👨‍💼</div>
+      <h2 style="color: var(--gold); margin: 0; font-size: 22px;">${G.managerName}</h2>
+      <div style="font-size: 14px; color: #cbd5e1; margin-top: 5px;">مدرب ${t.name}</div>
+    </div>
+
+    <div class="mgr-card" style="background:linear-gradient(135deg,rgba(30,58,138,.5),rgba(15,34,56,.9)); margin-bottom: 15px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="mgr-level-badge">👑 L${lvl} - ${cur.name}</div>
+        <div style="font-size:11px;color:#4ade80">${cur.perk}</div>
+      </div>
+      <div style="font-size:10px;color:var(--m);text-align:right">XP: ${xp} ${nxt?'/ '+nxt.xp:'— أقصى'}</div>
+      <div class="xp-bar"><div style="width:${pct}%"></div></div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+      <div class="c" style="text-align: center; padding: 15px; margin: 0;">
+        <div style="font-size: 24px; margin-bottom: 5px;">🏆</div>
+        <div style="font-size: 18px; font-weight: 900; color: var(--gold);">${G.trophies || 0}</div>
+        <div style="font-size: 11px; color: #94a3b8;">بطولات</div>
+      </div>
+      <div class="c" style="text-align: center; padding: 15px; margin: 0;">
+        <div style="font-size: 24px; margin-bottom: 5px;">⭐</div>
+        <div style="font-size: 18px; font-weight: 900; color: #22d3ee;">${G.managerLevel || 1}</div>
+        <div style="font-size: 11px; color: #94a3b8;">المستوى</div>
+      </div>
+    </div>
+  </div>`;
+
+  // خزانة البطولات
+  if (G.trophyCabinet && G.trophyCabinet.length > 0) {
+      h += `<div class="c">
+          <div class="sec">🏆 خزانة البطولات</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              ${G.trophyCabinet.map(trophy => `<div style="font-size:12px; background:rgba(0,0,0,.4); padding:6px 10px; border-radius:8px; border:1px solid rgba(251,191,36,.3);">🏆 ${trophy}</div>`).join('')}
+          </div>
+      </div>`;
+  }
+
+  // أهداف مجلس الإدارة (تخص المدرب وتاريخه)
+  if (G.boardObjectives) {
+      const obj = G.boardObjectives;
+      h += `<div class="c" style="border:1px solid #fbbf24; background:rgba(251,191,36,.05);">
+          <div class="sec" style="color:#fbbf24;">🎯 أهداف مجلس الإدارة</div>
+          <div style="font-size:12px; color:#fff; margin-bottom:5px;">الهدف: <b>${obj.target}</b></div>
+          <div style="font-size:11px; color:#94a3b8;">المكافأة: <b style="color:#4ade80;">${obj.reward}M</b></div>
+          <div style="font-size:10px; color:${obj.status === 'success' ? '#4ade80' : (obj.status === 'failed' ? '#ef4444' : '#cbd5e1')}; margin-top:5px;">
+              الحالة: ${obj.status === 'success' ? '✅ تم تحقيق الهدف' : (obj.status === 'failed' ? '❌ فشل الهدف' : '⏳ جاري التقييم')}
+          </div>
+      </div>`;
+  }
+
+  $('main').innerHTML = h;
 }
 
 // ============================================
@@ -720,56 +794,21 @@ function crH(t){
 }
 
 // ============================================
-// 🏢 لوحة إدارة النادي (مفصولة عن الملف الشخصي + زر استقالة)
+// 🏢 لوحة إدارة النادي (مفصولة عن الملف الشخصي)
 // ============================================
 function mgrH(){
-  const lvl = G.managerLevel || 1;
-  const xp = G.managerXp || 0;
-  const cur = MGR_LEVELS[lvl-1];
-  const nxt = MGR_LEVELS[lvl] || null;
-  const need = nxt ? nxt.xp-cur.xp : 1;
-  const have = nxt ? xp-cur.xp : 1;
-  const pct = nxt ? Math.min(100, Math.round((have/need)*100)) : 100;
   const t = T[G.my];
   const myPos = tbl().findIndex(x => x.id === G.my)+1;
   let totalSal = 0;
   t.ps.forEach(p => totalSal += (p.contract?.salary || 0));
 
-  // ✅ 1. قسم الملف الشخصي (منفصل)
-  let h = `<div class="profile-header" style="border-bottom:2px solid rgba(251,191,36,.3); padding-bottom:15px; margin-bottom:15px;">
-    <div class="profile-avatar" style="background:var(--gold);">👨‍💼</div>
-    <div style="flex:1">
-      <div style="font-size:10px; color:#94a3b8; font-weight:bold; margin-bottom:2px;">الملف الشخصي للمدرب</div>
-      <h2 style="color:#fff;margin:0 0 4px;font-size:18px;">${G.managerName}</h2>
-      <div style="font-size:12px;color:#cbd5e1">مستوى المدرب: <b style="color:var(--gold)">${lvl}</b> - ${cur.name}</div>
-      <div style="font-size:11px;color:#4ade80">🏆 ${G.trophies||0} بطولة</div>
-    </div>
-  </div>
-
-  <div class="mgr-card" style="background:linear-gradient(135deg,rgba(30,58,138,.5),rgba(15,34,56,.9));">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div class="mgr-level-badge">👑 نقاط الخبرة (XP)</div>
-      <div style="font-size:11px;color:#4ade80">${cur.perk}</div>
-    </div>
-    <div style="font-size:10px;color:var(--m);text-align:right">${xp} ${nxt?'/ '+nxt.xp:'— أقصى'}</div>
-    <div class="xp-bar"><div style="width:${pct}%"></div></div>
+  // ✅ 1. عنوان الإدارة
+  let h = `<div class="c" style="text-align:center; margin-top:10px;">
+    <h2 style="color:var(--gold); margin:0; font-size:18px;">🏢 إدارة النادي</h2>
+    <div style="font-size:12px; color:#94a3b8; margin-top:5px;">${t.name} • المركز #${myPos}</div>
   </div>`;
 
-  // ✅ 2. قسم إدارة النادي
-  h += `<div class="sec" style="margin-top:20px; font-size:14px; color:var(--gold);">🏢 إدارة النادي</div>`;
-
-  if (G.boardObjectives) {
-      const obj = G.boardObjectives;
-      h += `<div class="c" style="border:1px solid #fbbf24; background:rgba(251,191,36,.05);">
-          <div class="sec" style="color:#fbbf24;">🎯 أهداف مجلس الإدارة</div>
-          <div style="font-size:12px; color:#fff; margin-bottom:5px;">الهدف: <b>${obj.target}</b></div>
-          <div style="font-size:11px; color:#94a3b8;">المكافأة: <b style="color:#4ade80;">${obj.reward}M</b></div>
-          <div style="font-size:10px; color:${obj.status === 'success' ? '#4ade80' : (obj.status === 'failed' ? '#ef4444' : '#cbd5e1')}; margin-top:5px;">
-              الحالة: ${obj.status === 'success' ? '✅ تم تحقيق الهدف' : (obj.status === 'failed' ? '❌ فشل الهدف' : '⏳ جاري التقييم')}
-          </div>
-      </div>`;
-  }
-
+  // ✅ 2. قسم إدارة النادي (المنشآت)
   const fac = G.facilities || {stadium: 1, training: 1, youth: 1};
   h += `<div class="c">
     <div class="sec">🏗️ تطوير المنشآت</div>
@@ -799,15 +838,7 @@ function mgrH(){
     </div>
   </div>`;
 
-  if (G.trophyCabinet && G.trophyCabinet.length > 0) {
-      h += `<div class="c">
-          <div class="sec">🏆 خزانة البطولات</div>
-          <div style="display:flex; flex-wrap:wrap; gap:8px;">
-              ${G.trophyCabinet.map(trophy => `<div style="font-size:12px; background:rgba(0,0,0,.4); padding:6px 10px; border-radius:8px; border:1px solid rgba(251,191,36,.3);">🏆 ${trophy}</div>`).join('')}
-          </div>
-      </div>`;
-  }
-
+  // الاقتصاد
   h += `<div class="c"><div class="sec">💰 الاقتصاد</div>
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#fff;margin-bottom:6px"><span>الميزانية:</span><b style="color:${t.budget>=0?'#4ade80':'#f87171'}">${t.budget.toFixed(1)}M</b></div>
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#fff;margin-bottom:6px"><span>رواتب/مباراة:</span><b style="color:#f87171">-${totalSal.toFixed(2)}M</b></div>

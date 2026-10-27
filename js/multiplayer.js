@@ -293,6 +293,7 @@ async function processDueBotMatches(lobbyId) {
                 
                 const hg = eng.s.home.g; const ag = eng.s.away.g;
                 
+                // حفظ النتيجة فقط (بدون snapshots للاعبين لأنهم آليين)
                 await _db.from('lobby_matches').update({ home_score: hg, away_score: ag, played: true }).eq('id', m.id);
                 await updateStandingsDb(homeSlot, awaySlot, hg, ag);
                 
@@ -628,7 +629,6 @@ async function simulateUserMatch(matchId, lobbyId) {
             weather: (typeof WEATHERS !== 'undefined' && WEATHERS[0]) ? WEATHERS[0] : {type:'مشمس', emoji:'☀️', accuracy:1.0, stamina:1.0}
         };
 
-        // ✅ إضافة الـ Callback المفقود لحفظ النتيجة
         window._mpMatchCallback = (hg, ag) => {
             finalizeMultiplayerMatch(matchId, lobbyId, isHome, hg, ag, mySlot, oppSlot, slots);
         };
@@ -644,7 +644,6 @@ async function simulateUserMatch(matchId, lobbyId) {
 
         if (typeof play === 'function') {
             play();
-            // تسريع المحاكاة تلقائياً
             setTimeout(() => {
                 if (typeof skip === 'function') skip();
             }, 1000);
@@ -659,7 +658,7 @@ async function simulateUserMatch(matchId, lobbyId) {
     }
 }
 
-// ✅ تشغيل المباراة المرئية (زر "العب")
+// ✅ تشغيل المباراة المرئية (زر "العب" أو "مشاهدة")
 async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
     try {
         const { data: match } = await _db.from('lobby_matches').select('*').eq('id', matchId).single();
@@ -681,6 +680,10 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
         const isHome = match.home_slot_id === mySlot.id;
         const oppId = isHome ? match.away_slot_id : match.home_slot_id;
         const oppSlot = slots.find(s => s.id === oppId);
+        
+        // جلب بيانات الفريقين لضمان عدم حدوث خطأ في حال كانت المباراة (Replay)
+        const homeSlot = slots.find(s => s.id === match.home_slot_id);
+        const awaySlot = slots.find(s => s.id === match.away_slot_id);
 
         ensureLocalGameReady(mySlot);
 
@@ -688,6 +691,15 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
         if (isReplay) {
             myTeamData = isHome ? match.home_snapshot : match.away_snapshot;
             oppTeamData = isHome ? match.away_snapshot : match.home_snapshot;
+            
+            // 🛠️ حل مشكلة (Cannot read properties of null):
+            // إذا لم يتم حفظ بيانات اللاعبين (Snapshot) في المباريات الآلية، نصنع بيانات وهمية لتجنب الانهيار
+            if (!myTeamData) {
+                myTeamData = { name: isHome ? homeSlot?.team_name : awaySlot?.team_name, R: 75, c1: '#1e40af', c2: '#fff', form: '4-3-3', tac: 'balanced', starters: [] };
+            }
+            if (!oppTeamData) {
+                oppTeamData = { name: isHome ? awaySlot?.team_name : homeSlot?.team_name, R: 75, c1: '#1e40af', c2: '#fff', form: '4-3-3', tac: 'balanced', starters: [] };
+            }
         } else {
             myTeamData = { 
                 name: T[G.my].name, R: T[G.my].R, c1: T[G.my].c1, c2: T[G.my].c2,
@@ -709,7 +721,15 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
             }
         } else { T[oppTeamId] = buildTeamFromSnapshot(oppTeamData, oppTeamId); }
 
-        if(isReplay) T[myTeamId] = buildTeamFromSnapshot(myTeamData, myTeamId);
+        if (!myTeamData || !myTeamData.starters || myTeamData.starters.length < 11) {
+            T[myTeamId] = { id: myTeamId, name: isHome ? homeSlot?.team_name : awaySlot?.team_name, R: 75, c1: '#1e40af', c2: '#fff', budget: 100, ps: [], form: '4-3-3', tac: 'balanced' };
+            const posList = ['GK','DEF','DEF','DEF','DEF','MID','MID','MID','FWD','FWD','FWD'];
+            for(let i=0; i<11; i++) {
+                T[myTeamId].ps.push({ id: myTeamId+'_'+i, name: 'لاعب '+(i+1), pos: posList[i], r: 75, lvl: 1, age: 24, pace:75, shooting:75, passing:75, dribbling:75, defending:75, physical:75, fit:100, morale:85 });
+            }
+        } else if (isReplay) {
+            T[myTeamId] = buildTeamFromSnapshot(myTeamData, myTeamId);
+        }
 
         const myStarters = isReplay ? T[myTeamId].ps.slice(0, 11) : G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean);
         const oppStarters = T[oppTeamId].ps.slice(0, 11);
@@ -728,9 +748,8 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
             weather: (typeof WEATHERS !== 'undefined' && WEATHERS[0]) ? WEATHERS[0] : {type:'مشمس', emoji:'☀️', accuracy:1.0, stamina:1.0}
         };
 
-        // ✅ إضافة الـ Callback المفقود لحفظ النتيجة
         window._mpMatchCallback = (hg, ag) => {
-            finalizeMultiplayerMatch(matchId, lobbyId, isHome, hg, ag, mySlot, oppSlot, slots);
+            if (!isReplay) finalizeMultiplayerMatch(matchId, lobbyId, isHome, hg, ag, mySlot, oppSlot, slots);
         };
 
         window._mpMatchConfig = matchConfig;
@@ -751,6 +770,7 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
     } catch (err) {
         console.error("MP Match Error:", err);
         alert('حدث خطأ أثناء تجهيز المباراة: ' + err.message);
+        if (typeof dash === 'function') dash();
     }
 }
 
@@ -778,7 +798,9 @@ async function finalizeMultiplayerMatch(matchId, lobbyId, isHome, hg, ag, mySlot
     } catch (err) { alert('حدث خطأ أثناء حفظ النتيجة.'); }
 }
 
+// 🛠️ حماية الدالة من الانهيار إذا كانت البيانات null
 function buildTeamFromSnapshot(snap, teamId) {
+    if (!snap) snap = { name: 'فريق', starters: [] };
     const ps = (snap.starters || []).map((p, idx) => ({ ...p, id: p.id || (teamId + '_' + idx), fit: 100, morale: p.morale || 85, susp: 0, injury: null, stats: { passes: 0, tackles: 0, shots: 0 } }));
     const avgR = ps.length ? Math.round(ps.reduce((s, p) => s + (p.r || 75), 0) / ps.length) : 75;
     return { id: teamId, name: snap.name || 'فريق منافس', R: snap.R || avgR, c1: snap.c1 || '#1e40af', c2: snap.c2 || '#ffffff', budget: 100, ps: ps, form: snap.form || '4-3-3', tac: snap.tac || 'balanced' };

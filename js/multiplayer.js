@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف (إصلاح ذاتي + ذهاب وإياب)
+// multiplayer.js - نظام الغرف (إصلاح ذاتي + ذهاب وإياب + سوق مباشر)
 // ============================================
 
 let currentLobby = null;
@@ -173,7 +173,6 @@ function startCountdownTimer() {
     }, 1000);
 }
 
-// ✅ إصلاح ذاتي: توليد المباريات إذا لم تكن موجودة
 async function forceGenerateMatches(lobbyId) {
     try {
         const { data: slots } = await _db.from('lobby_slots').select('*').eq('lobby_id', lobbyId);
@@ -441,7 +440,6 @@ async function loadMultiplayerCompData() {
             const { data: slots } = await _db.from('lobby_slots').select('*').eq('lobby_id', lobby.id).order('team_name');
             let { data: matches } = await _db.from('lobby_matches').select('*').eq('lobby_id', lobby.id).order('round');
             
-            // ✅ الإصلاح الذاتي: إذا كانت الغرفة نشطة ولكن لا توجد مباريات
             if (lobby.status === 'active' && (!matches || matches.length === 0)) {
                 const success = await forceGenerateMatches(lobby.id);
                 if (success) {
@@ -684,4 +682,144 @@ function buildTeamFromSnapshot(snap, teamId) {
     const ps = (snap.starters || []).map((p, idx) => ({ ...p, id: p.id || (teamId + '_' + idx), fit: 100, morale: p.morale || 85, susp: 0, injury: null, stats: { passes: 0, tackles: 0, shots: 0 } }));
     const avgR = ps.length ? Math.round(ps.reduce((s, p) => s + (p.r || 75), 0) / ps.length) : 75;
     return { id: teamId, name: snap.name || 'فريق منافس', R: snap.R || avgR, c1: snap.c1 || '#1e40af', c2: snap.c2 || '#ffffff', budget: 100, ps: ps, form: snap.form || '4-3-3', tac: snap.tac || 'balanced' };
+}
+
+// ============================================
+// 💰 دوال السوق المباشر
+// ============================================
+
+async function listPlayerForSale(pid) {
+    if (!G.multiplayerLeagueId) return alert('هذا الخيار متاح فقط في اللعب الجماعي.');
+    const me = T[G.my];
+    if (me.ps.length <= 14) return alert('لا يمكنك بيع لاعب، تحتاج 14 لاعباً على الأقل.');
+    
+    const p = me.ps.find(x => x.id === pid);
+    if (!p) return;
+    
+    const priceStr = prompt(`عرض اللاعب ${p.name} (تقييم ${p.r}) للبيع في السوق الجماعي.\n\nميزانيتك الحالية: ${me.budget}M\nالقيمة السوقية: ${p.value}M\n\nأدخل سعر البيع (M):`, p.value);
+    if (!priceStr) return;
+    const price = parseFloat(priceStr);
+    if (isNaN(price) || price <= 0) return alert('سعر غير صالح!');
+    
+    try {
+        const { data: { user } } = await _db.auth.getUser();
+        if (!user) return alert('يجب تسجيل الدخول.');
+        
+        $('cm').hidden = true;
+        $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">⏳ جاري عرض اللاعب في السوق...</div>`;
+        
+        // 1. إضافة اللاعب للسوق
+        const snap = { ...p }; 
+        const { error: marketErr } = await _db.from('market_listings').insert({
+            user_id: user.id,
+            manager_name: G.managerName,
+            team_name: me.name,
+            player_data: snap,
+            asking_price: price
+        });
+        if (marketErr) throw marketErr;
+        
+        // 2. إزالة اللاعب من الفريق
+        me.ps = me.ps.filter(x => x.id !== pid);
+        G.lu = G.lu.map(id => id === pid ? null : id);
+        if (G.lu.includes(null)) G.lu = autoFillLineup(me, G.form);
+        autoAssignRoles();
+        save();
+        
+        // 3. تحديث اللقطة في الأونلاين
+        if (typeof updateLobbySnapshot === 'function') await updateLobbySnapshot();
+        
+        alert(`✅ تم عرض ${p.name} في السوق بسعر ${price}M.`);
+        dash(); // العودة للصفحة
+        
+    } catch (e) {
+        console.error(e);
+        alert('حدث خطأ أثناء عرض اللاعب: ' + e.message);
+        dash();
+    }
+}
+
+async function buyMarketPlayer(listingId) {
+    if (!G.multiplayerLeagueId) return;
+    const me = T[G.my];
+    if (me.ps.length >= 25) return alert('فريقك ممتلئ!');
+    
+    try {
+        const { data: { user } } = await _db.auth.getUser();
+        if (!user) return alert('يجب تسجيل الدخول.');
+        
+        // 1. جلب بيانات العرض
+        const { data: listing } = await _db.from('market_listings').select('*').eq('id', listingId).single();
+        if (!listing) return alert('هذا العرض لم يعد متاحاً (ربما تم شراؤه أو إلغاؤه).');
+        if (listing.user_id === user.id) return alert('لا يمكنك شراء لاعبك!');
+        
+        const price = listing.asking_price;
+        if (me.budget < price) return alert(`ميزانيتك غير كافية! تحتاج ${price}M.`);
+        
+        // 2. إتمام الشراء
+        me.budget = Math.round((me.budget - price) * 10) / 10;
+        
+        // ننشئ معرف جديد للاعب لتفادي تداخل المعرفات
+        const newPlayer = { ...listing.player_data, id: 'M_' + Date.now() };
+        me.ps.push(newPlayer);
+        autoAssignRoles();
+        
+        // 3. مسح العرض من السوق
+        const { error: delErr } = await _db.from('market_listings').delete().eq('id', listingId);
+        if (delErr) throw delErr;
+        
+        save();
+        if (typeof updateLobbySnapshot === 'function') await updateLobbySnapshot();
+        
+        alert(`🎉 مبروك! انضم ${newPlayer.name} لفريقك مقابل ${price}M.`);
+        if (typeof loadLiveMarket === 'function') loadLiveMarket();
+        
+    } catch (e) {
+        console.error(e);
+        alert('حدث خطأ أثناء الشراء: ' + e.message);
+    }
+}
+
+async function cancelMarketListing(listingId, playerId) {
+    if (!confirm('هل أنت متأكد من إلغاء عرض البيع؟ سيعود اللاعب لفريقك.')) return;
+    
+    try {
+        const { data: { user } } = await _db.auth.getUser();
+        if (!user) return;
+        
+        const { data: listing } = await _db.from('market_listings').select('*').eq('id', listingId).single();
+        if (!listing) return;
+        
+        const me = T[G.my];
+        const newPlayer = { ...listing.player_data, id: playerId };
+        me.ps.push(newPlayer);
+        autoAssignRoles();
+        
+        await _db.from('market_listings').delete().eq('id', listingId);
+        save();
+        if (typeof updateLobbySnapshot === 'function') await updateLobbySnapshot();
+        
+        alert('✅ تم إلغاء العرض وعاد اللاعب لفريقك.');
+        if (typeof loadLiveMarket === 'function') loadLiveMarket();
+        
+    } catch (e) {
+        console.error(e);
+        alert('حدث خطأ: ' + e.message);
+    }
+}
+
+async function updateLobbySnapshot() {
+    if (!G.multiplayerLeagueId) return;
+    try {
+        const { data: { user } } = await _db.auth.getUser();
+        if (!user) return;
+        
+        const me = T[G.my];
+        const snap = { 
+            name: me.name, R: me.R, c1: me.c1, c2: me.c2,
+            form: G.form, tac: G.tac, starters: G.lu.map(id => me.ps.find(p => p.id === id)).filter(Boolean) 
+        };
+        
+        await _db.from('lobby_slots').update({ team_snapshot: snap }).eq('lobby_id', G.multiplayerLeagueId).eq('user_id', user.id);
+    } catch (e) { console.error(e); }
 }

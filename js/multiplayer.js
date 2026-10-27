@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف (تحديث الأقسام)
+// multiplayer.js - نظام الغرف (تحديث: 24 ساعة + جميع الفرق + ذكاء اصطناعي تنافسي)
 // ============================================
 
 let currentLobby = null;
@@ -15,6 +15,11 @@ let globalWatcherInterval = null;
 const BOT_UUID = '00000000-0000-0000-0000-000000000000'; 
 
 function ensureG() { if (typeof G === 'undefined' || !G) G = {}; }
+
+// جلب عدد الفرق الكلي في الدوري
+function getLobbyMaxTeams() {
+    return (typeof LEAGUES !== 'undefined' && LEAGUES['egypt']) ? LEAGUES['egypt'].teams.length : 18;
+}
 
 function stopLobbyTimers() {
     if (liveInterval) clearInterval(liveInterval);
@@ -41,14 +46,15 @@ async function resignFromLobby() {
     } catch (err) { alert('حدث خطأ: ' + err.message); dash(); }
 }
 
-function generateBotSnapshot(teamName) {
+// ✅ جعل الفرق الآلية تأخذ تقييمها الحقيقي من اللعبة لزيادة التنافس
+function generateBotSnapshot(teamName, teamRating = 75) {
     const posList = ['GK','DEF','DEF','DEF','DEF','MID','MID','MID','FWD','FWD','FWD'];
     const starters = posList.map((pos, i) => ({
         id: 'BOT_' + Math.random().toString(36).substr(2, 9),
-        name: 'لاعب ' + (i+1), pos: pos, r: 70 + Math.floor(Math.random() * 15), lvl: 1, age: 24,
-        pace: 70, shooting: 70, passing: 70, dribbling: 70, defending: 70, physical: 70
+        name: 'لاعب ' + (i+1), pos: pos, r: Math.max(60, teamRating - 2 + Math.floor(Math.random() * 5)), lvl: 1, age: 24,
+        pace: teamRating, shooting: teamRating, passing: teamRating, dribbling: teamRating, defending: teamRating, physical: teamRating
     }));
-    return { name: teamName, R: 75, c1: '#1e293b', c2: '#fff', form: '4-3-3', tac: 'balanced', starters: starters };
+    return { name: teamName, R: teamRating, c1: '#1e293b', c2: '#fff', form: '4-3-3', tac: 'balanced', starters: starters };
 }
 
 function ensureLocalGameReady(slot) {
@@ -65,6 +71,7 @@ function ensureLocalGameReady(slot) {
 
 async function showLeaguesPage() {
     stopLobbyTimers(); isSeasonStarting = false; ensureG(); 
+    const maxTeams = getLobbyMaxTeams();
     
     if (G.multiplayerLeagueId) {
         try {
@@ -105,17 +112,19 @@ async function showLeaguesPage() {
         if (openLobbies) {
             for (const l of openLobbies) {
                 const { count } = await _db.from('lobby_slots').select('*', { count: 'exact', head: true }).eq('lobby_id', l.id).not('user_id', 'is', null);
-                if (count < 10) availableLobbies.push({ lobby: l, count: count });
+                if (count < maxTeams) availableLobbies.push({ lobby: l, count: count });
             }
         }
         availableLobbies.sort((a, b) => b.count - a.count);
 
         if (availableLobbies.length > 0) { currentLobby = availableLobbies[0].lobby; }
         else {
-            const expDate = new Date(Date.now() + 60 * 60000).toISOString();
+            const expDate = new Date(Date.now() + 60 * 1000).toISOString(); // دقيقة انتظار
             const { data: newLobby, error } = await _db.from('lobbies').insert({ status: 'waiting', expires_at: expDate }).select().single();
             if (error) throw error;
-            const teams = LEAGUES['egypt'].teams.slice(0, 10);
+            
+            // ✅ إضافة جميع فرق الدوري المصري بدون قص
+            const teams = LEAGUES['egypt'].teams;
             await _db.from('lobby_slots').insert(teams.map(t => ({ lobby_id: newLobby.id, team_id: t[0], team_name: t[1] })));
             currentLobby = newLobby;
         }
@@ -139,6 +148,7 @@ async function loadLobbyData() {
 
 async function fetchUpdates() {
     if (!currentLobby) return;
+    const maxTeams = getLobbyMaxTeams();
     try {
         const { data: lobby } = await _db.from('lobbies').select('*').eq('id', currentLobby.id).single();
         if (lobby) currentLobby = lobby;
@@ -147,7 +157,7 @@ async function fetchUpdates() {
 
         if (currentLobby.status === 'waiting') {
             const timeUp = new Date(currentLobby.expires_at).getTime() <= new Date().getTime();
-            const isFull = currentSlots.filter(s => s.user_id && s.user_id !== BOT_UUID).length >= 10;
+            const isFull = currentSlots.filter(s => s.user_id && s.user_id !== BOT_UUID).length >= maxTeams;
             if ((timeUp || isFull) && !isSeasonStarting) { isSeasonStarting = true; await tryStartSeason(); return; }
         }
 
@@ -180,7 +190,11 @@ async function forceGenerateMatches(lobbyId) {
 
         for (const slot of slots) {
             if (!slot.user_id) {
-                const botSnap = generateBotSnapshot(slot.team_name);
+                // البحث عن تقييم الفريق الحقيقي من البيانات لزيادة التنافس
+                const originalTeam = LEAGUES['egypt'].teams.find(t => t[0] === slot.team_id);
+                const teamRating = originalTeam ? originalTeam[2] : 75;
+                
+                const botSnap = generateBotSnapshot(slot.team_name, teamRating);
                 await _db.from('lobby_slots').update({
                     user_id: BOT_UUID, manager_name: 'مدرب آلي', team_snapshot: botSnap,
                     played: 0, won: 0, drawn: 0, lost: 0, goals_for: 0, goals_against: 0, points: 0
@@ -192,7 +206,8 @@ async function forceGenerateMatches(lobbyId) {
         const fixtures = generateDoubleRoundRobin(freshSlots);
 
         const now = Date.now();
-        const roundInterval = 24 * 60 * 60 * 1000; // 24 ساعة بين كل جولة
+        // ✅ إرجاع الجولات لتكون كل 24 ساعة
+        const roundInterval = 24 * 60 * 60 * 1000; 
 
         const inserts = fixtures.map(f => ({
             lobby_id: lobbyId, round: f.round, home_slot_id: f.home.id, away_slot_id: f.away.id,
@@ -216,7 +231,7 @@ async function tryStartSeason() {
         const activeSlots = freshSlots.filter(s => s.user_id && s.user_id !== BOT_UUID);
         
         if (activeSlots.length < 1) {
-            await _db.from('lobbies').update({ status: 'waiting', expires_at: new Date(Date.now() + 60 * 60000).toISOString() }).eq('id', currentLobby.id);
+            await _db.from('lobbies').update({ status: 'waiting', expires_at: new Date(Date.now() + 60 * 1000).toISOString() }).eq('id', currentLobby.id);
             isSeasonStarting = false; 
             return;
         }
@@ -257,6 +272,7 @@ function generateDoubleRoundRobin(teams) {
     return fixtures;
 }
 
+// ✅ محاكاة مباريات الذكاء الاصطناعي في نفس وقت جولتك بالضبط
 async function processDueBotMatches(lobbyId) {
     try {
         const now = new Date().getTime();
@@ -268,7 +284,7 @@ async function processDueBotMatches(lobbyId) {
         
         for (const m of matches) {
             const matchTime = m.scheduled_time ? new Date(m.scheduled_time).getTime() : 0;
-            if (now < matchTime) continue;
+            if (now < matchTime) continue; // لم يحن وقت المباراة بعد
             
             const homeSlot = slots.find(s => s.id === m.home_slot_id);
             const awaySlot = slots.find(s => s.id === m.away_slot_id);
@@ -277,6 +293,7 @@ async function processDueBotMatches(lobbyId) {
             const homeIsBot = homeSlot.user_id === BOT_UUID;
             const awayIsBot = awaySlot.user_id === BOT_UUID;
             
+            // محاكاة مباريات البوتات التي حان وقتها
             if (homeIsBot && awayIsBot) {
                 const hTeam = buildTeamFromSnapshot(homeSlot.team_snapshot, 'BOT_H_'+homeSlot.id);
                 const aTeam = buildTeamFromSnapshot(awaySlot.team_snapshot, 'BOT_A_'+awaySlot.id);
@@ -320,9 +337,10 @@ async function updateStandingsDb(homeSlot, awaySlot, hg, ag) {
 }
 
 function renderWaitingRoom() {
+    const maxTeams = getLobbyMaxTeams();
     const joinedCount = currentSlots.filter(s => s.user_id && s.user_id !== BOT_UUID).length;
     const hasTeam = !!mySlot;
-    const isFull = joinedCount >= 10;
+    const isFull = joinedCount >= maxTeams;
 
     let html = `<div class="c" style="margin-top:10px; position:relative;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -332,13 +350,14 @@ function renderWaitingRoom() {
         
         <div style="text-align:center; margin-bottom:15px;">
             <div style="display:inline-block; background:rgba(239,68,68,.2); border:1px solid #ef4444; padding:4px 12px; border-radius:20px; color:#ef4444; font-size:12px; font-weight:bold; margin-bottom:8px;">🔴 غرفة الانتظار المباشرة</div>
-            <h2 style="color:var(--gold); font-size:18px; margin-bottom:5px;">تحدي الـ 10 مدربين</h2>
-            <div style="font-size:13px; color:#cbd5e1; margin-bottom:8px;">المنضمون: <b style="color:#4ade80">${joinedCount}</b> / 10</div>
+            <h2 style="color:var(--gold); font-size:18px; margin-bottom:5px;">الدوري المصري الممتاز</h2>
+            <div style="font-size:13px; color:#cbd5e1; margin-bottom:8px;">المنضمون: <b style="color:#4ade80">${joinedCount}</b> / ${maxTeams}</div>
             <div id="live-countdown" style="font-size:20px; font-weight:900; color:#fbbf24; background:rgba(0,0,0,.3); padding:6px 14px; border-radius:8px; display:inline-block;">--:--</div>
             
-            ${hasTeam && joinedCount >= 1 ? `<button class="b g full" style="margin-top:10px; padding:10px; font-weight:bold;" onclick="tryStartSeason()">🚀 بدء الموسم الآن (${joinedCount} مدربين)</button>` : ''}
+            ${hasTeam && joinedCount >= 1 ? `<button class="b g full" style="margin-top:10px; padding:10px; font-weight:bold;" onclick="tryStartSeason()">🚀 بدء الموسم الآن</button>` : ''}
         </div>
-        <div class="g2">`;
+        <!-- جعل الغرفة قابلة للتمرير في حال وجود فرق كثيرة -->
+        <div class="g2" style="max-height: 50vh; overflow-y: auto; padding-right: 5px;">`;
 
     currentSlots.forEach(slot => {
         const isTaken = !!slot.user_id && slot.user_id !== BOT_UUID;
@@ -349,9 +368,9 @@ function renderWaitingRoom() {
         let isDisabled = isTaken || isFull || hasTeam;
         let onclick = isDisabled ? '' : `onclick="claimLiveTeam('${slot.id}', this)"`;
         
-        html += `<button class="team-select-card" ${onclick} style="cursor:${isDisabled ? 'default' : 'pointer'}; background:${bg}; border:1px solid ${border}; padding:12px; border-radius:10px; width:100%; display:block; text-align:center;">
-            <div class="bd" style="font-size:15px; width:36px; height:36px; margin:0 auto 6px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; background:rgba(255,255,255,0.1); color:#fff;">${slot.team_name ? slot.team_name[0] : '⚽'}</div>
-            <b style="font-size:12px; display:block; color:#fff;">${slot.team_name}</b>
+        html += `<button class="team-select-card" ${onclick} style="cursor:${isDisabled ? 'default' : 'pointer'}; background:${bg}; border:1px solid ${border}; padding:10px; border-radius:10px; width:100%; display:block; text-align:center; margin-bottom: 5px;">
+            <div class="bd" style="font-size:15px; width:30px; height:30px; margin:0 auto 4px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; background:rgba(255,255,255,0.1); color:#fff;">${slot.team_name ? slot.team_name[0] : '⚽'}</div>
+            <b style="font-size:11px; display:block; color:#fff;">${slot.team_name}</b>
             ${statusHtml}
         </button>`;
     });
@@ -402,6 +421,7 @@ async function claimLiveTeam(slotId, btnEl) {
 function startGlobalLobbyWatcher() {
     if (globalWatcherInterval) clearInterval(globalWatcherInterval);
     if (!G || !G.multiplayerLeagueId) return;
+    const maxTeams = getLobbyMaxTeams();
 
     globalWatcherInterval = setInterval(async () => {
         try {
@@ -414,17 +434,14 @@ function startGlobalLobbyWatcher() {
                 const { data: slots } = await _db.from('lobby_slots').select('*').eq('lobby_id', lobby.id);
                 const realCount = slots.filter(s => s.user_id && s.user_id !== BOT_UUID).length;
                 
-                if ((timeUp || realCount >= 10) && !isSeasonStarting) {
+                if ((timeUp || realCount >= maxTeams) && !isSeasonStarting) {
                     isSeasonStarting = true;
                     currentLobby = lobby; 
                     await tryStartSeason();
                 }
             } else if (lobby.status === 'active') {
+                // ✅ هذا السطر هو الذي يجعل البوتات تلعب في نفس وقتك
                 await processDueBotMatches(G.multiplayerLeagueId);
-                if (G.tab === 'comp' || typeof G.tab === 'undefined') switchTab('comp');
-                else if (G.tab === 'lu' || G.tab === 'tb' || G.tab === 'tr') {
-                    // يتم التحديث تلقائياً
-                }
             }
         } catch(e) { console.error(e); }
     }, 3000); 
@@ -442,7 +459,6 @@ async function forceNewLobby() {
     } catch (e) { alert('خطأ: ' + e.message); showLeaguesPage(); }
 }
 
-// ✅ 1. تبويب الدوري المباشر (يعرض المباراة الحالية فقط)
 async function loadMultiplayerCompData() {
     if (mpCompInterval) clearInterval(mpCompInterval);
     
@@ -484,9 +500,10 @@ async function loadMultiplayerCompData() {
             let html = '';
 
             if (lobby.status === 'waiting') {
+                const maxTeams = getLobbyMaxTeams();
                 const joinedCount = slots.filter(s => s.user_id && s.user_id !== BOT_UUID).length;
                 const timeUp = new Date(lobby.expires_at).getTime() <= new Date().getTime();
-                const isFull = joinedCount >= 10;
+                const isFull = joinedCount >= maxTeams;
                 
                 if ((timeUp || isFull) && !isSeasonStarting) {
                     isSeasonStarting = true;
@@ -499,11 +516,10 @@ async function loadMultiplayerCompData() {
                 html = `
                     <div style="text-align:center; padding:15px; background:rgba(0,0,0,.3); border-radius:10px;">
                         <div style="color:#fbbf24; font-size:14px; font-weight:bold; margin-bottom:5px;">⏳ بانتظار بدء الموسم...</div>
-                        <div style="font-size:13px; color:#fff;">اللاعبون المنضمون: <b style="color:#4ade80">${joinedCount}</b> / 10</div>
+                        <div style="font-size:13px; color:#fff;">اللاعبون المنضمون: <b style="color:#4ade80">${joinedCount}</b> / ${maxTeams}</div>
                         <div style="font-size:20px; color:#4ade80; font-weight:900; margin-top:10px;">⏱️ ${m}:${s.toString().padStart(2, '0')}</div>
                     </div>`;
             } else {
-                // عرض المباراة الحالية فقط
                 let myMatches = (matches || []).filter(m => (m.home_slot_id === mySlot.id || m.away_slot_id === mySlot.id));
                 myMatches.sort((a, b) => new Date(a.scheduled_time) - new Date(b.scheduled_time));
                 
@@ -531,10 +547,18 @@ async function loadMultiplayerCompData() {
                             </div>
                         `;
                     } else {
-                        const diffMins = Math.ceil((matchTime - now) / 60000);
+                        // حساب العد التنازلي بالدقائق والساعات
+                        const diffSecs = Math.ceil((matchTime - now) / 1000);
+                        const diffMins = Math.floor(diffSecs / 60);
+                        const remSecs = diffSecs % 60;
                         const diffHours = Math.floor(diffMins / 60);
                         const remMins = diffMins % 60;
-                        btnHtml = `<div style="font-size:12px; color:#fbbf24; font-weight:bold; background:rgba(251,191,36,.1); padding:10px; border-radius:8px; text-align:center; width:100%; margin-top:15px;">⏳ تبدأ المباراة بعد: ${diffHours > 0 ? diffHours + ' ساعة و ' : ''}${remMins} دقيقة</div>`;
+
+                        let timeLeftText = '';
+                        if (diffHours > 0) timeLeftText += `${diffHours} ساعة و `;
+                        timeLeftText += `${remMins} دقيقة`;
+
+                        btnHtml = `<div style="font-size:12px; color:#fbbf24; font-weight:bold; background:rgba(251,191,36,.1); padding:10px; border-radius:8px; text-align:center; width:100%; margin-top:15px;">⏳ تبدأ المباراة بعد: ${timeLeftText}</div>`;
                     }
 
                     html += `<div style="display:flex; flex-direction:column; align-items:center; background:linear-gradient(135deg, rgba(15,34,56,.9), rgba(30,58,138,.9)); border:2px solid #fbbf24; padding:20px; border-radius:15px; box-shadow:0 4px 15px rgba(0,0,0,0.5);">
@@ -566,7 +590,7 @@ async function loadMultiplayerCompData() {
     mpCompInterval = setInterval(fetchAndRender, 5000);
 }
 
-// ✅ 2. دالة جديدة لتبويب الترتيب (جدول الترتيب فقط)
+// ✅ دالة جديدة لتبويب الترتيب (جدول الترتيب فقط)
 async function showOnlineStandings() {
     if (!G.multiplayerLeagueId) return false;
     $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);">⏳ جاري تحميل الترتيب...</div>`;
@@ -583,19 +607,20 @@ async function showOnlineStandings() {
             <div style="text-align:center; margin-bottom:15px;">
                 <h2 style="color:var(--gold); font-size:18px;">🔴 جدول الترتيب المباشر</h2>
             </div>
-            <table style="width:100%; font-size:12px; text-align:center;">
-                <tr style="color:#94a3b8; background:rgba(0,0,0,.3);"><th style="padding:8px;">#</th><th style="text-align:right;">الفريق</th><th>ل</th><th>ف</th><th>ت</th><th>خ</th><th>+/-</th><th>ن</th></tr>`;
+            <div style="max-height: 70vh; overflow-y: auto;">
+                <table style="width:100%; font-size:12px; text-align:center;">
+                    <tr style="color:#94a3b8; background:rgba(0,0,0,.3);"><th style="padding:8px;">#</th><th style="text-align:right;">الفريق</th><th>ل</th><th>ف</th><th>ت</th><th>خ</th><th>+/-</th><th>ن</th></tr>`;
         sorted.forEach((s, i) => {
             const isMe = s.id === mySlot.id;
             html += `<tr style="${isMe ? 'background:rgba(251,191,36,.1);font-weight:bold;color:#fff;' : 'color:#cbd5e1;'} border-bottom:1px solid rgba(255,255,255,.05);">
-                <td style="padding:10px 5px;">${i+1}</td>
+                <td style="padding:8px 5px;">${i+1}</td>
                 <td style="text-align:right;">${s.team_name} <span style="font-size:9px; color:#94a3b8;">(${s.manager_name||'مدرب'})</span> ${isMe?'⭐':''}</td>
                 <td>${s.played||0}</td><td>${s.won||0}</td><td>${s.drawn||0}</td><td>${s.lost||0}</td>
                 <td style="color:${(s.goals_for||0) - (s.goals_against||0) > 0 ? '#4ade80' : '#ef4444'};">${(s.goals_for||0) - (s.goals_against||0)}</td>
                 <td style="color:#fbbf24; font-weight:bold;">${s.points||0}</td>
             </tr>`;
         });
-        html += `</table></div>`;
+        html += `</table></div></div>`;
         $('main').innerHTML = html;
         return true;
     } catch(e) {
@@ -604,7 +629,7 @@ async function showOnlineStandings() {
     }
 }
 
-// ✅ 3. دالة جدول البطولات (يتم استدعاؤها من season.js)
+// ✅ دالة جدول البطولات (يتم استدعاؤها من season.js)
 async function showLiveLeagueSchedule() {
     if (!G.multiplayerLeagueId) return alert('أنت لست في دوري أونلاين حالياً.');
     $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);">⏳ جاري تحميل جدول الدوري...</div>`;
@@ -621,10 +646,10 @@ async function showLiveLeagueSchedule() {
         
         let html = `<div class="c" style="margin-top:10px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <button class="b sm" style="background:#475569;" onclick="dash()">⬅ عودة</button>
+                <button class="b sm" style="background:#475569;" onclick="switchTab('comp')">⬅ عودة</button>
                 <h2 style="color:var(--gold); font-size:16px;">🏆 جدول الدوري المصري</h2>
             </div>
-            <div style="display:flex; flex-direction:column; gap:8px;">`;
+            <div style="display:flex; flex-direction:column; gap:8px; max-height:70vh; overflow-y:auto;">`;
 
         myMatches.forEach(m => {
             const isHome = m.home_slot_id === mySlot.id;
@@ -652,7 +677,7 @@ async function showLiveLeagueSchedule() {
 
     } catch (e) {
         alert('خطأ في تحميل الجدول: ' + e.message);
-        dash();
+        if (typeof dash === 'function') dash();
     }
 }
 

@@ -1,5 +1,5 @@
 // ============================================
-// match.js - واجهة المباراة، الرسم، النتيجة (الحل الجذري النهائي لمنع تكرار المباريات)
+// match.js - واجهة المباراة، الرسم، النتيجة (يدعم الأونلاين)
 // ============================================
 
 function playTournamentMatch() { G.forcedMatchComp = 'tournament'; play(); }
@@ -7,6 +7,38 @@ function playLeagueMatch() { G.forcedMatchComp = 'league'; play(); }
 
 function play(){
   try {
+    // ✅ 1. التحقق مما إذا كانت المباراة أونلاين (تم استدعاؤها من multiplayer.js)
+    if (window._mpMatchConfig) {
+        const config = window._mpMatchConfig;
+        Mt = new Match(config);
+
+        if($('mh')) $('mh').textContent = Mt.h.name;
+        if($('ma')) $('ma').textContent = Mt.a.name;
+        if($('weather-badge')) $('weather-badge').textContent = `${Mt.weather.emoji} ${Mt.weather.type}`;
+        if($('lg')) $('lg').innerHTML = '';
+        if($('mr')) $('mr').textContent = window._mpIsReplay ? '▶ إعادة المباراة' : '🌐 الدوري المباشر';
+        if($('live-commentary')) $('live-commentary').style.display = 'none';
+        if($('momentum-pointer')) $('momentum-pointer').style.left = '50%';
+        if($('sc')) $('sc').textContent = '0 - 0';
+        if($('mm')) $('mm').textContent = "0'";
+        if($('mhalf')) $('mhalf').textContent = 'ش1';
+        
+        shown = 0;
+        paused = false;
+        speed = 3;
+        if($('bs')) $('bs').textContent = '×3';
+        if(typeof mtac === 'function') mtac(config.ht || 'balanced');
+        
+        if($('ms')) {
+            $('ms').hidden = false;
+        }
+        
+        last = performance.now();
+        raf = requestAnimationFrame(loop);
+        return;
+    }
+
+    // ✅ 2. منطق المباريات المحلية (الفردية)
     if(!G.lu || G.lu.length !== 11 || G.lu.includes(null) || !T[G.my] || !T[G.my].ps || G.lu.some(id => !T[G.my].ps.find(p => p.id === id))){
       return alert('التشكيلة غير مكتملة أو بيانات الفريق غير موجودة!');
     }
@@ -14,14 +46,12 @@ function play(){
     const nm = getNextUserMatch(G.forcedMatchComp || null);
     if(!nm) return alert('لا توجد مباراة قادمة!');
     
-    // إذا كانت المباراة ملعوبة بالفعل، انتقل لليوم التالي فوراً دون حذفها
     if(nm.played) {
         save();
         if(typeof nxt === 'function') return nxt();
         return;
     }
 
-    // تقدم تلقائي لليوم إذا كان المستخدم يضغط على لعب المباراة مباشرة
     if(daysUntilMatch(nm) > 0) {
         if(typeof advanceToDay === 'function') {
             advanceToDay(nm.day);
@@ -528,6 +558,22 @@ function finish(){
     if(Mt.fin) return;
     Mt.fin = 1;
 
+    // ✅ 3. التحقق مما إذا كانت المباراة أونلاين (تحديث النتيجة في السيرفر بدلاً من الدوري المحلي)
+    if (window._mpMatchConfig) {
+        const hg = Mt.s.home.g;
+        const ag = Mt.s.away.g;
+        window._mpMatchConfig = null; // مسح الإعدادات
+        
+        if($('ms')) $('ms').hidden = true;
+        if($('main')) $('main').hidden = false;
+
+        if (typeof endMultiplayerMatch === 'function') {
+            endMultiplayerMatch(hg, ag);
+        }
+        return;
+    }
+
+    // ✅ 4. منطق إنهاء المباريات المحلية (كما هو)
     const nm = Mt.matchData || getNextUserMatch(G.forcedMatchComp || null);
     const s = Mt.s;
     const mg = s[Mt.hu].g;
@@ -552,7 +598,6 @@ function finish(){
         } catch(err){ console.error('Penalty error:', err); }
       }
 
-      // 1. ختم المباراة كملعوبة في التقويم (دون حذفها لمنع إعادة توليد نفس الدور!)
       nm.played = true;
       nm.result = {myGoals:mg, oppGoals:og, won:rW, draw:rD, penalty:pr};
       if(G.season && G.season.userCalendar){
@@ -564,7 +609,6 @@ function finish(){
         });
       }
 
-      // 2. تسجيل الدوري ومحاكاة باقي مباريات الجولة فوراً
       if(nm.comp === 'league'){
         try {
           rec(Mt.h, Mt.a, s.home.g, s.away.g);
@@ -593,14 +637,12 @@ function finish(){
         } catch(e){ console.error('League rec error:', e); }
       }
 
-      // 3. تسجيل البطولات الإقصائية + إجبار محاكاة باقي فرق نفس الدور فوراً ليتقدم الجدول!
       try {
         if(nm.comp === 'cup' && G.season.cupBracket){
           const roundArr = G.season.cupBracket.rounds[nm.round];
           if(roundArr){
             let m = roundArr.find(x => x.home===G.my || x.away===G.my);
             if(m){ m.played = true; m.winner = rW ? G.my : (m.home===G.my ? m.away : m.home); m.score = [s.home.g, s.away.g]; }
-            // محاكاة فورية لباقي مباريات الدور لضمان اكتماله والتأهل للدور القادم
             roundArr.forEach(aiM => {
               if(!aiM.played && aiM.home !== G.my && aiM.away !== G.my){
                 let g1 = Math.floor(R()*3), g2 = Math.floor(R()*3);
@@ -662,7 +704,6 @@ function finish(){
         }
       } catch(e){ console.error('Tournament advancement error:', e); }
 
-      // 4. تقديم اليوم بمقدار يوم واحد بعد انتهاء المباراة لكسر التوقف في نفس اليوم
       if(G.season && G.season.currentDay <= nm.day){
         G.season.currentDay = nm.day + 1;
       }

@@ -65,15 +65,15 @@
 
   <main id="main"></main>
   
-  <!-- ✅ تم تعديل زر الترتيب هنا ليستدعي الدالة الذكية -->
+  <!-- ✅ تعديل التبويبات لتستدعي الدالة الذكية -->
   <nav class="bottom-nav" id="bottom-nav" hidden>
-    <div class="nav-item" onclick="switchTab('lu')"><span>📋</span>التشكيلة</div>
+    <div class="nav-item" onclick="handleTabClick('lu', this)"><span>📋</span>التشكيلة</div>
     <div class="nav-item" onclick="handleTabClick('tb', this)"><span>📊</span>الترتيب</div>
-    <div class="nav-item" onclick="switchTab('comp')"><span>🏆</span>البطولات</div>
-    <div class="nav-item" onclick="switchTab('tr')"><span>🛒</span>السوق</div>
-    <div class="nav-item" onclick="switchTab('cr')"><span>🎴</span>الفريق</div>
-    <div class="nav-item" onclick="switchTab('mgr')"><span>🏢</span>الإدارة</div>
-    <div class="nav-item" onclick="switchTab('news')"><span>📰</span>الأخبار</div>
+    <div class="nav-item" onclick="handleTabClick('comp', this)"><span>🏆</span>البطولات</div>
+    <div class="nav-item" onclick="handleTabClick('tr', this)"><span>🛒</span>السوق</div>
+    <div class="nav-item" onclick="handleTabClick('cr', this)"><span>🎴</span>الفريق</div>
+    <div class="nav-item" onclick="handleTabClick('mgr', this)"><span>🏢</span>الإدارة</div>
+    <div class="nav-item" onclick="handleTabClick('news', this)"><span>📰</span>الأخبار</div>
   </nav>
 </div>
 
@@ -216,21 +216,34 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/auth.js"></script>
 
-<!-- ✅ سكربت توجيه التبويبات (تمت إضافته لربط جدول ترتيب الأونلاين) -->
+<!-- ✅ سكربت توجيه التبويبات الذكي (لحل مشكلة عدم الفتح) -->
 <script>
 async function handleTabClick(tab, el) {
-    // التحقق مما إذا كنا في تبويب الترتيب ونلعب أونلاين
+    // 1. التحقق من تبويب الترتيب
     if (tab === 'tb' && typeof G !== 'undefined' && G.multiplayerLeagueId && typeof showOnlineStandings === 'function') {
         const success = await showOnlineStandings();
         if (success) {
-            // تحديث شكل التبويبات النشطة
-            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-            if (el) el.classList.add('active');
+            updateActiveNav(el);
             return;
         }
     }
-    // إذا لم نكن أونلاين، نفتح التبويب العادي
+
+    // 2. إجبار التبويبات على إعادة التحميل إذا كنا عائدين من شاشة أخرى (مثل جدول المباريات)
+    if (typeof G !== 'undefined') {
+        if (tab === 'comp' || tab === 'lu' || tab === 'tb') {
+            G.tab = ''; // هذه الخدعة تجبر الكود على إعادة رسم الشاشة
+        }
+    }
+
+    // 3. فتح التبويب العادي
     switchTab(tab);
+    updateActiveNav(el);
+}
+
+function updateActiveNav(el) {
+    if (!el) return;
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    el.classList.add('active');
 }
 </script>
 

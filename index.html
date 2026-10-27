@@ -20,8 +20,8 @@
   <header style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;">
     <div class="app-logo">⚽ المدرب الأفضل <span style="font-size:9px;opacity:.6">v26</span></div>
     
-    <!-- الملف الشخصي للمدرب (VIP) -->
-    <div class="user-profile-header" onclick="if(typeof switchTab==='function') switchTab('mgr')" style="display:flex; align-items:center; gap:8px; cursor:pointer; background:linear-gradient(135deg, rgba(30,58,138,.8), rgba(15,34,56,.9)); padding:4px 12px; border-radius:20px; border:1px solid var(--gold); box-shadow: 0 4px 10px rgba(0,0,0,.3); transition: transform 0.2s;">
+    <!-- ✅ تعديل: فتح الملف الشخصي عند الضغط على الهيدر -->
+    <div class="user-profile-header" onclick="if(typeof showUserProfile==='function') showUserProfile()" style="display:flex; align-items:center; gap:8px; cursor:pointer; background:linear-gradient(135deg, rgba(30,58,138,.8), rgba(15,34,56,.9)); padding:4px 12px; border-radius:20px; border:1px solid var(--gold); box-shadow: 0 4px 10px rgba(0,0,0,.3); transition: transform 0.2s;">
       <div style="width:32px; height:32px; border-radius:50%; background:var(--gold); display:flex; align-items:center; justify-content:center; font-size:18px; border: 2px solid #fff; box-shadow: 0 0 10px rgba(251,191,36,.6);">👨‍💼</div>
       <div style="display:flex; flex-direction:column; align-items:flex-start;">
         <div id="hdr-name" style="font-size:12px; font-weight:900; color:#fff; line-height:1; max-width:100px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">المدرب</div>
@@ -47,7 +47,7 @@
     <div class="nav-item" onclick="switchTab('comp')"><span>🏆</span>البطولات</div>
     <div class="nav-item" onclick="switchTab('tr')"><span>🛒</span>السوق</div>
     <div class="nav-item" onclick="switchTab('cr')"><span>🎴</span>الفريق</div>
-    <!-- ✅ تم تغيير الاسم إلى الإدارة -->
+    <!-- ✅ تعديل: زر الإدارة -->
     <div class="nav-item" onclick="switchTab('mgr')"><span>🏢</span>الإدارة</div>
     <div class="nav-item" onclick="switchTab('news')"><span>📰</span>الأخبار</div>
   </nav>

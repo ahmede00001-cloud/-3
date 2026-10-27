@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف المباشرة (حل نهائي للخطأ)
+// multiplayer.js - نظام الغرف المباشرة (مع إعادة المحاكاة)
 // ============================================
 
 let currentLobby = null;
@@ -12,10 +12,9 @@ let mySlot = null;
 let isSeasonStarting = false;
 let globalWatcherInterval = null; 
 
-// دالة لضمان وجود المتغير G
 function ensureG() {
     if (typeof G === 'undefined' || !G) {
-        G = {}; // تعديل المتغير الأساسي وليس window.G
+        G = {}; 
     }
 }
 
@@ -32,35 +31,28 @@ function stopLobbyTimers() {
 
 function ensureLocalGameReady(slot) {
     try {
-        ensureG(); // استدعاء الحماية
-        
+        ensureG(); 
         if (typeof T === 'undefined' || Object.keys(T).length === 0) {
             if (typeof mk === 'function') mk('egypt');
         }
-        
         if (slot && slot.team_id && T[slot.team_id]) {
             G.my = slot.team_id;
         } else if (!G.my || !T[G.my]) {
             G.my = Object.keys(T)[0];
         }
-        
         G.form = G.form || '4-3-3'; 
         G.tac = G.tac || 'balanced';
         G.lu = autoFillLineup(T[G.my], G.form);
-        
         if (!G.season && typeof generateSeason === 'function') {
             G.season = generateSeason(G.my, null);
         }
-    } catch (e) {
-        console.error("Error in ensureLocalGameReady:", e);
-    }
+    } catch (e) { console.error("Error in ensureLocalGameReady:", e); }
 }
 
 async function showLeaguesPage() {
     stopLobbyTimers(); 
     isSeasonStarting = false;
-    
-    ensureG(); // ✅ الحماية الأهم هنا لمنع الخطأ
+    ensureG(); 
     
     if (G.multiplayerLeagueId) {
         try {
@@ -83,17 +75,12 @@ async function showLeaguesPage() {
         const { data: { user } } = await _db.auth.getUser();
         if (!user) throw new Error("يجب تسجيل الدخول أولاً");
 
-        const { data: mySlots } = await _db.from('lobby_slots')
-            .select('lobby_id, lobbies!inner(id, status)')
-            .eq('user_id', user.id)
-            .in('lobbies.status', ['waiting', 'active'])
-            .limit(1);
+        const { data: mySlots } = await _db.from('lobby_slots').select('lobby_id, lobbies!inner(id, status)').eq('user_id', user.id).in('lobbies.status', ['waiting', 'active']).limit(1);
 
         if (mySlots && mySlots.length > 0) {
             const { data: lobbyData } = await _db.from('lobbies').select('*').eq('id', mySlots[0].lobby_id).single();
             currentLobby = lobbyData;
-            
-            ensureG(); // ✅ تأكيد وجود G قبل الحفظ
+            ensureG(); 
             G.multiplayerLeagueId = currentLobby.id; save();
             
             await loadLobbyData();
@@ -108,22 +95,14 @@ async function showLeaguesPage() {
             return;
         }
 
-        let { data: openLobbies } = await _db.from('lobbies')
-            .select('*')
-            .eq('status', 'waiting')
-            .gt('expires_at', new Date().toISOString())
-            .order('created_at', { ascending: true });
-
+        let { data: openLobbies } = await _db.from('lobbies').select('*').eq('status', 'waiting').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: true });
         let availableLobbies = [];
         if (openLobbies) {
             for (const l of openLobbies) {
                 const { count } = await _db.from('lobby_slots').select('*', { count: 'exact', head: true }).eq('lobby_id', l.id).not('user_id', 'is', null);
-                if (count < 10) {
-                    availableLobbies.push({ lobby: l, count: count });
-                }
+                if (count < 10) availableLobbies.push({ lobby: l, count: count });
             }
         }
-
         availableLobbies.sort((a, b) => b.count - a.count);
 
         if (availableLobbies.length > 0) {
@@ -132,7 +111,6 @@ async function showLeaguesPage() {
             const expDate = new Date(Date.now() + 60 * 60000).toISOString();
             const { data: newLobby, error } = await _db.from('lobbies').insert({ status: 'waiting', expires_at: expDate }).select().single();
             if (error) throw error;
-            
             const teams = LEAGUES['egypt'].teams.slice(0, 10);
             await _db.from('lobby_slots').insert(teams.map(t => ({ lobby_id: newLobby.id, team_id: t[0], team_name: t[1] })));
             currentLobby = newLobby;
@@ -175,9 +153,7 @@ async function fetchUpdates() {
             const timeUp = new Date(currentLobby.expires_at).getTime() <= new Date().getTime();
             const isFull = currentSlots.filter(s => s.user_id).length >= 10;
             if ((timeUp || isFull) && !isSeasonStarting) {
-                isSeasonStarting = true; 
-                await tryStartSeason(); 
-                return;
+                isSeasonStarting = true; await tryStartSeason(); return;
             }
         }
 
@@ -213,24 +189,20 @@ async function tryStartSeason() {
         const activeSlots = currentSlots.filter(s => s.user_id);
         if (activeSlots.length < 2) {
             await _db.from('lobbies').update({ status: 'waiting', expires_at: new Date(Date.now() + 60 * 60000).toISOString() }).eq('id', currentLobby.id);
-            isSeasonStarting = false; 
-            return;
+            isSeasonStarting = false; return;
         }
 
         const fixtures = generateRoundRobin(activeSlots);
         await _db.from('lobby_matches').insert(fixtures.map(f => ({ lobby_id: currentLobby.id, round: f.round, home_slot_id: f.home.id, away_slot_id: f.away.id })));
         
         alert("⏳ بدأ الموسم رسمياً! تفقد صفحة البطولات.");
-        stopLobbyTimers(); 
-        startGlobalLobbyWatcher(); 
-        ensureLocalGameReady(mySlot);
+        stopLobbyTimers(); startGlobalLobbyWatcher(); ensureLocalGameReady(mySlot);
         if (typeof dash === 'function') dash(); 
     } catch (e) { console.error("tryStartSeason error:", e); }
 }
 
 function generateRoundRobin(teams) {
-    let ts = [...teams]; 
-    if (ts.length % 2 !== 0) ts.push(null);
+    let ts = [...teams]; if (ts.length % 2 !== 0) ts.push(null);
     const rounds = ts.length - 1, half = ts.length / 2, fixtures = [];
     for (let r = 1; r <= rounds; r++) {
         for (let i = 0; i < half; i++) {
@@ -258,25 +230,19 @@ function renderWaitingRoom() {
             <h2 style="color:var(--gold); font-size:18px; margin-bottom:5px;">تحدي الـ 10 مدربين</h2>
             <div style="font-size:13px; color:#cbd5e1; margin-bottom:8px;">المنضمون: <b style="color:#4ade80">${joinedCount}</b> / 10</div>
             <div id="live-countdown" style="font-size:20px; font-weight:900; color:#fbbf24; background:rgba(0,0,0,.3); padding:6px 14px; border-radius:8px; display:inline-block;">--:--</div>
-            <div style="margin-top:8px; color:#fbbf24; font-size:12px;">👇 اضغط على فريق لاختياره والدخول للتجهيز</div>
         </div>
         <div class="g2">`;
 
     currentSlots.forEach(slot => {
         const isTaken = !!slot.user_id;
         const isMe = mySlot && String(slot.id) === String(mySlot.id);
-        
         let bg = isMe ? 'rgba(251,191,36,.2)' : (isTaken ? 'rgba(15,34,56,.8)' : 'rgba(30,58,138,.4)');
         let border = isMe ? '#fbbf24' : (isTaken ? '#ef4444' : '#22c55e');
-        let statusHtml = isMe 
-            ? `<div style="font-size:10px; color:#fbbf24; font-weight:bold; margin-top:4px;">⭐ فريقك</div>`
-            : (isTaken ? `<div style="font-size:10px; color:#ef4444; font-weight:bold; margin-top:4px;">🔒 ${slot.manager_name || 'محجوز'}</div>` : `<div style="font-size:10px; color:#4ade80; font-weight:bold; margin-top:4px;">🟢 متاح</div>`);
-        
+        let statusHtml = isMe ? `<div style="font-size:10px; color:#fbbf24; font-weight:bold; margin-top:4px;">⭐ فريقك</div>` : (isTaken ? `<div style="font-size:10px; color:#ef4444; font-weight:bold; margin-top:4px;">🔒 ${slot.manager_name || 'محجوز'}</div>` : `<div style="font-size:10px; color:#4ade80; font-weight:bold; margin-top:4px;">🟢 متاح</div>`);
         let isDisabled = isTaken || isFull || hasTeam;
         let onclick = isDisabled ? '' : `onclick="claimLiveTeam('${slot.id}', this)"`;
-        let cursor = isDisabled ? 'default' : 'pointer';
         
-        html += `<button class="team-select-card" ${onclick} style="cursor:${cursor}; background:${bg}; border:1px solid ${border}; padding:12px; border-radius:10px; transition:0.2s; width:100%; display:block; text-align:center; color:inherit; font-family:inherit;">
+        html += `<button class="team-select-card" ${onclick} style="cursor:${isDisabled ? 'default' : 'pointer'}; background:${bg}; border:1px solid ${border}; padding:12px; border-radius:10px; transition:0.2s; width:100%; display:block; text-align:center; color:inherit; font-family:inherit;">
             <div class="bd" style="font-size:15px; width:36px; height:36px; margin:0 auto 6px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; background:rgba(255,255,255,0.1); color:#fff;">${slot.team_name ? slot.team_name[0] : '⚽'}</div>
             <b style="font-size:12px; display:block; color:#fff;">${slot.team_name}</b>
             ${statusHtml}
@@ -298,8 +264,7 @@ async function claimLiveTeam(slotId, btnEl) {
         if (!chosenSlot) throw new Error('الفريق غير موجود!');
 
         ensureLocalGameReady(chosenSlot);
-
-        ensureG(); // ✅ تأكيد وجود G قبل التعديل
+        ensureG(); 
 
         const snap = { 
             name: T[G.my].name, R: T[G.my].R, c1: T[G.my].c1, c2: T[G.my].c2,
@@ -459,8 +424,8 @@ async function loadMultiplayerCompData() {
                             ${isHome ? mySlot.team_name : opp.team_name} vs ${isHome ? opp.team_name : mySlot.team_name}
                         </div>
                         ${m.played 
-                            ? `<div style="font-size:12px; color:var(--gold); font-weight:900; width:45px; text-align:left;">${m.home_score} - ${m.away_score}</div>`
-                            : `<button class="b g sm" style="padding:4px 10px; font-size:10px;" onclick="playMultiplayerMatch('${m.id}', '${lobby.id}')">▶ العب</button>`
+                            ? `<button class="b sm" style="padding:4px 10px; font-size:10px; background:#475569; border:1px solid #22c55e;" onclick="playMultiplayerMatch('${m.id}', '${lobby.id}', true)">▶ مشاهدة المباراة</button>`
+                            : `<button class="b g sm" style="padding:4px 10px; font-size:10px;" onclick="playMultiplayerMatch('${m.id}', '${lobby.id}', false)">▶ العب</button>`
                         }
                     </div>`;
                 });
@@ -476,10 +441,11 @@ async function loadMultiplayerCompData() {
     mpCompInterval = setInterval(fetchAndRender, 5000);
 }
 
-async function playMultiplayerMatch(matchId, lobbyId) {
+async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
     try {
         const { data: match } = await _db.from('lobby_matches').select('*').eq('id', matchId).single();
-        if (!match || match.played) return alert('تم لعب هذه المباراة بالفعل!');
+        if (!match) return alert('المباراة غير موجودة!');
+        if (!isReplay && match.played) return alert('تم لعب هذه المباراة بالفعل!');
 
         const { data: slots } = await _db.from('lobby_slots').select('*').eq('lobby_id', lobbyId);
         const { data: { user } } = await _db.auth.getUser();
@@ -491,9 +457,30 @@ async function playMultiplayerMatch(matchId, lobbyId) {
 
         ensureLocalGameReady(mySlot);
 
-        let oppTeamData = oppSlot?.team_snapshot;
+        let oppTeamData;
+        let myTeamData;
+
+        if (isReplay) {
+            // ✅ إذا كانت إعادة، نستخدم اللقطات المحفوظة مسبقاً
+            myTeamData = isHome ? match.home_snapshot : match.away_snapshot;
+            oppTeamData = isHome ? match.away_snapshot : match.home_snapshot;
+        } else {
+            // ✅ إذا كانت مباراة جديدة، نأخذ تشكيلتنا الحالية وتشكيلة الخصم المحفوظة
+            myTeamData = { 
+                name: T[G.my].name, R: T[G.my].R, c1: T[G.my].c1, c2: T[G.my].c2,
+                form: G.form, tac: G.tac, starters: G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean) 
+            };
+            oppTeamData = oppSlot?.team_snapshot;
+            
+            // حفظ اللقطات في قاعدة البيانات
+            const updateData = isHome ? { home_snapshot: myTeamData } : { away_snapshot: myTeamData };
+            await _db.from('lobby_matches').update(updateData).eq('id', matchId);
+        }
+
         let oppTeamId = 'OPP_' + oppSlot.id.substring(0, 6);
-        
+        let myTeamId = 'MY_' + mySlot.id.substring(0, 6);
+
+        // تجهيز فريق الخصم
         if (!oppTeamData || !oppTeamData.starters || oppTeamData.starters.length < 11) {
             T[oppTeamId] = { id: oppTeamId, name: oppSlot.team_name, R: 75, c1: '#1e40af', c2: '#fff', budget: 100, ps: [], form: '4-3-3', tac: 'balanced' };
             const posList = ['GK','DEF','DEF','DEF','DEF','MID','MID','MID','FWD','FWD','FWD'];
@@ -504,38 +491,106 @@ async function playMultiplayerMatch(matchId, lobbyId) {
             T[oppTeamId] = buildTeamFromSnapshot(oppTeamData, oppTeamId);
         }
 
-        const myStarters = G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean);
+        // تجهيز فريقي (في حالة الإعادة)
+        if(isReplay) {
+            T[myTeamId] = buildTeamFromSnapshot(myTeamData, myTeamId);
+        }
+
+        const myStarters = isReplay ? T[myTeamId].ps.slice(0, 11) : G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean);
         const oppStarters = T[oppTeamId].ps.slice(0, 11);
 
-        const newSnap = { name: T[G.my].name, R: T[G.my].R, form: G.form, tac: G.tac, starters: myStarters };
-        await _db.from('lobby_slots').update({ team_snapshot: newSnap }).eq('id', mySlot.id);
-
         const matchConfig = {
-            h: isHome ? T[G.my] : T[oppTeamId],
-            a: isHome ? T[oppTeamId] : T[G.my],
+            h: isHome ? (isReplay ? T[myTeamId] : T[G.my]) : T[oppTeamId],
+            a: isHome ? T[oppTeamId] : (isReplay ? T[myTeamId] : T[G.my]),
             hl: isHome ? myStarters : oppStarters,
             al: isHome ? oppStarters : myStarters,
-            hf: isHome ? (G.form || '4-3-3') : (oppTeamData?.form || '4-3-3'),
-            af: isHome ? (oppTeamData?.form || '4-3-3') : (G.form || '4-3-3'),
-            ht: isHome ? (G.tac || 'balanced') : (oppTeamData?.tac || 'balanced'),
-            at: isHome ? (oppTeamData?.tac || 'balanced') : (G.tac || 'balanced'),
+            hf: isHome ? (myTeamData.form || '4-3-3') : (oppTeamData?.form || '4-3-3'),
+            af: isHome ? (oppTeamData?.form || '4-3-3') : (myTeamData.form || '4-3-3'),
+            ht: isHome ? (myTeamData.tac || 'balanced') : (oppTeamData?.tac || 'balanced'),
+            at: isHome ? (oppTeamData?.tac || 'balanced') : (myTeamData.tac || 'balanced'),
             human: isHome ? 'home' : 'away',
             compName: `الدوري المباشر 🌐`,
             weather: (typeof WEATHERS !== 'undefined' && WEATHERS[0]) ? WEATHERS[0] : {type:'مشمس', emoji:'☀️', accuracy:1.0, stamina:1.0}
         };
 
-        alert("جاري محاكاة المباراة...");
-        const matchEng = new Match(matchConfig);
-        let safety = 0;
-        while (!matchEng.done && safety < 40000) { matchEng.step(); safety++; }
-        
-        const hg = matchEng.s.home.g;
-        const ag = matchEng.s.away.g;
+        runVisualMultiplayerMatch(matchConfig, matchId, lobbyId, isHome, mySlot, oppSlot, slots, isReplay);
 
+    } catch (err) {
+        console.error('MP Match Error:', err);
+        alert('حدث خطأ أثناء تجهيز المباراة: ' + err.message);
+    }
+}
+
+function runVisualMultiplayerMatch(matchConfig, matchId, lobbyId, isHome, mySlot, oppSlot, slots, isReplay) {
+    $('main').hidden = true;
+    $('ms').hidden = false;
+    
+    if($('mh')) $('mh').textContent = matchConfig.h.name;
+    if($('ma')) $('ma').textContent = matchConfig.a.name;
+    if($('sc')) $('sc').textContent = '0 - 0';
+    if($('mm')) $('mm').textContent = "0'";
+    if($('lg')) $('lg').innerHTML = '';
+    if($('live-commentary')) $('live-commentary').innerHTML = '';
+    
+    if(isReplay) {
+        $('mhalf').innerHTML = '<span style="color:var(--gold); font-weight:bold;">▶ إعادة المباراة</span>';
+    }
+
+    const matchEng = new Match(matchConfig);
+    let lastMin = -1;
+
+    const visualInterval = setInterval(() => {
+        if (matchEng.done) {
+            clearInterval(visualInterval);
+            $('ms').hidden = true;
+            $('main').hidden = false;
+            
+            if (!isReplay) {
+                finalizeMultiplayerMatch(matchId, lobbyId, isHome, matchEng.s.home.g, matchEng.s.away.g, mySlot, oppSlot, slots);
+            } else {
+                // إذا كانت إعادة، لا نحفظ النتيجة، فقط نعرض النتيجة النهائية
+                alert(`⚽ انتهت المباراة (إعادة)!\nالنتيجة: ${matchEng.s.home.g} - ${matchEng.s.away.g}`);
+                if (typeof dash === 'function') dash();
+            }
+            return;
+        }
+
+        matchEng.step();
+
+        const currentMin = Math.floor(matchEng.min);
+        if (currentMin !== lastMin) {
+            lastMin = currentMin;
+            if($('mm')) $('mm').textContent = currentMin + "'";
+        }
+        if($('sc')) $('sc').textContent = matchEng.s.home.g + ' - ' + matchEng.s.away.g;
+
+        if (matchEng.log.length > 0) {
+            const newLogs = matchEng.log;
+            matchEng.log = []; 
+            
+            newLogs.forEach(l => {
+                if (l.t === 'goal' || l.t === 'card' || l.t === 'sub' || l.t === 'shot') {
+                    const logDiv = document.createElement('div');
+                    logDiv.style.cssText = 'padding:4px; border-bottom:1px solid rgba(255,255,255,0.1); font-size:11px;';
+                    logDiv.textContent = l.x;
+                    if (l.t === 'goal') logDiv.style.color = '#4ade80';
+                    else if (l.t === 'card') logDiv.style.color = '#fbbf24';
+                    if($('lg')) {
+                        $('lg').appendChild(logDiv);
+                        $('lg').scrollTop = $('lg').scrollHeight;
+                    }
+                }
+            });
+        }
+    }, 50); 
+}
+
+async function finalizeMultiplayerMatch(matchId, lobbyId, isHome, hg, ag, mySlot, oppSlot, slots) {
+    try {
         await _db.from('lobby_matches').update({ home_score: hg, away_score: ag, played: true }).eq('id', matchId);
 
-        const homeSlot = slots.find(s => s.id === match.home_slot_id);
-        const awaySlot = slots.find(s => s.id === match.away_slot_id);
+        const homeSlot = slots.find(s => s.id === (isHome ? mySlot.id : oppSlot.id));
+        const awaySlot = slots.find(s => s.id === (isHome ? oppSlot.id : mySlot.id));
 
         const updateSlot = async (slot, gf, ga, isWin, isDraw) => {
             await _db.from('lobby_slots').update({
@@ -557,13 +612,15 @@ async function playMultiplayerMatch(matchId, lobbyId) {
 
         const homeName = isHome ? mySlot.team_name : oppSlot.team_name;
         const awayName = isHome ? oppSlot.team_name : mySlot.team_name;
+        
         alert(`⚽ انتهت المباراة!\n${homeName} ${hg} - ${ag} ${awayName}`);
         
         if (typeof loadMultiplayerCompData === 'function') loadMultiplayerCompData();
+        if (typeof dash === 'function') dash();
 
     } catch (err) {
-        console.error('MP Match Error:', err);
-        alert('حدث خطأ أثناء تشغيل المباراة: ' + err.message);
+        console.error('Error saving match:', err);
+        alert('حدث خطأ أثناء حفظ النتيجة.');
     }
 }
 

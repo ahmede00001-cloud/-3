@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف المباشرة (النسخة المتكاملة)
+// multiplayer.js - نظام الغرف المباشرة (النسخة النهائية)
 // ============================================
 
 let currentLobby = null;
@@ -22,45 +22,6 @@ function stopLobbyTimers() {
     if (mpCompInterval) clearInterval(mpCompInterval);
     if (globalWatcherInterval) clearInterval(globalWatcherInterval);
     liveInterval = null; timeLeftInterval = null; mpCompInterval = null; globalWatcherInterval = null;
-}
-
-// توليد فريق آلي (Bot)
-function generateBotSnapshot(teamName) {
-    const posList = ['GK','DEF','DEF','DEF','DEF','MID','MID','MID','FWD','FWD','FWD'];
-    const starters = posList.map((pos, i) => ({
-        id: 'BOT_' + Math.random().toString(36).substr(2, 9),
-        name: 'لاعب ' + (i+1),
-        pos: pos,
-        r: 70 + Math.floor(Math.random() * 15), 
-        lvl: 1, age: 24,
-        pace: 70, shooting: 70, passing: 70, dribbling: 70, defending: 70, physical: 70
-    }));
-    return {
-        name: teamName,
-        R: 75, c1: '#1e293b', c2: '#fff',
-        form: '4-3-3', tac: 'balanced',
-        starters: starters
-    };
-}
-
-function ensureLocalGameReady(slot) {
-    try {
-        ensureG(); 
-        if (typeof T === 'undefined' || Object.keys(T).length === 0) {
-            if (typeof mk === 'function') mk('egypt');
-        }
-        if (slot && slot.team_id && T[slot.team_id]) {
-            G.my = slot.team_id;
-        } else if (!G.my || !T[G.my]) {
-            G.my = Object.keys(T)[0];
-        }
-        G.form = G.form || '4-3-3'; 
-        G.tac = G.tac || 'balanced';
-        G.lu = autoFillLineup(T[G.my], G.form);
-        if (!G.season && typeof generateSeason === 'function') {
-            G.season = generateSeason(G.my, null);
-        }
-    } catch (e) { console.error("Error in ensureLocalGameReady:", e); }
 }
 
 // ✅ دالة تقديم الاستقالة ومغادرة الغرفة
@@ -109,6 +70,45 @@ async function resignFromLobby() {
         alert('حدث خطأ أثناء تقديم الاستقالة: ' + err.message);
         if (typeof dash === 'function') dash();
     }
+}
+
+// توليد فريق آلي (Bot)
+function generateBotSnapshot(teamName) {
+    const posList = ['GK','DEF','DEF','DEF','DEF','MID','MID','MID','FWD','FWD','FWD'];
+    const starters = posList.map((pos, i) => ({
+        id: 'BOT_' + Math.random().toString(36).substr(2, 9),
+        name: 'لاعب ' + (i+1),
+        pos: pos,
+        r: 70 + Math.floor(Math.random() * 15), 
+        lvl: 1, age: 24,
+        pace: 70, shooting: 70, passing: 70, dribbling: 70, defending: 70, physical: 70
+    }));
+    return {
+        name: teamName,
+        R: 75, c1: '#1e293b', c2: '#fff',
+        form: '4-3-3', tac: 'balanced',
+        starters: starters
+    };
+}
+
+function ensureLocalGameReady(slot) {
+    try {
+        ensureG(); 
+        if (typeof T === 'undefined' || Object.keys(T).length === 0) {
+            if (typeof mk === 'function') mk('egypt');
+        }
+        if (slot && slot.team_id && T[slot.team_id]) {
+            G.my = slot.team_id;
+        } else if (!G.my || !T[G.my]) {
+            G.my = Object.keys(T)[0];
+        }
+        G.form = G.form || '4-3-3'; 
+        G.tac = G.tac || 'balanced';
+        G.lu = autoFillLineup(T[G.my], G.form);
+        if (!G.season && typeof generateSeason === 'function') {
+            G.season = generateSeason(G.my, null);
+        }
+    } catch (e) { console.error("Error in ensureLocalGameReady:", e); }
 }
 
 async function showLeaguesPage() {
@@ -242,7 +242,6 @@ function startCountdownTimer() {
     }, 1000);
 }
 
-// ✅ تعديل بدء الموسم: ملء الفرق الفارغة ببوتات + جدولة المباريات
 async function tryStartSeason() {
     if (currentLobby.status !== 'waiting') return;
     try {

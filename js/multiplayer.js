@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف والمباريات والوقت الثابت (النسخة الكاملة النهائية)
+// multiplayer.js - نظام الغرف والمباريات والوقت الثابت وواجهة المدرب (النسخة الكاملة النهائية)
 // ============================================
 
 let currentLobby = null;
@@ -372,45 +372,130 @@ async function processDueBotMatches(lobbyId) {
     } catch (e) { console.error("Auto server sim error:", e); }
 }
 
+// ============================================
+// 👤 واجهة غرفة الانتظار (مع الهيدر وتفاصيل الفرق)
+// ============================================
 function renderWaitingRoom() {
     const maxTeams = getLobbyMaxTeams();
     const joinedCount = currentSlots.filter(s => s.user_id && s.user_id !== BOT_UUID).length;
     const hasTeam = !!mySlot;
     const isFull = joinedCount >= maxTeams;
+    const currentMgrName = (typeof G !== 'undefined' && G.managerName) ? G.managerName : 'مدرب';
 
     let html = `<div class="c" style="margin-top:10px; position:relative;">
+        <div style="background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.95)); border: 1px solid rgba(251,191,36,0.4); padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:20px;">👨‍💼</span>
+                <div>
+                    <div style="font-size:10px; color:#94a3b8;">المدرب الحالي</div>
+                    <div style="font-size:14px; font-weight:900; color:#fff;">${currentMgrName}</div>
+                </div>
+            </div>
+            <div style="text-align:left; border-right:1px solid rgba(255,255,255,0.1); padding-right:12px;">
+                <div style="font-size:10px; color:#94a3b8;">الفريق المختار</div>
+                <div style="font-size:13px; font-weight:bold; color:#4ade80;">${mySlot ? mySlot.team_name : 'لم تختر فريقاً'}</div>
+            </div>
+        </div>
+
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <button class="b sm" style="padding:5px 10px; font-size:11px; background:#475569;" onclick="stopLobbyTimers(); showSetup()">⬅ خروج</button>
             <button class="b sm" style="padding:5px 10px; font-size:11px; background:#0284c7;" onclick="forceNewLobby()">🔄 غرفة جديدة</button>
         </div>
         
-        <div style="text-align:center; margin-bottom:15px;">
-            <div style="display:inline-block; background:rgba(239,68,68,.2); border:1px solid #ef4444; padding:4px 12px; border-radius:20px; color:#ef4444; font-size:12px; font-weight:bold; margin-bottom:8px;">🔴 غرفة الانتظار المباشرة</div>
-            <h2 style="color:var(--gold); font-size:18px; margin-bottom:5px;">الدوري المصري الممتاز (أونلاين)</h2>
-            <div style="font-size:13px; color:#cbd5e1; margin-bottom:8px;">المدربون المنضمون: <b style="color:#4ade80">${joinedCount}</b> / ${maxTeams}</div>
-            <div id="live-countdown" style="font-size:20px; font-weight:900; color:#fbbf24; background:rgba(0,0,0,.3); padding:6px 14px; border-radius:8px; display:inline-block;">--:--</div>
+        <div style="text-align:center; margin-bottom:12px;">
+            <div style="display:inline-block; background:rgba(239,68,68,.2); border:1px solid #ef4444; padding:4px 12px; border-radius:20px; color:#ef4444; font-size:12px; font-weight:bold; margin-bottom:6px;">🔴 غرفة الانتظار المباشرة</div>
+            <h2 style="color:var(--gold); font-size:16px; margin-bottom:4px;">الدوري المصري الممتاز (أونلاين)</h2>
+            <div style="font-size:12px; color:#cbd5e1; margin-bottom:6px;">المدربون المنضمون: <b style="color:#4ade80">${joinedCount}</b> / ${maxTeams}</div>
+            <div id="live-countdown" style="font-size:18px; font-weight:900; color:#fbbf24; background:rgba(0,0,0,.3); padding:4px 12px; border-radius:8px; display:inline-block;">--:--</div>
             
-            ${hasTeam && joinedCount >= 1 ? `<button class="b g full" style="margin-top:10px; padding:10px; font-weight:bold;" onclick="tryStartSeason()">🚀 بدء الموسم الآن</button>` : ''}
+            <div style="font-size:11px; color:#38bdf8; margin-top:6px;">💡 اضغط على أي بطاقة فريق لاستعراض لاعبيه وقوته واسم مدربه</div>
+
+            ${hasTeam && joinedCount >= 1 ? `<button class="b g full" style="margin-top:8px; padding:8px; font-weight:bold;" onclick="tryStartSeason()">🚀 بدء الموسم الآن</button>` : ''}
         </div>
-        <div class="g2" style="max-height: 50vh; overflow-y: auto; padding-right: 5px;">`;
+        
+        <div class="g2" style="max-height: 48vh; overflow-y: auto; padding-right: 4px;">`;
 
     currentSlots.forEach(slot => {
         const isTaken = !!slot.user_id && slot.user_id !== BOT_UUID;
-        const isMe = mySlot && String(slot.id) === String(slot.id);
+        const isMe = mySlot && String(slot.id) === String(mySlot.id);
         let bg = isMe ? 'rgba(251,191,36,.2)' : (isTaken ? 'rgba(15,34,56,.8)' : 'rgba(30,58,138,.4)');
         let border = isMe ? '#fbbf24' : (isTaken ? '#ef4444' : '#22c55e');
-        let statusHtml = isMe ? `<div style="font-size:10px; color:#fbbf24; font-weight:bold; margin-top:4px;">⭐ فريقك</div>` : (isTaken ? `<div style="font-size:10px; color:#ef4444; font-weight:bold; margin-top:4px;">🔒 ${slot.manager_name || 'محجوز'}</div>` : `<div style="font-size:10px; color:#4ade80; font-weight:bold; margin-top:4px;">🟢 متاح</div>`);
-        let isDisabled = isTaken || isFull || hasTeam;
-        let onclick = isDisabled ? '' : `onclick="claimLiveTeam('${slot.id}', this)"`;
         
-        html += `<button class="team-select-card" ${onclick} style="cursor:${isDisabled ? 'default' : 'pointer'}; background:${bg}; border:1px solid ${border}; padding:10px; border-radius:10px; width:100%; display:block; text-align:center; margin-bottom: 5px;">
-            <div class="bd" style="font-size:15px; width:30px; height:30px; margin:0 auto 4px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; background:rgba(255,255,255,0.1); color:#fff;">${slot.team_name ? slot.team_name[0] : '⚽'}</div>
+        let statusHtml = isMe 
+            ? `<div style="font-size:10px; color:#fbbf24; font-weight:bold; margin-top:2px;">⭐ فريقك (${currentMgrName})</div>` 
+            : (isTaken 
+                ? `<div style="font-size:10px; color:#ef4444; font-weight:bold; margin-top:2px;">👤 ${slot.manager_name || 'مدرب محجوز'}</div>` 
+                : `<div style="font-size:10px; color:#4ade80; font-weight:bold; margin-top:2px;">🟢 متاح للاختيار</div>`);
+        
+        let actionBtn = !isTaken && !hasTeam && joinedCount < maxTeams 
+            ? `<button class="b g sm" style="padding:3px 8px; font-size:10px; margin-top:4px;" onclick="event.stopPropagation(); claimLiveTeam('${slot.id}', this)">اختيار 🤝</button>` 
+            : '';
+
+        html += `<div class="team-select-card" onclick="showTeamDetailsModal('${slot.id}')" style="cursor:pointer; background:${bg}; border:1px solid ${border}; padding:8px; border-radius:10px; text-align:center; margin-bottom:5px;">
+            <div class="bd" style="font-size:14px; width:28px; height:28px; margin:0 auto 3px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; background:rgba(255,255,255,0.1); color:#fff;">${slot.team_name ? slot.team_name[0] : '⚽'}</div>
             <b style="font-size:11px; display:block; color:#fff;">${slot.team_name}</b>
             ${statusHtml}
-        </button>`;
+            ${actionBtn}
+        </div>`;
     });
     html += `</div></div>`;
     $('main').innerHTML = html;
+}
+
+// نافذة تفاصيل الفريق واللاعبين وقوة الفريق عند الضغط عليه
+function showTeamDetailsModal(slotId) {
+    const slot = currentSlots.find(s => String(s.id) === String(slotId));
+    if (!slot) return;
+
+    let teamRating = 75;
+    let managerText = 'غير مسجل (متاح)';
+    let playersListHtml = '<div style="color:#94a3b8; text-align:center; padding:15px;">لا توجد تفاصيل متاحة لهذا الفريق بعد.</div>';
+
+    if (slot.user_id) {
+        managerText = slot.user_id === BOT_UUID ? '🤖 مدرب آلي (بوْت)' : `👤 ${slot.manager_name || 'مدرب بشري'}`;
+        if (slot.team_snapshot && slot.team_snapshot.starters) {
+            const starters = slot.team_snapshot.starters;
+            teamRating = slot.team_snapshot.R || Math.round(starters.reduce((acc, p) => acc + (p.r || 75), 0) / starters.length);
+            
+            playersListHtml = starters.map(p => `
+                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); padding:6px 10px; border-radius:6px; margin-bottom:4px; font-size:12px;">
+                    <span style="color:#fff; font-weight:bold;">${p.name} <span style="font-size:10px; color:#94a3b8;">(${p.pos})</span></span>
+                    <span style="color:#fbbf24; font-weight:bold;">⭐ ${p.r || 75}</span>
+                </div>
+            `).join('');
+        }
+    } else {
+        const originalTeam = (typeof LEAGUES !== 'undefined' && LEAGUES['egypt']) ? LEAGUES['egypt'].teams.find(t => t[0] === slot.team_id) : null;
+        teamRating = originalTeam ? originalTeam[2] : 75;
+    }
+
+    $('cmc').innerHTML = `
+        <div class="mc mc-warning" style="max-height:85vh; display:flex; flex-direction:column; width:95%; max-width:450px;">
+            <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
+            <div class="mc-head" style="text-align:center; margin-bottom:10px;">
+                <div style="font-size:32px;">🛡️</div>
+                <div class="mc-title" style="font-size:18px; color:#fff;">${slot.team_name}</div>
+                <div class="mc-sub" style="font-size:12px; color:#4ade80; margin-top:4px;">المدرب: <b>${managerText}</b></div>
+                <div style="margin-top:6px; display:inline-block; background:rgba(251,191,36,0.15); border:1px solid #fbbf24; padding:2px 10px; border-radius:6px; color:#fbbf24; font-size:12px; font-weight:bold;">
+                    ⭐ قوة الفريق الإجمالية: ${teamRating}
+                </div>
+            </div>
+
+            <div style="font-size:12px; color:#fbbf24; font-weight:bold; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:4px;">
+                👥 قائمة اللاعبين الأساسيين:
+            </div>
+            
+            <div style="overflow-y:auto; flex:1; padding-right:4px; max-height:45vh;">
+                ${playersListHtml}
+            </div>
+
+            ${!slot.user_id && !mySlot ? `
+                <button class="b g full" style="margin-top:12px; padding:10px; font-weight:bold;" onclick="$('cm').hidden=true; claimLiveTeam('${slot.id}')">اختيار هذا الفريق والانضمام 🤝</button>
+            ` : ''}
+        </div>
+    `;
+    $('cm').hidden = true;
+    $('cm').hidden = false;
 }
 
 async function claimLiveTeam(slotId, btnEl) {

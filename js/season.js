@@ -1201,6 +1201,15 @@ function nxt(){
 }
 
 function showTournamentDetails(comp){
+  // 🛠️ التعديل هنا: التحقق مما إذا كان اللاعب في دوري أونلاين
+  if (comp === 'league' && typeof G !== 'undefined' && G && G.multiplayerLeagueId) {
+      if (typeof showLiveLeagueSchedule === 'function') {
+          if ($('cm')) $('cm').hidden = true; // إغلاق النافذة المنبثقة إذا كانت مفتوحة
+          showLiveLeagueSchedule(); // تشغيل دالة جدول المباريات الأونلاين
+          return;
+      }
+  }
+
   let html = '';
   const cn = {league:'الدوري المصري', cup:'كأس مصر', cafCL:'دوري أبطال أفريقيا', cafCC:'كأس الكونفدرالية', super:'السوبر المصري', cafSuper:'السوبر الأفريقي', clubWC:'كأس العالم للأندية'};
   const title = cn[comp] || 'البطولة';

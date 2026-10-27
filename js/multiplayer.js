@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف (بدء تلقائي + ذهاب وإياب + سوق مباشر)
+// multiplayer.js - نظام الغرف (بالمحرك البصري الأصلي)
 // ============================================
 
 let currentLobby = null;
@@ -213,7 +213,6 @@ async function tryStartSeason() {
         const { data: freshSlots } = await _db.from('lobby_slots').select('*').eq('lobby_id', currentLobby.id);
         const activeSlots = freshSlots.filter(s => s.user_id && s.user_id !== BOT_UUID);
         
-        // ✅ السماح بالبدء حتى لو كان هناك لاعب حقيقي واحد فقط (سيُكمل بالبوتات)
         if (activeSlots.length < 1) {
             await _db.from('lobbies').update({ status: 'waiting', expires_at: new Date(Date.now() + 60 * 60000).toISOString() }).eq('id', currentLobby.id);
             isSeasonStarting = false; 
@@ -486,7 +485,6 @@ async function loadMultiplayerCompData() {
                 const timeUp = new Date(lobby.expires_at).getTime() <= new Date().getTime();
                 const isFull = joinedCount >= 10;
                 
-                // ✅ التحقق التلقائي لبدء الموسم
                 if ((timeUp || isFull) && !isSeasonStarting) {
                     isSeasonStarting = true;
                     await tryStartSeason();
@@ -566,6 +564,7 @@ async function loadMultiplayerCompData() {
     mpCompInterval = setInterval(fetchAndRender, 5000);
 }
 
+// ✅ الإصلاح: استخدام المحرك البصري الأصلي للعبة
 async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
     try {
         const { data: match } = await _db.from('lobby_matches').select('*').eq('id', matchId).single();
@@ -634,66 +633,54 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
             weather: (typeof WEATHERS !== 'undefined' && WEATHERS[0]) ? WEATHERS[0] : {type:'مشمس', emoji:'☀️', accuracy:1.0, stamina:1.0}
         };
 
-        runVisualMultiplayerMatch(matchConfig, matchId, lobbyId, isHome, mySlot, oppSlot, slots, isReplay);
+        // ✅ استدعاء المحرك البصري الأصلي
+        if (typeof startLiveMatch === 'function') {
+            // المرور عبر المحرك الأصلي
+            window._mpMatchCallback = (hg, ag) => {
+                if (!isReplay) {
+                    finalizeMultiplayerMatch(matchId, lobbyId, isHome, hg, ag, mySlot, oppSlot, slots);
+                } else {
+                    alert(`⚽ انتهت (إعادة)!\n${hg} - ${ag}`);
+                    if (typeof dash === 'function') dash();
+                }
+            };
+            // الحفظ المؤقت للبيانات
+            window._mpMatchId = matchId;
+            window._mpLobbyId = lobbyId;
+            window._mpIsHome = isHome;
+            window._mpMySlot = mySlot;
+            window._mpOppSlot = oppSlot;
+            window._mpSlots = slots;
+            window._mpIsReplay = isReplay;
+            
+            startLiveMatch(matchConfig, 'league');
+        } else {
+            // Fallback (محاكاة صامتة إذا لم يكن المحرك موجوداً)
+            alert("جاري محاكاة المباراة...");
+            const eng = new Match(matchConfig);
+            let safety = 0;
+            while (!eng.done && safety < 20000) { eng.step(); safety++; }
+            
+            if (!isReplay) {
+                finalizeMultiplayerMatch(matchId, lobbyId, isHome, eng.s.home.g, eng.s.away.g, mySlot, oppSlot, slots);
+            } else {
+                alert(`⚽ انتهت (إعادة)!\n${eng.s.home.g} - ${eng.s.away.g}`);
+                if (typeof dash === 'function') dash();
+            }
+        }
+
     } catch (err) {
-        alert('حدث خطأ: ' + err.message);
+        console.error("MP Match Error:", err);
+        alert('حدث خطأ أثناء تجهيز المباراة: ' + err.message);
     }
 }
 
-function runVisualMultiplayerMatch(matchConfig, matchId, lobbyId, isHome, mySlot, oppSlot, slots, isReplay) {
-    $('main').hidden = true;
-    $('ms').hidden = false;
-    
-    if($('mh')) $('mh').textContent = matchConfig.h.name;
-    if($('ma')) $('ma').textContent = matchConfig.a.name;
-    if($('sc')) $('sc').textContent = '0 - 0';
-    if($('mm')) $('mm').textContent = "0'";
-    if($('lg')) $('lg').innerHTML = '';
-    if($('live-commentary')) $('live-commentary').innerHTML = '';
-    
-    if(isReplay) $('mhalf').innerHTML = '<span style="color:var(--gold); font-weight:bold;">▶ إعادة</span>';
-
-    const matchEng = new Match(matchConfig);
-    let lastMin = -1;
-
-    const visualInterval = setInterval(() => {
-        if (matchEng.done) {
-            clearInterval(visualInterval);
-            $('ms').hidden = true;
-            $('main').hidden = false;
-            
-            if (!isReplay) {
-                finalizeMultiplayerMatch(matchId, lobbyId, isHome, matchEng.s.home.g, matchEng.s.away.g, mySlot, oppSlot, slots);
-            } else {
-                alert(`⚽ انتهت (إعادة)!\n${matchEng.s.home.g} - ${matchEng.s.away.g}`);
-                if (typeof dash === 'function') dash();
-            }
-            return;
-        }
-
-        matchEng.step();
-        const currentMin = Math.floor(matchEng.min);
-        if (currentMin !== lastMin) { lastMin = currentMin; if($('mm')) $('mm').textContent = currentMin + "'"; }
-        if($('sc')) $('sc').textContent = matchEng.s.home.g + ' - ' + matchEng.s.away.g;
-
-        if (matchEng.log.length > 0) {
-            const newLogs = matchEng.log; matchEng.log = []; 
-            newLogs.forEach(l => {
-                if (l.t === 'goal' || l.t === 'card' || l.t === 'sub' || l.t === 'shot') {
-                    const logDiv = document.createElement('div');
-                    logDiv.style.cssText = 'padding:4px; border-bottom:1px solid rgba(255,255,255,0.1); font-size:11px;';
-                    logDiv.textContent = l.x;
-                    if (l.t === 'goal') logDiv.style.color = '#4ade80';
-                    else if (l.t === 'card') logDiv.style.color = '#fbbf24';
-                    if($('lg')) { $('lg').appendChild(logDiv); $('lg').scrollTop = $('lg').scrollHeight; }
-                    
-                    if (l.t === 'goal' && typeof logLiveEvent === 'function') {
-                        logLiveEvent(`🥅 ${l.x}`, true);
-                    }
-                }
-            });
-        }
-    }, 50); 
+// ✅ يجب استدعاء هذه الدالة من المحرك الأصلي (match.js) عند انتهاء المباراة
+function endMultiplayerMatch(hg, ag) {
+    if (window._mpMatchCallback) {
+        window._mpMatchCallback(hg, ag);
+        window._mpMatchCallback = null;
+    }
 }
 
 async function finalizeMultiplayerMatch(matchId, lobbyId, isHome, hg, ag, mySlot, oppSlot, slots) {

@@ -192,9 +192,11 @@ async function forceGenerateMatches(lobbyId) {
         const fixtures = generateDoubleRoundRobin(freshSlots);
 
         const now = Date.now();
+        const roundInterval = 24 * 60 * 60 * 1000; // ⏱️ 24 ساعة بين كل جولة
+
         const inserts = fixtures.map(f => ({
             lobby_id: lobbyId, round: f.round, home_slot_id: f.home.id, away_slot_id: f.away.id,
-            scheduled_time: new Date(now + (f.round - 1) * 2 * 60000).toISOString() // جولة كل دقيقتين
+            scheduled_time: new Date(now + (f.round - 1) * roundInterval).toISOString()
         }));
         
         const { error } = await _db.from('lobby_matches').insert(inserts);
@@ -275,7 +277,6 @@ async function processDueBotMatches(lobbyId) {
             const homeIsBot = homeSlot.user_id === BOT_UUID;
             const awayIsBot = awaySlot.user_id === BOT_UUID;
             
-            // محاكاة المباريات التي بين فريقين آليين فقط
             if (homeIsBot && awayIsBot) {
                 const hTeam = buildTeamFromSnapshot(homeSlot.team_snapshot, 'BOT_H_'+homeSlot.id);
                 const aTeam = buildTeamFromSnapshot(awaySlot.team_snapshot, 'BOT_A_'+awaySlot.id);
@@ -293,7 +294,6 @@ async function processDueBotMatches(lobbyId) {
                 
                 const hg = eng.s.home.g; const ag = eng.s.away.g;
                 
-                // حفظ النتيجة فقط (بدون snapshots للاعبين لأنهم آليين)
                 await _db.from('lobby_matches').update({ home_score: hg, away_score: ag, played: true }).eq('id', m.id);
                 await updateStandingsDb(homeSlot, awaySlot, hg, ag);
                 
@@ -517,48 +517,61 @@ async function loadMultiplayerCompData() {
                 });
                 html += `</table>`;
 
-                const myMatches = (matches || []).filter(m => (m.home_slot_id === mySlot.id || m.away_slot_id === mySlot.id));
-                html += `<div style="font-size:11px; text-align:center; color:var(--gold); margin-bottom:5px;">مبارياتي (ذهاب وإياب)</div>`;
+                // ✅ عرض المباراة الحالية فقط
+                let myMatches = (matches || []).filter(m => (m.home_slot_id === mySlot.id || m.away_slot_id === mySlot.id));
+                myMatches.sort((a, b) => new Date(a.scheduled_time) - new Date(b.scheduled_time));
                 
-                if (myMatches.length === 0) {
-                     html += `<div style="text-align:center; color:#94a3b8; padding:10px; font-size:11px;">لم يتم توليد المباريات بعد. يرجى التحديث.</div>`;
+                let currentMatch = myMatches.find(m => !m.played);
+                
+                html += `<div style="font-size:13px; text-align:center; color:#fff; font-weight:bold; margin-bottom:10px; background:rgba(251,191,36,.2); padding:5px; border-radius:5px;">🔥 مباراتك الحالية</div>`;
+
+                if (!currentMatch) {
+                    html += `<div style="text-align:center; color:#4ade80; padding:20px; font-size:14px; font-weight:bold; background:rgba(0,0,0,.3); border-radius:10px;">🏆 لقد انتهى الدوري! لقد لعبت جميع مبارياتك.</div>`;
                 } else {
-                    myMatches.forEach(m => {
-                        const isHome = m.home_slot_id === mySlot.id;
-                        const oppId = isHome ? m.away_slot_id : m.home_slot_id;
-                        const opp = slots.find(s => s.id === oppId) || { team_name: 'خصم' };
-                        const matchTime = m.scheduled_time ? new Date(m.scheduled_time).getTime() : new Date().getTime();
-                        const now = new Date().getTime();
-                        const isTimeUp = now >= matchTime;
-                        const timeString = new Date(matchTime).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+                    const isHome = currentMatch.home_slot_id === mySlot.id;
+                    const oppId = isHome ? currentMatch.away_slot_id : currentMatch.home_slot_id;
+                    const opp = slots.find(s => s.id === oppId) || { team_name: 'خصم' };
+                    const matchTime = currentMatch.scheduled_time ? new Date(currentMatch.scheduled_time).getTime() : new Date().getTime();
+                    const now = new Date().getTime();
+                    const isTimeUp = now >= matchTime;
+                    const timeString = new Date(matchTime).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
-                        let btnHtml = '';
-                        if (m.played) {
-                            btnHtml = `<button class="b sm" style="padding:4px 10px; font-size:10px; background:#475569; border:1px solid #22c55e; width:100%;" onclick="playMultiplayerMatch('${m.id}', '${lobby.id}', true)">▶ مشاهدة</button>`;
-                        } else if (isTimeUp) {
-                            btnHtml = `
-                                <div style="display:flex; flex-direction:column; gap:4px; width:100%;">
-                                    <button class="b g sm" style="padding:4px 10px; font-size:10px; width:100%;" onclick="playMultiplayerMatch('${m.id}', '${lobby.id}', false)">▶ العب</button>
-                                    <button class="b sm" style="padding:4px 10px; font-size:10px; background:#8b5cf6; color:#fff; width:100%;" onclick="simulateUserMatch('${m.id}', '${lobby.id}')">⏩ محاكاة</button>
-                                </div>
-                            `;
-                        } else {
-                            const diffMins = Math.ceil((matchTime - now) / 60000);
-                            btnHtml = `<div style="font-size:9px; color:#fbbf24; font-weight:bold; background:rgba(251,191,36,.1); padding:4px 6px; border-radius:4px; text-align:center; width:100%;">⏳ متبقي ${diffMins} د</div>`;
-                        }
+                    let btnHtml = '';
+                    if (isTimeUp) {
+                        btnHtml = `
+                            <div style="display:flex; gap:8px; width:100%; margin-top:15px;">
+                                <button class="b g" style="flex:1; padding:12px; font-size:14px; font-weight:bold;" onclick="playMultiplayerMatch('${currentMatch.id}', '${lobby.id}', false)">▶ العب الآن</button>
+                                <button class="b sm" style="flex:1; padding:12px; font-size:14px; background:#8b5cf6; color:#fff; font-weight:bold;" onclick="simulateUserMatch('${currentMatch.id}', '${lobby.id}')">⏩ محاكاة سريعة</button>
+                            </div>
+                        `;
+                    } else {
+                        const diffMins = Math.ceil((matchTime - now) / 60000);
+                        const diffHours = Math.floor(diffMins / 60);
+                        const remMins = diffMins % 60;
+                        btnHtml = `<div style="font-size:12px; color:#fbbf24; font-weight:bold; background:rgba(251,191,36,.1); padding:10px; border-radius:8px; text-align:center; width:100%; margin-top:15px;">⏳ تبدأ المباراة بعد: ${diffHours > 0 ? diffHours + ' ساعة و ' : ''}${remMins} دقيقة</div>`;
+                    }
 
-                        html += `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.05); padding:8px; margin-bottom:6px; border-radius:8px;">
-                            <div style="display:flex; flex-direction:column; align-items:flex-start; width:60px;">
-                                <div style="font-size:10px; color:#94a3b8;">ج${m.round}</div>
-                                <div style="font-size:9px; color:#22d3ee; font-weight:bold;">${timeString}</div>
+                    html += `<div style="display:flex; flex-direction:column; align-items:center; background:linear-gradient(135deg, rgba(15,34,56,.9), rgba(30,58,138,.9)); border:2px solid #fbbf24; padding:20px; border-radius:15px; box-shadow:0 4px 15px rgba(0,0,0,0.5);">
+                        <div style="font-size:12px; color:#22d3ee; font-weight:bold; margin-bottom:10px;">الجولة ${currentMatch.round} • ${timeString}</div>
+                        
+                        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin:10px 0;">
+                            <div style="flex:1; text-align:center; font-size:16px; font-weight:bold; color:${isHome ? '#fbbf24' : '#fff'};">
+                                ${isHome ? mySlot.team_name : opp.team_name}
+                                <div style="font-size:10px; color:#94a3b8; margin-top:5px;">${isHome ? '(أنت)' : '(الخصم)'}</div>
                             </div>
-                            <div style="font-size:11px; font-weight:bold; color:#fff; flex:1; text-align:center;">
-                                ${isHome ? mySlot.team_name : opp.team_name} vs ${isHome ? opp.team_name : mySlot.team_name}
+                            <div style="font-size:24px; color:#fff; font-weight:900; margin:0 15px;">VS</div>
+                            <div style="flex:1; text-align:center; font-size:16px; font-weight:bold; color:${!isHome ? '#fbbf24' : '#fff'};">
+                                ${!isHome ? mySlot.team_name : opp.team_name}
+                                <div style="font-size:10px; color:#94a3b8; margin-top:5px;">${!isHome ? '(أنت)' : '(الخصم)'}</div>
                             </div>
-                            <div style="width:80px; text-align:left;">${btnHtml}</div>
-                        </div>`;
-                    });
+                        </div>
+                        ${btnHtml}
+                    </div>`;
                 }
+                
+                html += `<div style="text-align:center; margin-top:15px;">
+                    <button class="b sm" style="background:#1e293b; border:1px solid #475569; font-size:11px;" onclick="showLiveLeagueSchedule()">📅 عرض جدول المباريات كاملاً (في البطولات)</button>
+                </div>`;
             }
 
             if (containerLu) containerLu.innerHTML = html;
@@ -569,6 +582,58 @@ async function loadMultiplayerCompData() {
 
     await fetchAndRender();
     mpCompInterval = setInterval(fetchAndRender, 5000);
+}
+
+// ✅ عرض جدول البطولات (الكامل)
+async function showLiveLeagueSchedule() {
+    if (!G.multiplayerLeagueId) return alert('أنت لست في دوري أونلاين حالياً.');
+    $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);">⏳ جاري تحميل جدول الدوري...</div>`;
+    
+    try {
+        const { data: matches } = await _db.from('lobby_matches').select('*').eq('lobby_id', G.multiplayerLeagueId).order('round');
+        const { data: slots } = await _db.from('lobby_slots').select('*').eq('lobby_id', G.multiplayerLeagueId);
+        const { data: { user } } = await _db.auth.getUser();
+        const mySlot = slots.find(s => s.user_id === user.id);
+
+        if (!mySlot) return alert('أنت لست مشاركاً في هذا الدوري.');
+
+        const myMatches = (matches || []).filter(m => (m.home_slot_id === mySlot.id || m.away_slot_id === mySlot.id));
+        
+        let html = `<div class="c" style="margin-top:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <button class="b sm" style="background:#475569;" onclick="dash()">⬅ عودة</button>
+                <h2 style="color:var(--gold); font-size:16px;">🏆 جدول الدوري المصري</h2>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">`;
+
+        myMatches.forEach(m => {
+            const isHome = m.home_slot_id === mySlot.id;
+            const oppId = isHome ? m.away_slot_id : m.home_slot_id;
+            const opp = slots.find(s => s.id === oppId) || { team_name: 'خصم' };
+            const matchTime = m.scheduled_time ? new Date(m.scheduled_time).getTime() : new Date().getTime();
+            const timeString = new Date(matchTime).toLocaleString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            
+            let scoreHtml = m.played ? `<b style="color:${m.home_score > m.away_score ? (isHome ? '#4ade80' : '#ef4444') : (m.home_score < m.away_score ? (isHome ? '#ef4444' : '#4ade80') : '#fbbf24')}">${m.home_score} - ${m.away_score}</b>` : `<span style="color:#fbbf24; font-size:10px;">${timeString}</span>`;
+
+            html += `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.3); padding:10px; border-radius:8px; border-left:4px solid ${m.played ? '#475569' : '#fbbf24'};">
+                <div style="font-size:10px; color:#94a3b8; width:40px;">ج${m.round}</div>
+                <div style="font-size:12px; font-weight:bold; color:#fff; flex:1; text-align:center;">
+                    ${isHome ? mySlot.team_name : opp.team_name} 
+                    <span style="margin:0 8px;">${scoreHtml}</span> 
+                    ${isHome ? opp.team_name : mySlot.team_name}
+                </div>
+                <div style="width:60px; text-align:left;">
+                    ${m.played ? `<span style="color:#4ade80; font-size:10px;">انتهت</span>` : `<span style="color:#fbbf24; font-size:10px;">قادمة</span>`}
+                </div>
+            </div>`;
+        });
+        html += `</div></div>`;
+        $('main').innerHTML = html;
+
+    } catch (e) {
+        alert('خطأ في تحميل الجدول: ' + e.message);
+        dash();
+    }
 }
 
 // ✅ محاكاة مباراة المستخدم فوراً (تفتح المحاكي المرئي وتسرعه)
@@ -681,7 +746,6 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
         const oppId = isHome ? match.away_slot_id : match.home_slot_id;
         const oppSlot = slots.find(s => s.id === oppId);
         
-        // جلب بيانات الفريقين لضمان عدم حدوث خطأ في حال كانت المباراة (Replay)
         const homeSlot = slots.find(s => s.id === match.home_slot_id);
         const awaySlot = slots.find(s => s.id === match.away_slot_id);
 
@@ -692,8 +756,6 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay) {
             myTeamData = isHome ? match.home_snapshot : match.away_snapshot;
             oppTeamData = isHome ? match.away_snapshot : match.home_snapshot;
             
-            // 🛠️ حل مشكلة (Cannot read properties of null):
-            // إذا لم يتم حفظ بيانات اللاعبين (Snapshot) في المباريات الآلية، نصنع بيانات وهمية لتجنب الانهيار
             if (!myTeamData) {
                 myTeamData = { name: isHome ? homeSlot?.team_name : awaySlot?.team_name, R: 75, c1: '#1e40af', c2: '#fff', form: '4-3-3', tac: 'balanced', starters: [] };
             }
@@ -798,7 +860,6 @@ async function finalizeMultiplayerMatch(matchId, lobbyId, isHome, hg, ag, mySlot
     } catch (err) { alert('حدث خطأ أثناء حفظ النتيجة.'); }
 }
 
-// 🛠️ حماية الدالة من الانهيار إذا كانت البيانات null
 function buildTeamFromSnapshot(snap, teamId) {
     if (!snap) snap = { name: 'فريق', starters: [] };
     const ps = (snap.starters || []).map((p, idx) => ({ ...p, id: p.id || (teamId + '_' + idx), fit: 100, morale: p.morale || 85, susp: 0, injury: null, stats: { passes: 0, tackles: 0, shots: 0 } }));

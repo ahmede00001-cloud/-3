@@ -29,9 +29,8 @@ function play(){
         if($('bs')) $('bs').textContent = '×3';
         if(typeof mtac === 'function') mtac(config.ht || 'balanced');
         
-        if($('ms')) {
-            $('ms').hidden = false;
-        }
+        if($('main')) $('main').hidden = true; // إخفاء الشاشة الرئيسية
+        if($('ms')) $('ms').hidden = false;    // إظهار شاشة المباراة
         
         last = performance.now();
         raf = requestAnimationFrame(loop);
@@ -114,6 +113,7 @@ function play(){
     if($('momentum-pointer')) $('momentum-pointer').style.left = '50%';
     if(typeof mtac === 'function') mtac(G.tac);
     
+    if($('main')) $('main').hidden = true;
     if($('ms')) {
         $('ms').hidden = false;
     } else {
@@ -544,7 +544,7 @@ function syncMatchStats(m){
 
     (m.injuries||[]).forEach(inj => {
       const team = m.s.home.t.ps.find(p => p.id === inj.id) ? m.s.home.t : m.s.away.t;
-      const p = team.ps.find(x => x.id === inj.id);
+      const p = team.ps.find(p => p.id === inj.id);
       if(p && typeof tryInjure === 'function') tryInjure(p);
     });
   } catch(e){

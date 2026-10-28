@@ -1,180 +1,251 @@
 // ============================================
-// images.js - نظام صور اللاعبين والأندية (النسخة الاحترافية المستقلة)
-// الإصدار: 2.0
-// يعمل Offline + Online بدون أي أخطاء (404)
+// images.js - نظام الصور والشعارات الحقيقية للأندية واللاعبين
+// الإصدار: 4.0 (Real Logos + Auto Wikipedia Player Photos)
 // ============================================
 
 // ============================================
-// 🛡️ 1. ألوان الأندية (لاستخدامها في رسم الشعارات)
+// 🛡️ 1. شعارات الأندية المصرية الـ 18 الحقيقية
 // ============================================
+const CLUB_LOGOS = {
+    'ahly':        'https://upload.wikimedia.org/wikipedia/en/7/70/Al_Ahly_SC_logo.svg',
+    'zamalek':     'https://upload.wikimedia.org/wikipedia/en/0/04/Zamalek_SC_logo.svg',
+    'pyramids':    'https://upload.wikimedia.org/wikipedia/en/8/87/Pyramids_FC_logo.svg',
+    'ismaily':     'https://upload.wikimedia.org/wikipedia/en/f/f6/Ismaily_SC_logo.png',
+    'masry':       'https://upload.wikimedia.org/wikipedia/en/1/1a/Al_Masry_SC_logo.png',
+    'smouha':      'https://upload.wikimedia.org/wikipedia/en/6/62/Smouha_SC_logo.png',
+    'ittihad':     'https://upload.wikimedia.org/wikipedia/en/7/71/Al_Ittihad_Alexandria_Club_logo.png',
+    'future':      'https://upload.wikimedia.org/wikipedia/en/b/ba/Modern_Future_FC_logo.png',
+    'ceramica':    'https://upload.wikimedia.org/wikipedia/en/4/4e/Ceramica_Cleopatra_FC_logo.png',
+    'pharco':      'https://upload.wikimedia.org/wikipedia/en/6/69/Pharco_FC_logo.png',
+    'nbe':         'https://upload.wikimedia.org/wikipedia/en/0/07/National_Bank_of_Egypt_SC_logo.png',
+    'enppi':       'https://upload.wikimedia.org/wikipedia/en/2/29/ENPPI_SC_logo.png',
+    'talaea':      'https://upload.wikimedia.org/wikipedia/en/c/c5/Tala%27ea_El_Gaish_SC_logo.png',
+    'gouna':       'https://upload.wikimedia.org/wikipedia/en/8/8c/El_Gouna_FC_logo.png',
+    'contractors': 'https://upload.wikimedia.org/wikipedia/en/d/d4/Al_Mokawloon_Al_Arab_SC_logo.png',
+    'dakhleya':    'https://upload.wikimedia.org/wikipedia/en/9/9e/El_Dakhleya_SC_logo.png',
+    'baladeya':    'https://upload.wikimedia.org/wikipedia/en/5/53/Baladiyat_El_Mahalla_SC_logo.png',
+    'zed':         'https://upload.wikimedia.org/wikipedia/en/a/a2/ZED_FC_logo.png'
+};
+
+// ألوان الأندية (تُستخدم لتصميم الدرع الاحتياطي في حال انقطاع الإنترنت أو فشل تحميل الشعار)
 const CLUB_COLORS = {
     'ahly':        { c1: '#c8102e', c2: '#ffffff' },
     'zamalek':     { c1: '#ffffff', c2: '#c8102e' },
     'pyramids':    { c1: '#1e40af', c2: '#fbbf24' },
-    'ismaily':     { c1: '#f59e0b', c2: '#dc2626' },
+    'ismaily':     { c1: '#f59e0b', c2: '#1d4ed8' },
     'masry':       { c1: '#16a34a', c2: '#ffffff' },
     'smouha':      { c1: '#0ea5e9', c2: '#ffffff' },
-    'ittihad':     { c1: '#22c55e', c2: '#000000' },
-    'future':      { c1: '#7c3aed', c2: '#ffffff' },
-    'ceramica':    { c1: '#dc2626', c2: '#fbbf24' },
-    'pharco':      { c1: '#0891b2', c2: '#ffffff' },
-    'nbe':         { c1: '#1d4ed8', c2: '#f59e0b' },
-    'enppi':       { c1: '#dc2626', c2: '#ffffff' },
-    'talaea':      { c1: '#16a34a', c2: '#000000' },
-    'gouna':       { c1: '#0ea5e9', c2: '#ffffff' },
-    'contractors': { c1: '#f59e0b', c2: '#000000' },
-    'dakhleya':    { c1: '#dc2626', c2: '#ffffff' },
-    'baladeya':    { c1: '#22c55e', c2: '#fbbf24' },
-    'zed':         { c1: '#1e40af', c2: '#ffffff' }
+    'ittihad':     { c1: '#22c55e', c2: '#ffffff' },
+    'future':      { c1: '#dc2626', c2: '#1e293b' },
+    'ceramica':    { c1: '#991b1b', c2: '#fbbf24' },
+    'pharco':      { c1: '#ea580c', c2: '#ffffff' },
+    'nbe':         { c1: '#15803d', c2: '#f59e0b' },
+    'enppi':       { c1: '#1e3a8a', c2: '#ffffff' },
+    'talaea':      { c1: '#b91c1c', c2: '#000000' },
+    'gouna':       { c1: '#eab308', c2: '#000000' },
+    'contractors': { c1: '#eab308', c2: '#15803d' },
+    'dakhleya':    { c1: '#dc2626', c2: '#1e293b' },
+    'baladeya':    { c1: '#dc2626', c2: '#ffffff' },
+    'zed':         { c1: '#0f172a', c2: '#fbbf24' }
 };
 
 // ============================================
-// 👤 2. صور اللاعبين (DiceBear API)
+// 👤 2. قاعدة بيانات صور اللاعبين الحقيقية المباشرة
 // ============================================
+const PLAYER_PHOTOS = {
+    // نجوم الأهلي والزمالك وبيراميدز والدوري المصري
+    'محمد الشناوي': 'https://img.a.transfermarkt.technology/portrait/header/134572-1686129377.jpg',
+    'الشناوي': 'https://img.a.transfermarkt.technology/portrait/header/134572-1686129377.jpg',
+    'أحمد سيد زيزو': 'https://img.a.transfermarkt.technology/portrait/header/320722-1694609677.jpg',
+    'زيزو': 'https://img.a.transfermarkt.technology/portrait/header/320722-1694609677.jpg',
+    'إمام عاشور': 'https://img.a.transfermarkt.technology/portrait/header/624267-1694609493.jpg',
+    'وسام أبو علي': 'https://img.a.transfermarkt.technology/portrait/header/591949-1713951110.jpg',
+    'حسين الشحات': 'https://img.a.transfermarkt.technology/portrait/header/381715-1694609551.jpg',
+    'علي معلول': 'https://img.a.transfermarkt.technology/portrait/header/133042-1686129612.jpg',
+    'معلول': 'https://img.a.transfermarkt.technology/portrait/header/133042-1686129612.jpg',
+    'محمد عبد المنعم': 'https://img.a.transfermarkt.technology/portrait/header/566146-1686129489.jpg',
+    'عبد المنعم': 'https://img.a.transfermarkt.technology/portrait/header/566146-1686129489.jpg',
+    'مروان عطية': 'https://img.a.transfermarkt.technology/portrait/header/718281-1694609521.jpg',
+    'أفشة': 'https://img.a.transfermarkt.technology/portrait/header/344335-1686129712.jpg',
+    'بيرسي تاو': 'https://img.a.transfermarkt.technology/portrait/header/312240-1686129788.jpg',
+    'محمود كهربا': 'https://img.a.transfermarkt.technology/portrait/header/176053-1686129855.jpg',
+    'كهربا': 'https://img.a.transfermarkt.technology/portrait/header/176053-1686129855.jpg',
+    'شيكابالا': 'https://img.a.transfermarkt.technology/portrait/header/28463-1686130112.jpg',
+    'عبد الله السعيد': 'https://img.a.transfermarkt.technology/portrait/header/66323-1686130222.jpg',
+    'السعيد': 'https://img.a.transfermarkt.technology/portrait/header/66323-1686130222.jpg',
+    'ناصر ماهر': 'https://img.a.transfermarkt.technology/portrait/header/424789-1686130315.jpg',
+    'سيف الدين الجزيري': 'https://img.a.transfermarkt.technology/portrait/header/415108-1686130411.jpg',
+    'الجزيري': 'https://img.a.transfermarkt.technology/portrait/header/415108-1686130411.jpg',
+    'عمر جابر': 'https://img.a.transfermarkt.technology/portrait/header/146245-1686130519.jpg',
+    'جابر': 'https://img.a.transfermarkt.technology/portrait/header/146245-1686130519.jpg',
+    'رمضان صبحي': 'https://img.a.transfermarkt.technology/portrait/header/312017-1686130612.jpg',
+    'مصطفى فتحي': 'https://img.a.transfermarkt.technology/portrait/header/308523-1686130715.jpg',
+    'فيستون ماييلي': 'https://img.a.transfermarkt.technology/portrait/header/886122-1694610112.jpg',
+    'إبراهيم عادل': 'https://img.a.transfermarkt.technology/portrait/header/664891-1686130811.jpg',
+    'محمد صلاح': 'https://img.a.transfermarkt.technology/portrait/header/148455-1727337594.jpg',
+    'عمر مرموش': 'https://img.a.transfermarkt.technology/portrait/header/445939-1724417155.jpg'
+};
+
+// صور DiceBear الواقعية كخطة بديلة
 const AVATAR_STYLE_BY_POS = {
-    'GK':  'personas',
-    'DEF': 'bottts',
-    'MID': 'adventurer',
-    'FWD': 'lorelei'
+    'GK':  'avataaars',
+    'DEF': 'avataaars',
+    'MID': 'avataaars',
+    'FWD': 'avataaars'
 };
-
 const AVATAR_BASE = 'https://api.dicebear.com/7.x/';
-
 const _avatarCache = new Map();
+const _clubCache = new Map();
+const _wikiPending = new Set();
 
 /**
- * توليد رابط صورة اللاعب
+ * توليد درع SVG احتياطي بألوان النادي في حال فشل تحميل الشعار الرسمي
+ */
+function getFallbackClubSvg(teamId, teamName) {
+    const colors = CLUB_COLORS[teamId] || { c1: '#1e293b', c2: '#ffffff' };
+    const initial = (teamName || '?').trim()[0] || '⚽';
+    const textColor = colors.c1 === '#ffffff' ? '#c8102e' : '#ffffff';
+    const outlineColor = '#fbbf24';
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+        <path d="M 50 5 L 90 20 L 90 50 C 90 80 50 95 50 95 C 50 95 10 80 10 50 L 10 20 Z" fill="${colors.c1}" stroke="${outlineColor}" stroke-width="5"/>
+        <path d="M 50 10 L 84 23 L 84 48 C 84 74 50 88 50 88 Z" fill="${colors.c2}" opacity="0.22"/>
+        <text x="50" y="55" font-family="Cairo, Arial, sans-serif" font-size="38" font-weight="900" fill="${textColor}" text-anchor="middle" dominant-baseline="middle">${initial}</text>
+    </svg>`;
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
+/**
+ * البحث التلقائي الذكي في ويكيبيديا العربية عن الصورة الحقيقية لأي لاعب غير مسجل
+ */
+async function fetchWikiPlayerPhoto(playerName, imgElementId) {
+    if (!playerName || PLAYER_PHOTOS[playerName] || _wikiPending.has(playerName)) return;
+    _wikiPending.add(playerName);
+
+    try {
+        const query = encodeURIComponent(playerName + ' لاعب كرة قدم');
+        const apiUrl = `https://ar.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${query}&gsrlimit=1&prop=pageimages&pithumbsize=200&format=json&origin=*`;
+        const res = await fetch(apiUrl);
+        const data = await res.json();
+
+        if (data && data.query && data.query.pages) {
+            const pages = Object.values(data.query.pages);
+            if (pages.length > 0 && pages[0].thumbnail && pages[0].thumbnail.source) {
+                const realPhotoUrl = pages[0].thumbnail.source;
+                PLAYER_PHOTOS[playerName] = realPhotoUrl;
+                _avatarCache.clear(); // تحديث الكاش ليعتمد الصورة الحقيقية دائماً
+
+                // تحديث الصورة في الشاشة فوراً إذا كانت معروضة حالياً
+                const domImg = document.getElementById(imgElementId);
+                if (domImg) {
+                    domImg.src = realPhotoUrl;
+                    domImg.style.objectFit = 'cover';
+                }
+            }
+        }
+    } catch (e) {
+        // تجاهل الخطأ بهدوء والبقاء على الأفاتار البديل
+    }
+}
+
+/**
+ * توليد رابط صورة اللاعب (حقيقية أو بديلة)
  */
 function getPlayerAvatarUrl(player, size = 64) {
     if (!player) return '';
-    const cacheKey = `p_${player.name}_${size}`;
+    
+    const cleanName = (player.name || '').trim();
+    const cacheKey = `p_${cleanName}_${size}`;
     if (_avatarCache.has(cacheKey)) return _avatarCache.get(cacheKey);
 
-    const seed = encodeURIComponent(player.name || player.id || 'unknown');
-    const style = AVATAR_STYLE_BY_POS[player.pos] || 'adventurer';
-    const bg = player.pos === 'GK' ? 'b6e3f4' :
-               player.pos === 'DEF' ? 'ffd5dc' :
-               player.pos === 'MID' ? 'c0aede' : 'ffdfbf';
-    const url = `${AVATAR_BASE}${style}/svg?seed=${seed}&size=${size}&backgroundColor=${bg}`;
+    let url = '';
+
+    // 1. البحث المباشر بالاسم الكامل أو المختصر في القائمة الحقيقية
+    if (PLAYER_PHOTOS[cleanName]) {
+        url = PLAYER_PHOTOS[cleanName];
+    } 
+    // 2. البحث بالـ ID
+    else if (player.id && PLAYER_PHOTOS[player.id]) {
+        url = PLAYER_PHOTOS[player.id];
+    } 
+    // 3. البحث الجزئي (إذا كان اسم اللاعب مركباً)
+    else {
+        const matchedKey = Object.keys(PLAYER_PHOTOS).find(k => cleanName.includes(k) || k.includes(cleanName));
+        if (matchedKey) {
+            url = PLAYER_PHOTOS[matchedKey];
+        } else {
+            // 4. توليد أفاتار رياضي بديل ريثما يجلبه باحث ويكيبيديا التلقائي
+            const seed = encodeURIComponent(cleanName || player.id || 'player');
+            const style = AVATAR_STYLE_BY_POS[player.pos] || 'avataaars';
+            const bg = player.pos === 'GK' ? 'b6e3f4' :
+                       player.pos === 'DEF' ? 'ffd5dc' :
+                       player.pos === 'MID' ? 'c0aede' : 'ffdfbf';
+            url = `${AVATAR_BASE}${style}/svg?seed=${seed}&size=${size}&backgroundColor=${bg}`;
+        }
+    }
 
     _avatarCache.set(cacheKey, url);
     return url;
 }
 
-// ============================================
-// 🎨 3. توليد شعارات احترافية للأندية (SVG Data URIs)
-// ============================================
-// نقوم برسم "درع" (Shield) احترافي لكل فريق يحتوي على الحرف الأول وألوان الفريق
-// هذا يغني عن تحميل صور خارجية ويضمن عدم ظهور أخطاء
-
-const _clubCache = new Map();
-
-function generateClubShield(teamId, teamName) {
-    if (_clubCache.has(teamId)) return _clubCache.get(teamId);
-
-    const colors = CLUB_COLORS[teamId] || { c1: '#1e293b', c2: '#ffffff' };
-    const initial = (teamName || '?').trim()[0] || '?';
-    
-    // تحديد لون النص بناءً على لون الخلفية (أبيض أو أسود)
-    const textColor = colors.c2 === '#FFFFFF' ? '#FFFFFF' : '#000000';
-    const outlineColor = colors.c1 === '#FFFFFF' ? '#000000' : '#FFFFFF';
-
-    // رسم شكل الدرع بالـ SVG
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-        <path d="M 50 5 L 90 20 L 90 50 C 90 80 50 95 50 95 C 50 95 10 80 10 50 L 10 20 Z" fill="${colors.c1}" stroke="${outlineColor}" stroke-width="4"/>
-        <text x="50" y="55" font-family="Arial, sans-serif" font-size="38" font-weight="900" fill="${textColor}" text-anchor="middle" dominant-baseline="middle">${initial}</text>
-    </svg>`;
-    
-    // تحويل الـ SVG إلى Data URI لكي يعمل كصورة
-    const dataUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-    _clubCache.set(teamId, dataUri);
-    return dataUri;
-}
-
 /**
- * جلب شعار الفريق
+ * توليد شعار النادي (حقيقي مع بديل جاهز)
  */
 function getClubLogoUrl(teamId, teamName) {
-    if (!teamId) return '';
-    return generateClubShield(teamId, teamName);
-}
+    if (!teamId) return getFallbackClubSvg('default', teamName);
+    if (_clubCache.has(teamId)) return _clubCache.get(teamId);
 
-/**
- * جلب ألوان الفريق
- */
-function getClubColors(teamId) {
-    return CLUB_COLORS[teamId] || { c1: '#1e293b', c2: '#ffffff' };
+    const url = CLUB_LOGOS[teamId] || getFallbackClubSvg(teamId, teamName);
+    _clubCache.set(teamId, url);
+    return url;
 }
 
 // ============================================
-// 🎨 4. HTML Builders (الدوال التي تستخدمها الملفات الأخرى)
+// 🎨 3. دوال بناء الـ HTML الجاهزة للواجهة
 // ============================================
 
-/**
- * HTML لصورة لاعب مع fallback للحرف الأول
- */
 function playerAvatarHtml(player, size = 40, extraStyle = '') {
     if (!player) {
         return `<div style="width:${size}px; height:${size}px; border-radius:50%; background:#334155; display:flex; align-items:center; justify-content:center; font-size:${Math.floor(size*0.4)}px;">⚽</div>`;
     }
 
-    const initial = (player.name || '?').trim()[0] || '?';
-    const url = getPlayerAvatarUrl(player, size * 2); // x2 للـ retina
+    const cleanName = (player.name || '?').trim();
+    const initial = cleanName[0] || '?';
+    const url = getPlayerAvatarUrl(player, size * 2); 
+    const isRealPhoto = !!PLAYER_PHOTOS[cleanName] || (player.id && !!PLAYER_PHOTOS[player.id]) || url.includes('transfermarkt') || url.includes('wikimedia');
+    
+    const fitStyle = isRealPhoto ? 'object-fit: cover; border-radius: 50%;' : 'object-fit: contain;';
+    const uniqueImgId = 'pimg_' + Math.random().toString(36).substring(2, 9);
+
+    // إذا لم تكن له صورة حقيقية محفوظة، ابحث عنها تلقائياً في الخلفية عبر ويكيبيديا
+    if (!isRealPhoto && cleanName.length > 2 && !cleanName.startsWith('لاعب')) {
+        setTimeout(() => fetchWikiPlayerPhoto(cleanName, uniqueImgId), 50);
+    }
 
     return `
-        <div style="position:relative; width:${size}px; height:${size}px; border-radius:50%; overflow:hidden; background:#1e293b; flex-shrink:0; border:1px solid rgba(251,191,36,0.3); ${extraStyle}">
-            <img src="${url}" alt="${player.name}"
+        <div style="position:relative; width:${size}px; height:${size}px; border-radius:50%; overflow:hidden; background:#1e293b; flex-shrink:0; border:1.5px solid rgba(251,191,36,0.5); box-shadow:0 2px 6px rgba(0,0,0,0.4); ${extraStyle}">
+            <img id="${uniqueImgId}" src="${url}" alt="${cleanName}"
                  loading="lazy"
                  onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-weight:bold;color:#fbbf24;font-size:${Math.floor(size*0.45)}px;\\'>${initial}</div>';"
-                 style="width:100%; height:100%; object-fit:cover;">
+                 style="width:100%; height:100%; ${fitStyle}">
         </div>
     `;
 }
 
-/**
- * HTML لشعار الفريق (يستخدم الدرع المولد تلقائياً)
- */
 function clubBadgeHtml(teamId, teamName, size = 36) {
     const logoUrl = getClubLogoUrl(teamId, teamName);
+    const fallbackSvg = getFallbackClubSvg(teamId, teamName);
     
     return `
         <div style="position:relative; width:${size}px; height:${size}px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
             <img src="${logoUrl}" alt="${teamName}"
                  loading="lazy"
+                 onerror="this.onerror=null; this.src='${fallbackSvg}';"
                  style="width:100%; height:100%; object-fit:contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
         </div>
     `;
 }
 
-// ============================================
-// 🚀 5. التحميل المسبق (Performance)
-// ============================================
-function preloadLobbyImages() {
-    if (typeof currentSlots === 'undefined' || !currentSlots || !currentSlots.length) return;
-
-    currentSlots.forEach(slot => {
-        // الصور تولد فوراً في الكاش، لكننا نجهزها هنا
-        getClubLogoUrl(slot.team_id, slot.team_name);
-
-        if (slot.team_snapshot && slot.team_snapshot.starters) {
-            slot.team_snapshot.starters.forEach(p => {
-                getPlayerAvatarUrl(p, 64);
-            });
-        }
-    });
-}
-
-function preloadTeamPlayers(team) {
-    if (!team || !team.ps) return;
-    team.ps.forEach(p => {
-        const img = new Image();
-        img.src = getPlayerAvatarUrl(p, 64);
-    });
-}
-
-// ============================================
-// 🧹 6. تنظيف الكاش
-// ============================================
 function clearImageCache() {
     _avatarCache.clear();
     _clubCache.clear();

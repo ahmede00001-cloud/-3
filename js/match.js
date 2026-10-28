@@ -1,13 +1,12 @@
 // ============================================
-// match.js - واجهة المباراة، الرسم، النتيجة (يدعم الأونلاين والودية)
+// match.js - واجهة المباراة، الرسم، النتيجة (يدعم الأونلاين والودية والصور)
 // ============================================
 
-let isFriendlyMatch = false; // ✅ متغير لمعرفة نوع المباراة
+let isFriendlyMatch = false; 
 
 function playTournamentMatch() { G.forcedMatchComp = 'tournament'; play(); }
 function playLeagueMatch() { G.forcedMatchComp = 'league'; play(); }
 
-// ✅ دالة بدء المباراة الودية
 function startFriendlyMatch(oppId, oppName, oppRating) {
     if (G.season.friendlyMatchesPlayed >= 2) {
         return alert('لقد لعبت الحد الأقصى من المباريات الودية في هذه الجولة (2 مباريات).');
@@ -17,7 +16,6 @@ function startFriendlyMatch(oppId, oppName, oppRating) {
     const myT = T[G.my];
     const oT = createVirtualTeam(oppId, oppName, oppRating);
     
-    // نأخذ التشكيلة الأساسية لك، وتشكيلة عشوائية للخصم
     const hL = G.lu.map(id => myT.ps.find(p => p.id === id)).filter(Boolean);
     const aL = autoFillLineup(oT, '4-3-3').map(id => oT.ps.find(p => p.id === id)).filter(Boolean);
 
@@ -30,8 +28,13 @@ function startFriendlyMatch(oppId, oppName, oppRating) {
         weather: WEATHERS[0]
     });
 
-    if($('mh')) $('mh').textContent = Mt.h.name;
-    if($('ma')) $('ma').textContent = Mt.a.name;
+    // ✅ إضافة الشعارات
+    let hLogo = typeof clubBadgeHtml === 'function' ? clubBadgeHtml(Mt.h.id, Mt.h.name, 20) : '';
+    let aLogo = typeof clubBadgeHtml === 'function' ? clubBadgeHtml(Mt.a.id, Mt.a.name, 20) : '';
+    
+    if($('mh')) $('mh').innerHTML = `<div style="display:flex; align-items:center; gap:5px; justify-content:flex-end;">${Mt.h.name} ${hLogo}</div>`;
+    if($('ma')) $('ma').innerHTML = `<div style="display:flex; align-items:center; gap:5px; justify-content:flex-start;">${aLogo} ${Mt.a.name}</div>`;
+    
     if($('weather-badge')) $('weather-badge').textContent = `🤝 ودية`;
     shown = 0; paused = false; speed = 3;
     if($('bs')) $('bs').textContent = '×3';
@@ -50,13 +53,18 @@ function startFriendlyMatch(oppId, oppName, oppRating) {
 
 function play(){
   try {
-    // ✅ 1. التحقق مما إذا كانت المباراة أونلاين
+    // ✅ 1. المباراة أونلاين
     if (window._mpMatchConfig) {
         const config = window._mpMatchConfig;
         Mt = new Match(config);
 
-        if($('mh')) $('mh').textContent = Mt.h.name;
-        if($('ma')) $('ma').textContent = Mt.a.name;
+        // ✅ إضافة الشعارات
+        let hLogo = typeof clubBadgeHtml === 'function' ? clubBadgeHtml(Mt.h.id, Mt.h.name, 20) : '';
+        let aLogo = typeof clubBadgeHtml === 'function' ? clubBadgeHtml(Mt.a.id, Mt.a.name, 20) : '';
+
+        if($('mh')) $('mh').innerHTML = `<div style="display:flex; align-items:center; gap:5px; justify-content:flex-end;">${Mt.h.name} ${hLogo}</div>`;
+        if($('ma')) $('ma').innerHTML = `<div style="display:flex; align-items:center; gap:5px; justify-content:flex-start;">${aLogo} ${Mt.a.name}</div>`;
+        
         if($('weather-badge')) $('weather-badge').textContent = `${Mt.weather.emoji} ${Mt.weather.type}`;
         if($('lg')) $('lg').innerHTML = '';
         if($('mr')) $('mr').textContent = window._mpIsReplay ? '▶ إعادة المباراة' : '🌐 الدوري المباشر';
@@ -66,9 +74,7 @@ function play(){
         if($('mm')) $('mm').textContent = "0'";
         if($('mhalf')) $('mhalf').textContent = 'ش1';
         
-        shown = 0;
-        paused = false;
-        speed = 3;
+        shown = 0; paused = false; speed = 3;
         if($('bs')) $('bs').textContent = '×3';
         if(typeof mtac === 'function') mtac(config.ht || 'balanced');
         
@@ -80,7 +86,7 @@ function play(){
         return;
     }
 
-    // ✅ 2. منطق المباريات المحلية
+    // ✅ 2. المباراة المحلية
     if(!G.lu || G.lu.length !== 11 || G.lu.includes(null) || !T[G.my] || !T[G.my].ps || G.lu.some(id => !T[G.my].ps.find(p => p.id === id))){
       return alert('التشكيلة غير مكتملة أو بيانات الفريق غير موجودة!');
     }
@@ -143,8 +149,13 @@ function play(){
 
     Mt.matchData = nm;
 
-    if($('mh')) $('mh').textContent = Mt.h.name;
-    if($('ma')) $('ma').textContent = Mt.a.name;
+    // ✅ إضافة الشعارات
+    let hLogo = typeof clubBadgeHtml === 'function' ? clubBadgeHtml(Mt.h.id, Mt.h.name, 20) : '';
+    let aLogo = typeof clubBadgeHtml === 'function' ? clubBadgeHtml(Mt.a.id, Mt.a.name, 20) : '';
+
+    if($('mh')) $('mh').innerHTML = `<div style="display:flex; align-items:center; gap:5px; justify-content:flex-end;">${Mt.h.name} ${hLogo}</div>`;
+    if($('ma')) $('ma').innerHTML = `<div style="display:flex; align-items:center; gap:5px; justify-content:flex-start;">${aLogo} ${Mt.a.name}</div>`;
+    
     if($('weather-badge')) $('weather-badge').textContent = `${w.emoji} ${w.type}`;
     shown = 0;
     paused = false;
@@ -604,7 +615,7 @@ function finish(){
     if(Mt.fin) return;
     Mt.fin = 1;
 
-    // ✅ 3. التحقق مما إذا كانت المباراة ودية
+    // ✅ 3. مباراة ودية
     if (isFriendlyMatch) {
         isFriendlyMatch = false;
         G.season.friendlyMatchesPlayed = (G.season.friendlyMatchesPlayed || 0) + 1;
@@ -617,7 +628,6 @@ function finish(){
         const hg = Mt.s.home.g;
         const ag = Mt.s.away.g;
         
-        // نافذة تنبيه بسيطة
         showGameAlert(`🤝 انتهت المباراة الودية!\nالنتيجة: ${Mt.h.name} ${hg} - ${ag} ${Mt.a.name}\n\nالمتبقي من المباريات الودية: ${2 - G.season.friendlyMatchesPlayed}`, '🏁', 'نهاية المباراة الودية');
         
         save();
@@ -625,7 +635,7 @@ function finish(){
         return;
     }
 
-    // ✅ 4. التحقق مما إذا كانت المباراة أونلاين
+    // ✅ 4. مباراة أونلاين
     if (window._mpMatchConfig) {
         const hg = Mt.s.home.g;
         const ag = Mt.s.away.g;
@@ -640,7 +650,7 @@ function finish(){
         return;
     }
 
-    // ✅ 5. منطق إنهاء المباريات المحلية
+    // ✅ 5. مباراة محلية
     const nm = Mt.matchData || getNextUserMatch(G.forcedMatchComp || null);
     const s = Mt.s;
     const mg = s[Mt.hu].g;
@@ -792,7 +802,7 @@ function finish(){
       const baseIncome = rW ? 15 : rD ? 8 : 3;
       const sponsorInc = G.currentSponsor ? (G.currentSponsor.safe/20) : 0;
       netIncome = Math.round((baseIncome+sponsorInc-totalSalary)*10)/10;
-      myT.budget = Math.round((myT.budget + netIncome)*10)/10;
+      myT.budget = Math.round((myT.budget+netIncome)*10)/10;
     } catch(e){ console.error('Finance error:', e); }
 
     save();

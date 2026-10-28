@@ -1430,67 +1430,109 @@ function showCard(pid, teamId){
   if(!team) return; const p = team.ps.find(x => x.id === pid); if(!p) return;
   const isO = teamId !== G.my; const mo = getMoraleEmoji(p.morale);
   
-  $('cmc').innerHTML = `<div class="mc mc-warning modal-bg-anim" style="padding: 20px 15px;">
-    <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
+  // ✅ تحديد فئة البطاقة بناءً على التقييم (ذهبي، فضي، برونزي)
+  let cardBg, cardTextColor, cardBorder, glowColor, tierName;
+  
+  if (p.r >= 85) {
+      cardBg = 'linear-gradient(135deg, #fde047 0%, #d97706 50%, #fde047 100%)';
+      cardTextColor = '#451a03';
+      cardBorder = '#fbbf24';
+      glowColor = 'rgba(251,191,36,0.4)';
+      tierName = 'GOLD';
+  } else if (p.r >= 75) {
+      cardBg = 'linear-gradient(135deg, #f8fafc 0%, #94a3b8 50%, #f8fafc 100%)';
+      cardTextColor = '#1e293b';
+      cardBorder = '#cbd5e1';
+      glowColor = 'rgba(203,213,225,0.4)';
+      tierName = 'SILVER';
+  } else {
+      cardBg = 'linear-gradient(135deg, #fcd34d 0%, #92400e 50%, #fcd34d 100%)';
+      cardTextColor = '#451a03';
+      cardBorder = '#d97706';
+      glowColor = 'rgba(217,119,6,0.4)';
+      tierName = 'BRONZE';
+  }
+
+  $('cmc').innerHTML = `<div class="mc mc-warning modal-bg-anim" style="padding: 20px 15px; background: transparent; box-shadow: none; border: none;">
+    <button class="mc-close" style="background:rgba(0,0,0,0.5); color:#fff; border:1px solid #fff; z-index:99;" onclick="$('cm').hidden=true">✕</button>
     
-    <div style="background: linear-gradient(160deg, #1e293b, #0f172a); border: 2px solid #fbbf24; border-radius: 20px; padding: 20px 15px; margin-top: 10px; box-shadow: 0 15px 35px rgba(0,0,0,.6); position: relative; overflow: hidden;">
-      
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div style="text-align: right;">
-          <div style="font-size:45px; font-weight:900; color:#fbbf24; line-height:1;">${p.r}</div>
-          <div style="font-size:12px; font-weight:bold; color:#94a3b8; margin-top: 2px;">${p.pos}</div>
+    <!-- 🃏 بطاقة FIFA/PES -->
+    <div style="background: ${cardBg}; border-radius: 20px; padding: 20px 15px; position: relative; overflow: hidden; box-shadow: 0 15px 40px ${glowColor}, inset 0 0 20px rgba(255,255,255,0.5); color: ${cardTextColor}; border: 3px solid ${cardBorder}; margin: 0 auto; max-width: 340px;">
+        
+        <!-- خلفية زخرفية -->
+        <div style="position:absolute; top:-50px; right:-50px; font-size:200px; opacity:0.05; pointer-events:none;">⚽</div>
+        
+        <!-- الجزء العلوي: التقييم والمركز -->
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div style="display:flex; flex-direction:column; align-items:center;">
+                <div style="font-size:56px; font-weight:900; line-height:0.9; text-shadow: 2px 2px 0px rgba(255,255,255,0.5);">${p.r}</div>
+                <div style="font-size:16px; font-weight:900; margin-top:4px; background:rgba(0,0,0,0.15); padding:2px 8px; border-radius:4px;">${p.pos}</div>
+                <div style="font-size:9px; font-weight:bold; margin-top:2px; letter-spacing:1px;">${tierName}</div>
+            </div>
+            
+            <!-- صورة اللاعب -->
+            <div style="width: 90px; height: 90px; border-radius: 50%; overflow: hidden; border: 3px solid ${cardTextColor}; background: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+                ${typeof playerAvatarHtml === 'function' ? playerAvatarHtml(p, 90, `border:none; background:transparent;`) : '<div style="font-size:40px; display:flex; align-items:center; justify-content:center; height:100%;">👤</div>'}
+            </div>
+        </div>
+
+        <!-- اسم اللاعب -->
+        <div style="text-align:center; margin-top: 15px;">
+            <div style="font-size:24px; font-weight:900; letter-spacing:1px; text-transform:uppercase; text-shadow: 1px 1px 0px rgba(255,255,255,0.4); border-bottom: 2px solid rgba(0,0,0,0.1); padding-bottom: 5px; margin-bottom: 5px;">${p.name.split(' ')[0]}</div>
+            <div style="font-size:12px; font-weight:bold; opacity:0.8;">${p.name.split(' ').slice(1).join(' ')}</div>
+        </div>
+
+        <!-- شبكة الإحصائيات -->
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 6px 15px; margin-top: 15px; background: rgba(0,0,0,0.1); padding: 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.1);">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 2px;">
+                <span style="font-size:11px; font-weight:bold; opacity:0.8;">سرعة</span>
+                <span style="font-size:16px; font-weight:900;">${p.pace}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 2px;">
+                <span style="font-size:11px; font-weight:bold; opacity:0.8;">تسديد</span>
+                <span style="font-size:16px; font-weight:900;">${p.shooting}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 2px;">
+                <span style="font-size:11px; font-weight:bold; opacity:0.8;">تمرير</span>
+                <span style="font-size:16px; font-weight:900;">${p.passing}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 2px;">
+                <span style="font-size:11px; font-weight:bold; opacity:0.8;">مراوغة</span>
+                <span style="font-size:16px; font-weight:900;">${p.dribbling}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:11px; font-weight:bold; opacity:0.8;">دفاع</span>
+                <span style="font-size:16px; font-weight:900;">${p.defending}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:11px; font-weight:bold; opacity:0.8;">بدنية</span>
+                <span style="font-size:16px; font-weight:900;">${p.physical}</span>
+            </div>
+        </div>
+
+        <!-- الجزء السفلي: شعار النادي والقيمة -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 15px;">
+            <div style="display:flex; align-items:center; gap: 8px;">
+                ${typeof clubBadgeHtml === 'function' ? clubBadgeHtml(teamId, team.name, 30) : '<div>🛡️</div>'}
+                <div style="font-size:12px; font-weight:900;">${team.name}</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.15); padding: 4px 10px; border-radius: 6px; font-weight: 900; font-size: 13px;">
+                💰 ${p.value}M
+            </div>
         </div>
         
-        <!-- ✅ صورة اللاعب -->
-        <div style="width:64px; height:64px;">
-            ${typeof playerAvatarHtml === 'function' ? playerAvatarHtml(p, 64, 'border:2px solid #fbbf24;') : '<div style="font-size:30px;">👤</div>'}
+        <div style="text-align:center; font-size:10px; font-weight:bold; opacity:0.7; margin-top:10px;">
+            ${mo} ${p.age} سنة • L${p.lvl}
         </div>
-      </div>
-      
-      <div style="text-align:center; font-size:20px; font-weight:900; color:#fff; margin-top:10px;">${p.name}</div>
-      <div style="text-align:center; font-size:11px; color:#94a3b8; margin-top:2px;">
-        ${team.name} • ${p.age} سنة • ${mo}
-      </div>
-      
-      <div style="height: 1px; background: rgba(251,191,36,.3); margin: 12px 0;"></div>
-
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px;">
-          <span style="font-size:11px; color:#94a3b8;">⚡ سرعة</span>
-          <b style="color:#fff; font-size:14px;">${p.pace}</b>
-        </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px;">
-          <span style="font-size:11px; color:#94a3b8;">🎯 تسديد</span>
-          <b style="color:#fff; font-size:14px;">${p.shooting}</b>
-        </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px;">
-          <span style="font-size:11px; color:#94a3b8;">🎨 تمرير</span>
-          <b style="color:#fff; font-size:14px;">${p.passing}</b>
-        </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px;">
-          <span style="font-size:11px; color:#94a3b8;">🏃 مراوغة</span>
-          <b style="color:#fff; font-size:14px;">${p.dribbling}</b>
-        </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px;">
-          <span style="font-size:11px; color:#94a3b8;">🛡️ دفاع</span>
-          <b style="color:#fff; font-size:14px;">${p.defending}</b>
-        </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.4); padding:8px 12px; border-radius:8px;">
-          <span style="font-size:11px; color:#94a3b8;">💪 بدنية</span>
-          <b style="color:#fff; font-size:14px;">${p.physical}</b>
-        </div>
-      </div>
-
-      <div style="text-align:center; font-size:13px; font-weight:900; color:#fbbf24; background:rgba(251,191,36,.1); padding:10px; border-radius:8px; margin-top:12px;">
-        💰 القيمة السوقية: ${p.value}M
-      </div>
-      
     </div>
     
-    <div style="display:flex; gap:10px; margin-top:15px;">
-      ${isO ? `<button class="b a full" style="flex:2; padding:12px;" onclick="makeOffer('${p.id}','${teamId}')">💰 عرض شراء</button>` : ''}
-      ${!isO && G.multiplayerLeagueId ? `<button class="b" style="background:#8b5cf6; color:#fff; flex:2; padding:12px;" onclick="listPlayerForSale('${p.id}')">📤 عرض للبيع</button>` : ''}
-      <button class="b ${isO || G.multiplayerLeagueId ? '':'full'}" style="background:#334155; color:#fff; flex:1; padding:12px;" onclick="$('cm').hidden=true">إغلاق</button>
+    <!-- الأزرار أسفل البطاقة -->
+    <div style="display:flex; gap:10px; margin-top:20px; max-width: 340px; margin-left: auto; margin-right: auto;">
+        ${isO ? `<button class="b a full" style="flex:2; padding:12px; font-weight:bold; box-shadow:0 4px 0 #1e3a8a;" onclick="makeOffer('${p.id}','${teamId}')">💰 عرض شراء</button>` : ''}
+        
+        ${!isO && G.multiplayerLeagueId ? `<button class="b" style="background:linear-gradient(180deg,#8b5cf6,#6d28d9); box-shadow:0 4px 0 #4c1d95; color:#fff; flex:2; padding:12px; font-weight:bold;" onclick="listPlayerForSale('${p.id}')">📤 عرض للبيع</button>` : ''}
+        
+        <button class="b ${isO || G.multiplayerLeagueId ? '':'full'}" style="background:#334155; color:#fff; flex:1; padding:12px; border:1px solid #475569;" onclick="$('cm').hidden=true">إغلاق</button>
     </div>
   </div>`;
   $('cm').hidden = false;
@@ -1566,6 +1608,7 @@ function selTeam(){
     </div>`;
 }
 
+// ✅ دالة عرض فرق الدوري (مع الشعارات)
 function showLeagueTeams(leagueId){
   const league = LEAGUES[leagueId];
   $('main').innerHTML = `
@@ -1574,13 +1617,20 @@ function showLeagueTeams(leagueId){
     <h2 style="color:var(--gold);margin:0;font-size:15px">🏟️ ${league.name}</h2>
   </div>
   <div class="g2">
-    ${league.teams.map(t => `
+    ${league.teams.map(t => {
+      // ✅ استخدام شعار النادي هنا
+      let logoHtml = `<div class="bd" style="background:${t[3]};color:${t[4]==='#FFFFFF'?'#000':t[4]}">${t[1][0]}</div>`;
+      if (typeof clubBadgeHtml === 'function') {
+          logoHtml = `<div style="margin: 0 auto 6px; width: fit-content;">${clubBadgeHtml(t[0], t[1], 44)}</div>`;
+      }
+      
+      return `
       <div class="team-select-card" onclick="choose('${t[0]}', '${leagueId}')" style="cursor:pointer; position:relative; z-index:10;">
-        <div class="bd" style="background:${t[3]};color:${t[4]==='#FFFFFF'?'#000':t[4]}">${t[1][0]}</div>
+        ${logoHtml}
         <b style="font-size:12px; pointer-events:none;">${t[1]}</b>
         <div style="color:var(--gold);font-size:11px;margin-top:4px; pointer-events:none;">⭐${t[2]}</div>
-      </div>
-    `).join('')}
+      </div>`;
+    }).join('')}
   </div>`;
 }
 

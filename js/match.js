@@ -1,13 +1,56 @@
 // ============================================
-// match.js - واجهة المباراة، الرسم، النتيجة (يدعم الأونلاين والتكتيكات)
+// match.js - واجهة المباراة، الرسم، النتيجة (يدعم الأونلاين والودية)
 // ============================================
+
+let isFriendlyMatch = false; // ✅ متغير لمعرفة نوع المباراة
 
 function playTournamentMatch() { G.forcedMatchComp = 'tournament'; play(); }
 function playLeagueMatch() { G.forcedMatchComp = 'league'; play(); }
 
+// ✅ دالة بدء المباراة الودية
+function startFriendlyMatch(oppId, oppName, oppRating) {
+    if (G.season.friendlyMatchesPlayed >= 2) {
+        return alert('لقد لعبت الحد الأقصى من المباريات الودية في هذه الجولة (2 مباريات).');
+    }
+
+    isFriendlyMatch = true;
+    const myT = T[G.my];
+    const oT = createVirtualTeam(oppId, oppName, oppRating);
+    
+    // نأخذ التشكيلة الأساسية لك، وتشكيلة عشوائية للخصم
+    const hL = G.lu.map(id => myT.ps.find(p => p.id === id)).filter(Boolean);
+    const aL = autoFillLineup(oT, '4-3-3').map(id => oT.ps.find(p => p.id === id)).filter(Boolean);
+
+    Mt = new Match({
+        h: myT, a: oT, hl: hL, al: aL,
+        hf: G.form, af: '4-3-3',
+        ht: G.tac, at: 'balanced',
+        human: 'home',
+        compName: '🤝 مباراة ودية',
+        weather: WEATHERS[0]
+    });
+
+    if($('mh')) $('mh').textContent = Mt.h.name;
+    if($('ma')) $('ma').textContent = Mt.a.name;
+    if($('weather-badge')) $('weather-badge').textContent = `🤝 ودية`;
+    shown = 0; paused = false; speed = 3;
+    if($('bs')) $('bs').textContent = '×3';
+    if($('lg')) $('lg').innerHTML = '';
+    if($('mr')) $('mr').textContent = `مباراة ودية`;
+    if($('live-commentary')) $('live-commentary').style.display = 'none';
+    if($('momentum-pointer')) $('momentum-pointer').style.left = '50%';
+    if(typeof mtac === 'function') mtac(G.tac);
+    
+    if($('main')) $('main').hidden = true;
+    if($('ms')) $('ms').hidden = false;
+    
+    last = performance.now();
+    raf = requestAnimationFrame(loop);
+}
+
 function play(){
   try {
-    // ✅ 1. التحقق مما إذا كانت المباراة أونلاين (تم استدعاؤها من multiplayer.js)
+    // ✅ 1. التحقق مما إذا كانت المباراة أونلاين
     if (window._mpMatchConfig) {
         const config = window._mpMatchConfig;
         Mt = new Match(config);
@@ -29,15 +72,15 @@ function play(){
         if($('bs')) $('bs').textContent = '×3';
         if(typeof mtac === 'function') mtac(config.ht || 'balanced');
         
-        if($('main')) $('main').hidden = true; // إخفاء الشاشة الرئيسية
-        if($('ms')) $('ms').hidden = false;    // إظهار شاشة المباراة
+        if($('main')) $('main').hidden = true;
+        if($('ms')) $('ms').hidden = false;
         
         last = performance.now();
         raf = requestAnimationFrame(loop);
         return;
     }
 
-    // ✅ 2. منطق المباريات المحلية (الفردية)
+    // ✅ 2. منطق المباريات المحلية
     if(!G.lu || G.lu.length !== 11 || G.lu.includes(null) || !T[G.my] || !T[G.my].ps || G.lu.some(id => !T[G.my].ps.find(p => p.id === id))){
       return alert('التشكيلة غير مكتملة أو بيانات الفريق غير موجودة!');
     }
@@ -313,8 +356,6 @@ function man(x, p, px, py, t, gk, car, num, isRef = false){
       x.lineWidth = .4;
       x.strokeRect(5, -31, 3.5, 5);
     }
-    
-    // ✅ رسم شارة الكابتن إذا كان اللاعب هو الكابتن
     if(p.origId === Mt.effectiveRoles?.captain){
       x.fillStyle = '#fbbf24';
       x.strokeStyle = '#000';
@@ -454,15 +495,10 @@ function draw(){
 
 function mtac(k){
   if(!Mt) return;
-  // تغيير التكتيك في المحرك
   Mt.s[Mt.hu].tc = k;
-  
-  // تحديث شكل الأزرار
   document.querySelectorAll('[data-t]').forEach(b => {
     b.classList.toggle('on', b.dataset.t === k);
   });
-
-  // ✅ إرسال التغيير للخصم إذا كانت المباراة أونلاين
   if (typeof syncOnlineTactic === 'function') {
     syncOnlineTactic(k);
   }
@@ -568,11 +604,32 @@ function finish(){
     if(Mt.fin) return;
     Mt.fin = 1;
 
-    // ✅ 3. التحقق مما إذا كانت المباراة أونلاين (تحديث النتيجة في السيرفر بدلاً من الدوري المحلي)
+    // ✅ 3. التحقق مما إذا كانت المباراة ودية
+    if (isFriendlyMatch) {
+        isFriendlyMatch = false;
+        G.season.friendlyMatchesPlayed = (G.season.friendlyMatchesPlayed || 0) + 1;
+        
+        try { syncMatchStats(Mt); } catch(e){}
+        
+        if($('ms')) $('ms').hidden = true;
+        if($('main')) $('main').hidden = false;
+        
+        const hg = Mt.s.home.g;
+        const ag = Mt.s.away.g;
+        
+        // نافذة تنبيه بسيطة
+        showGameAlert(`🤝 انتهت المباراة الودية!\nالنتيجة: ${Mt.h.name} ${hg} - ${ag} ${Mt.a.name}\n\nالمتبقي من المباريات الودية: ${2 - G.season.friendlyMatchesPlayed}`, '🏁', 'نهاية المباراة الودية');
+        
+        save();
+        if (typeof dash === 'function') dash();
+        return;
+    }
+
+    // ✅ 4. التحقق مما إذا كانت المباراة أونلاين
     if (window._mpMatchConfig) {
         const hg = Mt.s.home.g;
         const ag = Mt.s.away.g;
-        window._mpMatchConfig = null; // مسح الإعدادات
+        window._mpMatchConfig = null;
         
         if($('ms')) $('ms').hidden = true;
         if($('main')) $('main').hidden = false;
@@ -583,7 +640,7 @@ function finish(){
         return;
     }
 
-    // ✅ 4. منطق إنهاء المباريات المحلية (كما هو)
+    // ✅ 5. منطق إنهاء المباريات المحلية
     const nm = Mt.matchData || getNextUserMatch(G.forcedMatchComp || null);
     const s = Mt.s;
     const mg = s[Mt.hu].g;
@@ -735,7 +792,7 @@ function finish(){
       const baseIncome = rW ? 15 : rD ? 8 : 3;
       const sponsorInc = G.currentSponsor ? (G.currentSponsor.safe/20) : 0;
       netIncome = Math.round((baseIncome+sponsorInc-totalSalary)*10)/10;
-      myT.budget = Math.round((myT.budget+netIncome)*10)/10;
+      myT.budget = Math.round((myT.budget + netIncome)*10)/10;
     } catch(e){ console.error('Finance error:', e); }
 
     save();

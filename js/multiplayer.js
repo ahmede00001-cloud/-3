@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف والمباريات (النسخة الاحترافية الكاملة)
+// multiplayer.js - نظام الغرف والمباريات (النسخة النهائية - جميع الفرق)
 // ============================================
 
 let currentLobby = null;
@@ -56,7 +56,7 @@ function stopLobbyTimers() {
 }
 
 // ============================================
-// 🎨 1. نظام النوافذ المخصصة (بديل alert و confirm)
+// 🎨 1. نظام النوافذ المخصصة
 // ============================================
 function showGameAlert(msg, icon = 'ℹ️', title = 'تنبيه') {
     $('cmc').innerHTML = `
@@ -254,7 +254,8 @@ async function showLeaguesPage() {
             const { data: newLobby, error } = await _db.from('lobbies').insert({ status: 'waiting', expires_at: expDate }).select().single();
             if (error) throw error;
             
-            const teams = LEAGUES['egypt'].teams;
+            // ✅ التعديل هنا: إزالة slice(0, 10) لجلب جميع الفرق
+            const teams = LEAGUES['egypt'].teams; 
             await _db.from('lobby_slots').insert(teams.map(t => ({ lobby_id: newLobby.id, team_id: t[0], team_name: t[1] })));
             currentLobby = newLobby;
         }
@@ -471,7 +472,6 @@ function renderWaitingRoom() {
             ? `<button class="b g sm" style="padding:3px 8px; font-size:10px; margin-top:4px;" onclick="event.stopPropagation(); claimLiveTeam('${slot.id}', this)">اختيار 🤝</button>` 
             : '';
 
-        // ✅ استخدام شعار الفريق (clubBadgeHtml) هنا
         let logoHtml = `<div class="bd" style="font-size:14px; width:36px; height:36px; margin:0 auto 6px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; background:rgba(255,255,255,0.1); color:#fff;">${slot.team_name ? slot.team_name[0] : '⚽'}</div>`;
         if (typeof clubBadgeHtml === 'function') {
             logoHtml = `<div style="margin:0 auto 6px; width:fit-content;">${clubBadgeHtml(slot.team_id, slot.team_name, 36)}</div>`;
@@ -502,7 +502,6 @@ function showTeamDetailsModal(slotId) {
             const starters = slot.team_snapshot.starters;
             teamRating = slot.team_snapshot.R || Math.round(starters.reduce((acc, p) => acc + (p.r || 75), 0) / starters.length);
             
-            // ✅ استخدام صورة اللاعب (playerAvatarHtml) هنا
             playersListHtml = starters.map(p => {
                 let avatar = '';
                 if (typeof playerAvatarHtml === 'function') {
@@ -523,7 +522,6 @@ function showTeamDetailsModal(slotId) {
         teamRating = originalTeam ? originalTeam[2] : 75;
     }
 
-    // ✅ استخدام شعار الفريق هنا
     let logoHtml = `<div style="font-size:32px;">🛡️</div>`;
     if (typeof clubBadgeHtml === 'function') {
         logoHtml = `<div style="display:flex; justify-content:center; margin-bottom:8px;">${clubBadgeHtml(slot.team_id, slot.team_name, 60)}</div>`;
@@ -710,7 +708,7 @@ async function loadMultiplayerCompData() {
                 myMatches.sort((a, b) => new Date(a.scheduled_time) - new Date(b.scheduled_time));
                 
                 let currentMatch = myMatches.find(m => !m.played);
-                let lastPlayedMatch = [...myMatches].reverse().find(m => m.played); // جلب آخر مباراة لعبت
+                let lastPlayedMatch = [...myMatches].reverse().find(m => m.played);
                 
                 html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; background:rgba(251,191,36,.15); padding:6px 12px; border-radius:8px;">
                     <span style="font-size:12px; color:#fbbf24; font-weight:bold;">🔥 مواجهة الدوري الأونلاين</span>
@@ -1084,7 +1082,7 @@ async function loadLiveMarket() {
     if (!G || !G.multiplayerLeagueId) return showGameAlert('السوق الحي متاح داخل الدوري الأونلاين فقط!', '⚠️');
 
     $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);"><div style="font-size:30px; animation: logoBounce 1s infinite alternate;">🛒</div><br>جاري فتح سوق الانتقالات...</div>`;
-    window._currentMarketTab = 'all'; // التبويب الافتراضي
+    window._currentMarketTab = 'all';
 
     try {
         const { data: { user } } = await _db.auth.getUser();
@@ -1093,14 +1091,12 @@ async function loadLiveMarket() {
 
         const me = T[G.my];
         
-        // تصفية اللاعبين
         const allListings = listings || [];
         const myListings = allListings.filter(l => l.user_id === user.id);
         const otherListings = allListings.filter(l => l.user_id !== user.id);
 
         let html = `
         <div class="c" style="padding: 0; overflow: hidden; border: 1px solid rgba(251,191,36,.4);">
-            <!-- الهيدر -->
             <div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,58,138,0.95)); padding: 15px; border-bottom: 1px solid rgba(251,191,36,.3); display: flex; justify-content: space-between; align-items: center;">
                 <div style="display:flex; align-items:center; gap:10px;">
                     <button class="b sm" style="background:#475569; padding:8px 12px;" onclick="dash()">⬅ عودة</button>
@@ -1112,18 +1108,15 @@ async function loadLiveMarket() {
                 </div>
             </div>
 
-            <!-- التبويبات (Tabs) -->
             <div style="display:flex; background:rgba(0,0,0,.3);">
                 <div style="flex:1; text-align:center; padding:12px; font-size:12px; font-weight:bold; cursor:pointer; border-bottom:3px solid ${window._currentMarketTab === 'all' ? 'var(--gold)' : 'transparent'}; color:${window._currentMarketTab === 'all' ? 'var(--gold)' : '#94a3b8'};" onclick="switchMarketTab('all')">🌍 السوق (${otherListings.length})</div>
                 <div style="flex:1; text-align:center; padding:12px; font-size:12px; font-weight:bold; cursor:pointer; border-bottom:3px solid ${window._currentMarketTab === 'my' ? 'var(--gold)' : 'transparent'}; color:${window._currentMarketTab === 'my' ? 'var(--gold)' : '#94a3b8'};" onclick="switchMarketTab('my')">📋 عروضي (${myListings.length})</div>
             </div>
 
-            <!-- محتوى السوق -->
             <div style="padding: 15px; max-height: 65vh; overflow-y: auto;" id="market-content-area">
                 ${renderMarketItems(window._currentMarketTab === 'all' ? otherListings : myListings, user.id)}
             </div>
             
-            <!-- زر عرض لاعب للبيع (ثابت في الأسفل) -->
             <div style="padding: 10px 15px; background: rgba(0,0,0,.4); border-top: 1px solid rgba(255,255,255,.1);">
                 <button class="b g full" style="padding:12px; font-weight:bold; font-size:14px;" onclick="showSellPlayerListPage()">➕ اعرض لاعباً من فريقك للبيع</button>
             </div>
@@ -1138,7 +1131,7 @@ async function loadLiveMarket() {
 
 function switchMarketTab(tab) {
     window._currentMarketTab = tab;
-    loadLiveMarket(); // إعادة تحميل السوق بالتبويب الجديد
+    loadLiveMarket();
 }
 
 function renderMarketItems(listings, myUserId) {
@@ -1155,11 +1148,10 @@ function renderMarketItems(listings, myUserId) {
         const isMine = item.user_id === myUserId;
         
         let rColor = '#fff';
-        if(p.r >= 85) rColor = '#fbbf24'; // ذهبي
-        else if(p.r >= 75) rColor = '#4ade80'; // أخضر
-        else if(p.r >= 65) rColor = '#22d3ee'; // أزرق
+        if(p.r >= 85) rColor = '#fbbf24';
+        else if(p.r >= 75) rColor = '#4ade80';
+        else if(p.r >= 65) rColor = '#22d3ee';
 
-        // ✅ إضافة صورة اللاعب
         let avatarHtml = '';
         if (typeof playerAvatarHtml === 'function') {
             avatarHtml = playerAvatarHtml(p, 45);
@@ -1201,8 +1193,6 @@ function showSellPlayerListPage() {
 
     let listHtml = sortedPlayers.map(p => {
         let rColor = p.r >= 85 ? '#fbbf24' : (p.r >= 75 ? '#4ade80' : '#fff');
-        
-        // ✅ إضافة صورة اللاعب هنا
         let avatarHtml = '';
         if (typeof playerAvatarHtml === 'function') {
             avatarHtml = playerAvatarHtml(p, 35);
@@ -1297,7 +1287,7 @@ async function confirmListPlayerForSale(pid) {
         
         await updateLobbySnapshot();
         broadcastEvent(`💼 عرض نادي ${me.name} اللاعب ${p.name} (⭐${p.r}) للبيع بـ ${price}M!`, true, '🛒');
-        loadLiveMarket('my'); // العودة للسوق في تبويب عروضي لرؤية اللاعب الذي تم عرضه
+        loadLiveMarket('my');
         
     } catch (e) {
         console.error(e);
@@ -1335,7 +1325,7 @@ async function buyMarketPlayer(listingId) {
             await updateLobbySnapshot();
             broadcastEvent(`🔥 صفقة مدوية! اشترى ${me.name} النجم ${newPlayer.name} من ${listing.team_name} مقابل ${price}M!`, true, '💰');
             showOnlineToast(`مبروك! انضم ${newPlayer.name} لفريقك`, '🎉');
-            loadLiveMarket('all'); // العودة للسوق
+            loadLiveMarket('all');
         }, '💰', 'تأكيد الشراء');
         
     } catch (e) {
@@ -1363,7 +1353,7 @@ async function cancelMarketListing(listingId, playerId) {
             await updateLobbySnapshot();
             
             showOnlineToast(`استعدت اللاعب ${newPlayer.name} لتشكيلتك`, '✅');
-            loadLiveMarket('my'); // العودة لتبويب عروضي
+            loadLiveMarket('my');
             
         } catch (e) {
             console.error(e);

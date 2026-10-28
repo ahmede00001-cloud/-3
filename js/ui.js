@@ -1,5 +1,5 @@
 // ============================================
-// ui.js - واجهة المستخدم الكاملة (النسخة النهائية المتكاملة)
+// ui.js - واجهة المستخدم الكاملة (النسخة النهائية المتكاملة - 3D Card)
 // ============================================
 
 let liveTbInterval = null;
@@ -1425,117 +1425,139 @@ function showTeamPlayers(tid){
   $('cmc').innerHTML = h; $('cm').hidden = false;
 }
 
+// ✅ 19. بطاقة اللاعب الجديدة (FIFA / PES Design with 3D)
 function showCard(pid, teamId){
   teamId = teamId || G.my; const team = T[teamId];
   if(!team) return; const p = team.ps.find(x => x.id === pid); if(!p) return;
   const isO = teamId !== G.my; const mo = getMoraleEmoji(p.morale);
   
-  // ✅ تحديد فئة البطاقة بناءً على التقييم (ذهبي، فضي، برونزي)
+  // تحديد فئة البطاقة بناءً على التقييم (ذهبي، فضي، برونزي)
   let cardBg, cardTextColor, cardBorder, glowColor, tierName;
   
   if (p.r >= 85) {
-      cardBg = 'linear-gradient(135deg, #fde047 0%, #d97706 50%, #fde047 100%)';
-      cardTextColor = '#451a03';
+      cardBg = 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%)';
+      cardTextColor = '#fbbf24';
       cardBorder = '#fbbf24';
-      glowColor = 'rgba(251,191,36,0.4)';
+      glowColor = 'rgba(251,191,36,0.6)';
       tierName = 'GOLD';
   } else if (p.r >= 75) {
-      cardBg = 'linear-gradient(135deg, #f8fafc 0%, #94a3b8 50%, #f8fafc 100%)';
-      cardTextColor = '#1e293b';
+      cardBg = 'linear-gradient(135deg, #1e293b 0%, #334155 50%, #1e293b 100%)';
+      cardTextColor = '#cbd5e1';
       cardBorder = '#cbd5e1';
-      glowColor = 'rgba(203,213,225,0.4)';
+      glowColor = 'rgba(203,213,225,0.6)';
       tierName = 'SILVER';
   } else {
-      cardBg = 'linear-gradient(135deg, #fcd34d 0%, #92400e 50%, #fcd34d 100%)';
-      cardTextColor = '#451a03';
+      cardBg = 'linear-gradient(135deg, #451a03 0%, #78350f 50%, #451a03 100%)';
+      cardTextColor = '#fcd34d';
       cardBorder = '#d97706';
-      glowColor = 'rgba(217,119,6,0.4)';
+      glowColor = 'rgba(217,119,6,0.6)';
       tierName = 'BRONZE';
   }
 
-  $('cmc').innerHTML = `<div class="mc mc-warning modal-bg-anim" style="padding: 20px 15px; background: transparent; box-shadow: none; border: none;">
-    <button class="mc-close" style="background:rgba(0,0,0,0.5); color:#fff; border:1px solid #fff; z-index:99;" onclick="$('cm').hidden=true">✕</button>
+  $('cmc').innerHTML = `<div class="mc mc-warning modal-bg-anim" style="padding: 20px 10px; background: repeating-linear-gradient(90deg, #166534, #166534 40px, #15803d 40px, #15803d 80px); display:flex; flex-direction:column; align-items:center; justify-content:center; min-height: 100vh; width: 100vw; position: fixed; top: 0; left: 0; z-index: 9999;">
     
-    <!-- 🃏 بطاقة FIFA/PES -->
-    <div style="background: ${cardBg}; border-radius: 20px; padding: 20px 15px; position: relative; overflow: hidden; box-shadow: 0 15px 40px ${glowColor}, inset 0 0 20px rgba(255,255,255,0.5); color: ${cardTextColor}; border: 3px solid ${cardBorder}; margin: 0 auto; max-width: 340px;">
-        
-        <!-- خلفية زخرفية -->
-        <div style="position:absolute; top:-50px; right:-50px; font-size:200px; opacity:0.05; pointer-events:none;">⚽</div>
-        
-        <!-- الجزء العلوي: التقييم والمركز -->
-        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-            <div style="display:flex; flex-direction:column; align-items:center;">
-                <div style="font-size:56px; font-weight:900; line-height:0.9; text-shadow: 2px 2px 0px rgba(255,255,255,0.5);">${p.r}</div>
-                <div style="font-size:16px; font-weight:900; margin-top:4px; background:rgba(0,0,0,0.15); padding:2px 8px; border-radius:4px;">${p.pos}</div>
-                <div style="font-size:9px; font-weight:bold; margin-top:2px; letter-spacing:1px;">${tierName}</div>
+    <button class="mc-close" style="position:fixed; top: 20px; right: 20px; background:rgba(0,0,0,0.6); color:#fff; border:1px solid #fff; z-index: 10000; width:40px; height:40px; border-radius:50%;" onclick="$('cm').hidden=true">✕</button>
+    
+    <!-- حاوية البطاقة ثلاثية الأبعاد -->
+    <div id="fut-card-container" style="perspective: 1000px; width: 320px; height: 480px; margin-bottom: 20px;">
+        <div id="fut-card" style="width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 0.1s ease-out; border-radius: 20px; background: ${cardBg}; border: 3px solid ${cardBorder}; box-shadow: 0 20px 50px rgba(0,0,0,0.8), 0 0 30px ${glowColor}; overflow: hidden; display: flex; flex-direction: column;">
+            
+            <!-- زخارف الخلفية -->
+            <div style="position: absolute; inset: 0; background-image: radial-gradient(circle at 50% 50%, transparent 20%, rgba(0,0,0,0.8) 100%); z-index: 1;"></div>
+            <div style="position: absolute; top: -50px; left: -50px; width: 200px; height: 200px; background: ${cardBorder}; filter: blur(80px); opacity: 0.3; z-index: 0;"></div>
+            <div style="position: absolute; bottom: -50px; right: -50px; width: 200px; height: 200px; background: #3b82f6; filter: blur(80px); opacity: 0.3; z-index: 0;"></div>
+
+            <!-- الجزء العلوي (التقييم والمركز) -->
+            <div style="position: absolute; top: 20px; left: 20px; z-index: 10; transform: translateZ(30px);">
+                <div style="font-size: 60px; font-weight: 900; color: ${cardTextColor}; line-height: 0.9; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); font-family: 'Arial Black', sans-serif;">${p.r}</div>
+                <div style="font-size: 20px; font-weight: 900; color: ${cardTextColor}; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">${p.pos}</div>
+                <div style="width: 40px; height: 3px; background: ${cardTextColor}; margin-top: 5px;"></div>
+            </div>
+
+            <!-- الصورة (تأخذ المساحة الوسطى) -->
+            <div style="position: absolute; top: 40px; left: 50%; transform: translateX(-50%) translateZ(20px); width: 220px; height: 220px; z-index: 5;">
+                ${typeof playerAvatarHtml === 'function' ? playerAvatarHtml(p, 220, 'border:none; background:transparent; object-fit:contain;') : '<div style="font-size:100px; text-align:center;">👤</div>'}
+            </div>
+
+            <!-- اسم اللاعب -->
+            <div style="position: absolute; bottom: 120px; width: 100%; text-align: center; z-index: 10; transform: translateZ(40px);">
+                <div style="font-size: 32px; font-weight: 900; color: ${cardTextColor}; text-transform: uppercase; letter-spacing: 2px; text-shadow: 2px 2px 4px rgba(0,0,0,0.9); border-bottom: 1px solid rgba(255,255,255,0.2); display: inline-block; padding: 0 20px 5px;">${p.name.split(' ')[0]}</div>
+            </div>
+
+            <!-- الإحصائيات (FUT Style) -->
+            <div style="position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: center; gap: 15px; z-index: 10; transform: translateZ(20px);">
+                <div style="text-align: center; color: #fff; font-weight: 900; font-size: 14px; text-shadow: 1px 1px 2px #000;">
+                    <div>PAC</div><div style="font-size: 16px; color: ${cardTextColor};">${p.pace}</div>
+                </div>
+                <div style="text-align: center; color: #fff; font-weight: 900; font-size: 14px; text-shadow: 1px 1px 2px #000;">
+                    <div>SHO</div><div style="font-size: 16px; color: ${cardTextColor};">${p.shooting}</div>
+                </div>
+                <div style="text-align: center; color: #fff; font-weight: 900; font-size: 14px; text-shadow: 1px 1px 2px #000;">
+                    <div>PAS</div><div style="font-size: 16px; color: ${cardTextColor};">${p.passing}</div>
+                </div>
+                <div style="text-align: center; color: #fff; font-weight: 900; font-size: 14px; text-shadow: 1px 1px 2px #000;">
+                    <div>DRI</div><div style="font-size: 16px; color: ${cardTextColor};">${p.dribbling}</div>
+                </div>
+                <div style="text-align: center; color: #fff; font-weight: 900; font-size: 14px; text-shadow: 1px 1px 2px #000;">
+                    <div>DEF</div><div style="font-size: 16px; color: ${cardTextColor};">${p.defending}</div>
+                </div>
+                <div style="text-align: center; color: #fff; font-weight: 900; font-size: 14px; text-shadow: 1px 1px 2px #000;">
+                    <div>PHY</div><div style="font-size: 16px; color: ${cardTextColor};">${p.physical}</div>
+                </div>
+            </div>
+
+            <!-- شعار النادي (أسفل يسار) -->
+            <div style="position: absolute; bottom: 20px; left: 15px; z-index: 10; transform: translateZ(30px); display: flex; flex-direction: column; align-items: center;">
+                ${typeof clubBadgeHtml === 'function' ? clubBadgeHtml(teamId, team.name, 40) : '<div style="font-size:30px;">🛡️</div>'}
+            </div>
+
+            <!-- القيمة السوقية (أسفل يمين) -->
+            <div style="position: absolute; bottom: 25px; right: 15px; z-index: 10; transform: translateZ(30px); background: rgba(0,0,0,0.6); padding: 4px 8px; border-radius: 4px; border: 1px solid ${cardTextColor};">
+                <div style="font-size: 12px; font-weight: 900; color: #fff;">💰 ${p.value}M</div>
             </div>
             
-            <!-- صورة اللاعب -->
-            <div style="width: 90px; height: 90px; border-radius: 50%; overflow: hidden; border: 3px solid ${cardTextColor}; background: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-                ${typeof playerAvatarHtml === 'function' ? playerAvatarHtml(p, 90, `border:none; background:transparent;`) : '<div style="font-size:40px; display:flex; align-items:center; justify-content:center; height:100%;">👤</div>'}
-            </div>
-        </div>
-
-        <!-- اسم اللاعب -->
-        <div style="text-align:center; margin-top: 15px;">
-            <div style="font-size:24px; font-weight:900; letter-spacing:1px; text-transform:uppercase; text-shadow: 1px 1px 0px rgba(255,255,255,0.4); border-bottom: 2px solid rgba(0,0,0,0.1); padding-bottom: 5px; margin-bottom: 5px;">${p.name.split(' ')[0]}</div>
-            <div style="font-size:12px; font-weight:bold; opacity:0.8;">${p.name.split(' ').slice(1).join(' ')}</div>
-        </div>
-
-        <!-- شبكة الإحصائيات -->
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 6px 15px; margin-top: 15px; background: rgba(0,0,0,0.1); padding: 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.1);">
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 2px;">
-                <span style="font-size:11px; font-weight:bold; opacity:0.8;">سرعة</span>
-                <span style="font-size:16px; font-weight:900;">${p.pace}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 2px;">
-                <span style="font-size:11px; font-weight:bold; opacity:0.8;">تسديد</span>
-                <span style="font-size:16px; font-weight:900;">${p.shooting}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 2px;">
-                <span style="font-size:11px; font-weight:bold; opacity:0.8;">تمرير</span>
-                <span style="font-size:16px; font-weight:900;">${p.passing}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 2px;">
-                <span style="font-size:11px; font-weight:bold; opacity:0.8;">مراوغة</span>
-                <span style="font-size:16px; font-weight:900;">${p.dribbling}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:11px; font-weight:bold; opacity:0.8;">دفاع</span>
-                <span style="font-size:16px; font-weight:900;">${p.defending}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:11px; font-weight:bold; opacity:0.8;">بدنية</span>
-                <span style="font-size:16px; font-weight:900;">${p.physical}</span>
-            </div>
-        </div>
-
-        <!-- الجزء السفلي: شعار النادي والقيمة -->
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 15px;">
-            <div style="display:flex; align-items:center; gap: 8px;">
-                ${typeof clubBadgeHtml === 'function' ? clubBadgeHtml(teamId, team.name, 30) : '<div>🛡️</div>'}
-                <div style="font-size:12px; font-weight:900;">${team.name}</div>
-            </div>
-            <div style="background: rgba(0,0,0,0.15); padding: 4px 10px; border-radius: 6px; font-weight: 900; font-size: 13px;">
-                💰 ${p.value}M
-            </div>
-        </div>
-        
-        <div style="text-align:center; font-size:10px; font-weight:bold; opacity:0.7; margin-top:10px;">
-            ${mo} ${p.age} سنة • L${p.lvl}
         </div>
     </div>
-    
-    <!-- الأزرار أسفل البطاقة -->
-    <div style="display:flex; gap:10px; margin-top:20px; max-width: 340px; margin-left: auto; margin-right: auto;">
-        ${isO ? `<button class="b a full" style="flex:2; padding:12px; font-weight:bold; box-shadow:0 4px 0 #1e3a8a;" onclick="makeOffer('${p.id}','${teamId}')">💰 عرض شراء</button>` : ''}
-        
-        ${!isO && G.multiplayerLeagueId ? `<button class="b" style="background:linear-gradient(180deg,#8b5cf6,#6d28d9); box-shadow:0 4px 0 #4c1d95; color:#fff; flex:2; padding:12px; font-weight:bold;" onclick="listPlayerForSale('${p.id}')">📤 عرض للبيع</button>` : ''}
-        
-        <button class="b ${isO || G.multiplayerLeagueId ? '':'full'}" style="background:#334155; color:#fff; flex:1; padding:12px; border:1px solid #475569;" onclick="$('cm').hidden=true">إغلاق</button>
+
+    <!-- الأزرار (خارج البطاقة لكي لا تتأثر بالـ 3D) -->
+    <div style="display:flex; gap:10px; width: 100%; max-width: 320px; z-index: 100;">
+        ${isO ? `<button class="b a full" style="flex:2; padding:14px; font-weight:bold; box-shadow:0 4px 0 #1e3a8a;" onclick="makeOffer('${p.id}','${teamId}')">💰 عرض شراء</button>` : ''}
+        ${!isO && G.multiplayerLeagueId ? `<button class="b" style="background:linear-gradient(180deg,#8b5cf6,#6d28d9); box-shadow:0 4px 0 #4c1d95; color:#fff; flex:2; padding:14px; font-weight:bold;" onclick="listPlayerForSale('${p.id}')">📤 عرض للبيع</button>` : ''}
+        <button class="b" style="background:#334155; color:#fff; flex:1; padding:14px; border:1px solid #475569;" onclick="$('cm').hidden=true">إغلاق</button>
     </div>
   </div>`;
+
   $('cm').hidden = false;
+
+  // ✅ برمجة تأثير الـ 3D (تحريك البطاقة مع الإصبع أو الماوس)
+  setTimeout(() => {
+      const card = document.getElementById('fut-card');
+      const container = document.getElementById('fut-card-container');
+      if (!card || !container) return;
+
+      const handleMove = (e) => {
+          const rect = container.getBoundingClientRect();
+          const x = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+          const y = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+          
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+          
+          const rotateX = ((y - centerY) / (rect.height / 2)) * -15; // 15 درجة كحد أقصى
+          const rotateY = ((x - centerX) / (rect.width / 2)) * 15;
+          
+          card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`;
+      };
+
+      const resetMove = () => {
+          card.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)`;
+      };
+
+      container.addEventListener('mousemove', handleMove);
+      container.addEventListener('touchmove', handleMove);
+      container.addEventListener('mouseleave', resetMove);
+      container.addEventListener('touchend', resetMove);
+  }, 100);
 }
 
 function makeOffer(pid, tid){

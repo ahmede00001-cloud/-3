@@ -1,5 +1,5 @@
 // ============================================
-// ui.js - واجهة المستخدم الكاملة (تدعم المباريات الودية)
+// ui.js - واجهة المستخدم الكاملة (النسخة النهائية المتكاملة)
 // ============================================
 
 let liveTbInterval = null;
@@ -107,6 +107,9 @@ function showUserProfile() {
         <div style="font-size: 11px; color: #94a3b8;">المستوى</div>
       </div>
     </div>
+
+    <button class="b full" style="background:linear-gradient(180deg,#8b5cf6,#6d28d9); color:#fff; margin-bottom:10px;" onclick="changeManagerName()">✏️ تغيير اسم المدرب</button>
+    <button class="b full r" onclick="if(confirm('هل أنت متأكد من تسجيل الخروج والعودة لشاشة البداية؟')) { try{localStorage.removeItem('c26_egypt_v26')}catch(e){}; location.reload(); }">🚪 تسجيل الخروج / مسيرة جديدة</button>
   </div>`;
 
   if (G.trophyCabinet && G.trophyCabinet.length > 0) {
@@ -114,18 +117,6 @@ function showUserProfile() {
           <div class="sec">🏆 خزانة البطولات</div>
           <div style="display:flex; flex-wrap:wrap; gap:8px;">
               ${G.trophyCabinet.map(trophy => `<div style="font-size:12px; background:rgba(0,0,0,.4); padding:6px 10px; border-radius:8px; border:1px solid rgba(251,191,36,.3);">🏆 ${trophy}</div>`).join('')}
-          </div>
-      </div>`;
-  }
-
-  if (G.boardObjectives) {
-      const obj = G.boardObjectives;
-      h += `<div class="c" style="border:1px solid #fbbf24; background:rgba(251,191,36,.05);">
-          <div class="sec" style="color:#fbbf24;">🎯 أهداف مجلس الإدارة</div>
-          <div style="font-size:12px; color:#fff; margin-bottom:5px;">الهدف: <b>${obj.target}</b></div>
-          <div style="font-size:11px; color:#94a3b8;">المكافأة: <b style="color:#4ade80;">${obj.reward}M</b></div>
-          <div style="font-size:10px; color:${obj.status === 'success' ? '#4ade80' : (obj.status === 'failed' ? '#ef4444' : '#cbd5e1')}; margin-top:5px;">
-              الحالة: ${obj.status === 'success' ? '✅ تم تحقيق الهدف' : (obj.status === 'failed' ? '❌ فشل الهدف' : '⏳ جاري التقييم')}
           </div>
       </div>`;
   }
@@ -498,7 +489,7 @@ function luH(t){
     ${benchBlock}`;
 }
 
-// ✅ دالة جديدة لاختيار خصم ودي
+// ✅ دالة اختيار خصم ودي
 function showFriendlyTeams() {
     if (G.season.friendlyMatchesPlayed >= 2) {
         return alert('لقد استنفدت مبارياتك الودية لهذه الجولة.');
@@ -859,6 +850,63 @@ function mgrH(){
     <div style="font-size:12px; color:#94a3b8; margin-top:5px;">${t.name} • المركز #${myPos}</div>
   </div>`;
 
+  // ✅ 1. أهداف مجلس الإدارة
+  if (G.boardObjectives) {
+      const obj = G.boardObjectives;
+      h += `<div class="c" style="border:1px solid #fbbf24; background:rgba(251,191,36,.05);">
+          <div class="sec" style="color:#fbbf24;">🎯 أهداف مجلس الإدارة</div>
+          <div style="font-size:12px; color:#fff; margin-bottom:5px;">الهدف: <b>${obj.target || obj.desc}</b></div>
+          <div style="font-size:11px; color:#94a3b8;">المكافأة: <b style="color:#4ade80;">${obj.reward || 0}M</b></div>
+          <div style="font-size:10px; color:${obj.status === 'success' ? '#4ade80' : (obj.status === 'failed' ? '#ef4444' : '#cbd5e1')}; margin-top:5px;">
+              الحالة: ${obj.status === 'success' ? '✅ تم تحقيق الهدف' : (obj.status === 'failed' ? '❌ فشل الهدف' : '⏳ جاري التقييم')}
+          </div>
+      </div>`;
+  }
+
+  // ✅ 2. تفاصيل الراعي الحالي
+  if (G.currentSponsor) {
+      const s = G.currentSponsor;
+      h += `<div class="c" style="border:1px solid #60a5fa; background:rgba(59,130,246,.05);">
+          <div class="sec" style="color:#60a5fa;">💼 الراعي الرسمي</div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                  <div style="font-size:24px; background:rgba(255,255,255,.1); padding:6px; border-radius:8px;">${s.logo}</div>
+                  <div>
+                      <div style="font-size:14px; font-weight:900; color:#fff;">${s.name}</div>
+                      <div style="font-size:10px; color:#4ade80;">دفعة مقدمة: ${s.safe}M</div>
+                  </div>
+              </div>
+              <div style="text-align:left;">
+                  <div style="font-size:9px; color:#94a3b8; margin-bottom:3px;">شروط إضافية:</div>
+                  <div style="font-size:10px; color:#fbbf24; font-weight:bold; background:rgba(0,0,0,.3); padding:2px 6px; border-radius:4px;">${s.bonus || 'لا يوجد'}</div>
+              </div>
+          </div>
+      </div>`;
+  }
+
+  // ✅ 3. أكاديمية الشباب (عرض المواهب)
+  if (G.youthPlayers && G.youthPlayers.length > 0) {
+      h += `<div class="c" style="border:1px solid #22c55e;">
+          <div class="sec" style="color:#22c55e; display:flex; justify-content:space-between; align-items:center;">
+              <span>🌱 أكاديمية الشباب</span>
+              <span style="font-size:9px; background:rgba(34,197,94,.2); padding:2px 6px; border-radius:4px;">${G.youthPlayers.length} مواهب</span>
+          </div>
+          <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:5px;">`;
+
+      G.youthPlayers.forEach((p, idx) => {
+          const ratingColor = p.r >= 75 ? '#fbbf24' : (p.r >= 65 ? '#4ade80' : '#fff');
+          h += `<div style="min-width:100px; background:rgba(0,0,0,.4); padding:8px; border-radius:8px; text-align:center;">
+              <div style="font-size:16px; font-weight:900; color:${ratingColor};">${p.r}</div>
+              <div style="font-size:9px; color:#94a3b8; margin-bottom:2px;">${p.pos}</div>
+              <div style="font-size:11px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.name.split(' ')[0]}</div>
+              <button class="b sm" style="margin-top:6px; padding:3px 6px; font-size:9px; background:#22c55e; width:100%;" onclick="promoteYouth(${idx})">ترقية</button>
+          </div>`;
+      });
+
+      h += `</div></div>`;
+  }
+
+  // ✅ 4. المنشآت
   const fac = G.facilities || {stadium: 1, training: 1, youth: 1};
   h += `<div class="c">
     <div class="sec">🏗️ تطوير المنشآت</div>
@@ -888,18 +936,80 @@ function mgrH(){
     </div>
   </div>`;
 
+  // ✅ 5. الاقتصاد
   h += `<div class="c"><div class="sec">💰 الاقتصاد</div>
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#fff;margin-bottom:6px"><span>الميزانية:</span><b style="color:${t.budget>=0?'#4ade80':'#f87171'}">${t.budget.toFixed(1)}M</b></div>
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#fff;margin-bottom:6px"><span>رواتب/مباراة:</span><b style="color:#f87171">-${totalSal.toFixed(2)}M</b></div>
-  </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#fff;margin-bottom:6px"><span>عدد اللاعبين:</span><b>${t.ps.length} / 25</b></div>
+  </div>`;
 
-  <div class="c"><div class="sec">⚙️ إعدادات</div>
-    <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
-      <span>الصوت:</span>
-      <button class="b sm ${soundEnabled?'g':'r'}" onclick="toggleSound()">${soundEnabled?'مفعل':'مكتوم'}</button>
+  // ✅ 6. ثقة مجلس الإدارة (مع رسم الشخصية)
+  const curPos = tbl().findIndex(x => x.id === G.my) + 1;
+  let boardConfidence = 100;
+  if (curPos > 10) boardConfidence -= (curPos - 10) * 5;
+  if (G.boardObjectives && G.boardObjectives.status === 'failed') boardConfidence -= 30;
+  if (G.boardObjectives && G.boardObjectives.status === 'success') boardConfidence += 10;
+  if (boardConfidence > 100) boardConfidence = 100;
+  if (boardConfidence < 0) boardConfidence = 0;
+
+  let confColor = '#4ade80';
+  let confText = 'مجلس الإدارة راضٍ جداً عن أدائك';
+  if (boardConfidence < 30) {
+      confColor = '#ef4444';
+      confText = 'مجلس الإدارة يفكر في إقالتك!';
+  } else if (boardConfidence < 60) {
+      confColor = '#fbbf24';
+      confText = 'مجلس الإدارة قلق من النتائج الأخيرة';
+  }
+
+  h += `<div class="c" style="border:1px solid ${confColor}; background:rgba(0,0,0,.2); position:relative; overflow:hidden;">
+    <div class="sec" style="color:${confColor}; display:flex; justify-content:space-between; align-items:center;">
+        <span>🏛️ ثقة مجلس الإدارة</span>
+    </div>
+    
+    <!-- استدعاء دالة رسم الشخصية -->
+    <div style="display:flex; justify-content:center; margin: 10px 0;">
+        ${getBoardAvatarSVG(boardConfidence)}
+    </div>
+
+    <div style="text-align:center; margin:10px 0;">
+        <div style="font-size:24px; font-weight:900; color:${confColor}; text-shadow:0 0 10px ${confColor}66;">${boardConfidence}%</div>
+        <div style="font-size:11px; color:#cbd5e1; margin-top:4px;">${confText}</div>
+    </div>
+    
+    <div style="height:10px; background:rgba(0,0,0,.5); border-radius:5px; overflow:hidden; box-shadow:inset 0 2px 4px rgba(0,0,0,.5);">
+        <div style="width:${boardConfidence}%; height:100%; background:${confColor}; border-radius:5px; transition:width .5s;"></div>
+    </div>
+    
+    <div style="font-size:10px; color:#94a3b8; margin-top:8px; text-align:right; border-right:2px solid ${confColor}; padding-right:6px;">
+        ⚠️ <b>تنبيه:</b> إذا انخفضت الثقة إلى 0%، سيتم إقالتك فوراً من تدريب النادي!
     </div>
   </div>`;
 
+  // ✅ 7. التقرير المالي التفصيلي
+  const sponsorIncome = G.currentSponsor ? G.currentSponsor.safe : 0;
+  const matchdayIncome = fac.stadium * 5; // دخل تقريبي من الملعب
+  h += `<div class="c">
+    <div class="sec" style="color:#22d3ee;">📊 التقرير المالي (تقديري)</div>
+    
+    <div style="display:flex; justify-content:space-between; font-size:12px; color:#4ade80; margin-bottom:6px;">
+        <span>📈 الإيرادات (كل مباراة):</span>
+        <b>+${(sponsorIncome / 20 + matchdayIncome).toFixed(1)}M</b>
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:12px; color:#ef4444; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:8px;">
+        <span>📉 المصروفات (الرواتب):</span>
+        <b>-${totalSal.toFixed(1)}M</b>
+    </div>
+    
+    <div style="display:flex; justify-content:space-between; font-size:13px; color:#fff; font-weight:bold;">
+        <span>💰 الصافي التقديري:</span>
+        <b style="color:${(sponsorIncome/20 + matchdayIncome - totalSal) >= 0 ? '#4ade80' : '#ef4444'};">
+            ${(sponsorIncome/20 + matchdayIncome - totalSal) >= 0 ? '+' : ''}${(sponsorIncome/20 + matchdayIncome - totalSal).toFixed(1)}M
+        </b>
+    </div>
+  </div>`;
+
+  // ✅ 8. قسم اللعب الجماعي
   h += `<div class="c" style="margin-top:10px; border:1px solid #8b5cf6; box-shadow:0 0 15px rgba(139,92,246,.3);">
     <div style="font-size:12px; color:#8b5cf6; font-weight:900; margin-bottom:8px; text-align:center;">🌍 اللعب الجماعي</div>
     <button class="b full" style="padding:14px; font-size:13px; background:linear-gradient(135deg, #8b5cf6, #6d28d9); color:#fff; border:none; margin-bottom:10px;" onclick="if(typeof showLeaguesPage==='function') showLeaguesPage()">🏆 الدخول إلى الدوريات</button>
@@ -912,6 +1022,97 @@ function mgrH(){
   return h;
 }
 
+// ✅ دالة رسم شخصية مجلس الإدارة بـ SVG
+function getBoardAvatarSVG(confidence) {
+    let browStyle, mouthStyle, bgGlow, strokeColor, extraEffects;
+    
+    if (confidence >= 60) {
+        // راضٍ (مبتسم)
+        strokeColor = '#22c55e';
+        bgGlow = "rgba(34,197,94,0.15)";
+        browStyle = `<path d="M 30 38 Q 38 33 45 38" stroke="#0f172a" stroke-width="3" fill="none" stroke-linecap="round" /><path d="M 55 38 Q 62 33 70 38" stroke="#0f172a" stroke-width="3" fill="none" stroke-linecap="round" />`;
+        mouthStyle = `<path d="M 40 62 Q 50 75 60 62" stroke="#0f172a" stroke-width="3" fill="none" stroke-linecap="round" />`;
+        extraEffects = `<circle cx="25" cy="65" r="4" fill="#f87171" opacity="0.5" /><circle cx="75" cy="65" r="4" fill="#f87171" opacity="0.5" />`; // وجنتان حمراوان
+    } else if (confidence >= 30) {
+        // محايد (مستقيم)
+        strokeColor = '#fbbf24';
+        bgGlow = "rgba(251,191,36,0.15)";
+        browStyle = `<path d="M 30 38 L 45 38" stroke="#0f172a" stroke-width="3" fill="none" stroke-linecap="round" /><path d="M 55 38 L 70 38" stroke="#0f172a" stroke-width="3" fill="none" stroke-linecap="round" />`;
+        mouthStyle = `<path d="M 42 65 L 58 65" stroke="#0f172a" stroke-width="3" fill="none" stroke-linecap="round" />`;
+        extraEffects = ``;
+    } else {
+        // غاضب
+        strokeColor = '#ef4444';
+        bgGlow = "rgba(239,68,68,0.15)";
+        browStyle = `<path d="M 30 32 L 45 42" stroke="#0f172a" stroke-width="4" fill="none" stroke-linecap="round" /><path d="M 55 42 L 70 32" stroke="#0f172a" stroke-width="4" fill="none" stroke-linecap="round" />`;
+        mouthStyle = `<path d="M 40 70 Q 50 55 60 70" stroke="#0f172a" stroke-width="3" fill="none" stroke-linecap="round" />`;
+        extraEffects = `
+            <path d="M 75 20 L 85 30 M 85 20 L 75 30" stroke="#ef4444" stroke-width="3" stroke-linecap="round" />
+            <path d="M 15 25 L 25 35 M 25 25 L 15 35" stroke="#ef4444" stroke-width="3" stroke-linecap="round" />
+        `;
+    }
+
+    return `
+    <svg width="110" height="110" viewBox="0 0 100 100" style="filter: drop-shadow(0 0 15px ${bgGlow}); transition: all 0.5s ease;">
+        <!-- الدائرة الخلفية -->
+        <circle cx="50" cy="50" r="48" fill="rgba(0,0,0,0.4)" stroke="${strokeColor}" stroke-width="2" />
+        
+        <!-- البدلة -->
+        <path d="M 15 100 Q 15 70 50 70 Q 85 70 85 100 Z" fill="${confidence < 30 ? '#111827' : '#1e293b'}" />
+        <!-- القميص -->
+        <path d="M 40 70 L 50 88 L 60 70 Z" fill="#f8fafc" />
+        <!-- الكرافة (التاي) -->
+        <path d="M 47 72 L 53 72 L 56 85 L 50 98 L 44 85 Z" fill="${confidence < 30 ? '#991b1b' : '#ef4444'}" />
+        
+        <!-- الرأس -->
+        <circle cx="50" cy="45" r="24" fill="#fcd34d" />
+        
+        <!-- الشعر -->
+        <path d="M 26 40 Q 26 18 50 18 Q 74 18 74 40 Q 65 28 50 28 Q 35 28 26 40 Z" fill="#1e293b" />
+        
+        <!-- العيون -->
+        <circle cx="38" cy="45" r="3" fill="#0f172a" />
+        <circle cx="62" cy="45" r="3" fill="#0f172a" />
+
+        <!-- الحواجب -->
+        ${browStyle}
+
+        <!-- الفم -->
+        ${mouthStyle}
+        
+        <!-- علامات الغضب أو السعادة -->
+        ${extraEffects}
+    </svg>
+    `;
+}
+
+// ✅ دوال مساعدة إضافية
+function promoteYouth(idx) {
+    const yp = G.youthPlayers[idx];
+    if (!yp) return;
+    if (T[G.my].ps.length >= 25) return alert('الفريق ممتلئ! لا يمكنك ترقية المزيد.');
+    
+    T[G.my].ps.push(yp);
+    G.youthPlayers.splice(idx, 1);
+    addNews(`🌱 تمت ترقية ${yp.name} للفريق الأول!`, `⭐ تقييم ${yp.r}`);
+    save(); 
+    dash();
+    if(typeof playSound === 'function') playSound('whistle');
+}
+
+function changeManagerName() {
+    const newName = prompt("أدخل اسم المدرب الجديد:", G.managerName);
+    if (newName && newName.trim().length > 0) {
+        G.managerName = newName.trim();
+        if (typeof updateLobbySnapshot === 'function') updateLobbySnapshot();
+        save();
+        dash();
+    }
+}
+
+// ============================================
+// دوال الأخبار والبقية (كما هي)
+// ============================================
 function newsH(){
   if(!G.news || !G.news.length){
     return `<div class="c news-empty"><div class="news-empty-icon">📭</div><div class="news-empty-text">لا أخبار بعد</div></div>`;

@@ -1,5 +1,5 @@
 // ============================================
-// match.js - واجهة المباراة، الرسم، النتيجة (يدعم الأونلاين)
+// match.js - واجهة المباراة، الرسم، النتيجة (يدعم الأونلاين والتكتيكات)
 // ============================================
 
 function playTournamentMatch() { G.forcedMatchComp = 'tournament'; play(); }
@@ -313,6 +313,8 @@ function man(x, p, px, py, t, gk, car, num, isRef = false){
       x.lineWidth = .4;
       x.strokeRect(5, -31, 3.5, 5);
     }
+    
+    // ✅ رسم شارة الكابتن إذا كان اللاعب هو الكابتن
     if(p.origId === Mt.effectiveRoles?.captain){
       x.fillStyle = '#fbbf24';
       x.strokeStyle = '#000';
@@ -452,10 +454,18 @@ function draw(){
 
 function mtac(k){
   if(!Mt) return;
+  // تغيير التكتيك في المحرك
   Mt.s[Mt.hu].tc = k;
+  
+  // تحديث شكل الأزرار
   document.querySelectorAll('[data-t]').forEach(b => {
     b.classList.toggle('on', b.dataset.t === k);
   });
+
+  // ✅ إرسال التغيير للخصم إذا كانت المباراة أونلاين
+  if (typeof syncOnlineTactic === 'function') {
+    syncOnlineTactic(k);
+  }
 }
 
 function pz(){paused = !paused;}

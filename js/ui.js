@@ -943,12 +943,33 @@ function mgrH(){
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#fff;margin-bottom:6px"><span>عدد اللاعبين:</span><b>${t.ps.length} / 25</b></div>
   </div>`;
 
-  // ✅ 6. ثقة مجلس الإدارة (مع رسم الشخصية)
-  const curPos = tbl().findIndex(x => x.id === G.my) + 1;
+  // ✅ 6. ثقة مجلس الإدارة (مربوطة بالأونلاين والمحلي)
   let boardConfidence = 100;
-  if (curPos > 10) boardConfidence -= (curPos - 10) * 5;
-  if (G.boardObjectives && G.boardObjectives.status === 'failed') boardConfidence -= 30;
-  if (G.boardObjectives && G.boardObjectives.status === 'success') boardConfidence += 10;
+  let boardTitle = "🏛️ ثقة مجلس الإدارة";
+  
+  // التحقق مما إذا كان اللاعب في دوري أونلاين
+  if (G.multiplayerLeagueId && typeof mySlot !== 'undefined' && mySlot && mySlot.played > 0) {
+      // 🌐 حساب الثقة بناءً على نتائج الأونلاين
+      boardTitle = "🔴 ثقة الإدارة (الدوري المباشر)";
+      
+      // حساب النسبة بناءً على النقاط المكتسبة من المباريات التي لعبتها
+      const maxPossiblePoints = mySlot.played * 3;
+      const pointRatio = (mySlot.points || 0) / (maxPossiblePoints || 1); 
+      boardConfidence = Math.round(pointRatio * 100);
+      
+      // إضافة أو خصم بناءً على فارق الأهداف (كل هدف يفرق يزيد أو يقلل 1%)
+      const gd = (mySlot.goals_for || 0) - (mySlot.goals_against || 0);
+      boardConfidence += Math.min(10, Math.max(-10, gd)); 
+      
+  } else {
+      // 🏠 حساب الثقة بناءً على الدوري المحلي (الفردي)
+      const curPos = tbl().findIndex(x => x.id === G.my) + 1;
+      if (curPos > 10) boardConfidence -= (curPos - 10) * 5;
+      if (G.boardObjectives && G.boardObjectives.status === 'failed') boardConfidence -= 30;
+      if (G.boardObjectives && G.boardObjectives.status === 'success') boardConfidence += 10;
+  }
+  
+  // تقييد النسبة بين 0 و 100
   if (boardConfidence > 100) boardConfidence = 100;
   if (boardConfidence < 0) boardConfidence = 0;
 
@@ -964,7 +985,7 @@ function mgrH(){
 
   h += `<div class="c" style="border:1px solid ${confColor}; background:rgba(0,0,0,.2); position:relative; overflow:hidden;">
     <div class="sec" style="color:${confColor}; display:flex; justify-content:space-between; align-items:center;">
-        <span>🏛️ ثقة مجلس الإدارة</span>
+        <span>${boardTitle}</span>
     </div>
     
     <!-- استدعاء دالة رسم الشخصية -->
@@ -982,7 +1003,9 @@ function mgrH(){
     </div>
     
     <div style="font-size:10px; color:#94a3b8; margin-top:8px; text-align:right; border-right:2px solid ${confColor}; padding-right:6px;">
-        ⚠️ <b>تنبيه:</b> إذا انخفضت الثقة إلى 0%، سيتم إقالتك فوراً من تدريب النادي!
+        ${G.multiplayerLeagueId ? 
+          '📊 يتم حساب الثقة بناءً على نقاطك في الدوري المباشر (الأونلاين).' : 
+          '⚠️ إذا انخفضت الثقة إلى 0%، سيتم إقالتك فوراً من تدريب النادي!'}
     </div>
   </div>`;
 

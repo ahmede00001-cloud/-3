@@ -1,5 +1,5 @@
 // ============================================
-// engine.js - محرك المباراة (نسخة الاستقرار التام)
+// engine.js - محرك المباراة (نسخة الاستقرار التام + التأثيرات التكتيكية)
 // ============================================
 
 // ✅ تعريف دالة التعليق cmt لضمان عدم توقف اللعبة عند التسديد
@@ -137,6 +137,8 @@ class Match {
     const on = this.s[k].on;
     if(!on.length) return 1;
     let avg = on.reduce((a,p) => a+er(p), 0) / on.length;
+    
+    // ✅ تأثير الكابتن على قوة الفريق
     if(k === this.hu && this.effectiveRoles.captain){
       const cap = on.find(p => p.origId === this.effectiveRoles.captain);
       if(cap){
@@ -144,11 +146,15 @@ class Match {
         avg *= (1 + leadership*0.08);
       }
     }
+    
     if(k === 'home') avg += 2;
     if(this.isDerby && k === 'home') avg += 2;
+    
+    // ✅ تأثير الخطة (Formation) والتكتيك (Tactic)
     const fmB = FM_STYLE[this.s[k].f] || FM_STYLE['4-3-3'];
     const tacB = TAC_STYLE[this.s[k].tc] || TAC_STYLE.balanced;
     avg *= (fmB.att*0.5 + fmB.def*0.5);
+    
     const rp = (11-on.length)*4;
     return Math.pow(Math.max(45, avg-rp)/74, 3.2);
   }
@@ -349,7 +355,9 @@ class Match {
     if (angleToGoal > 20) shootWilling *= 0.3;
     else if (angleToGoal > 12) shootWilling *= 0.7;
 
-    shootWilling *= fmB.att*tacB.att;
+    // ✅ تأثير التكتيك على التسديد
+    shootWilling *= fmB.att*tacB.att; 
+    
     if(p.inst === 'attack') shootWilling += .15;
     if(p.inst === 'defense') shootWilling -= .15;
     if(p.inst === 'counter' && dg < 25) shootWilling += .10;
@@ -367,7 +375,10 @@ class Match {
       }
     }
 
-    const passPref = 0.40 + (p.passing/99)*0.50;
+    // ✅ تأثير تكتيك الاستحواذ على التمرير
+    let passPref = 0.40 + (p.passing/99)*0.50;
+    if (tacB.name === 'possession') passPref += 0.15;
+
     const m = this.s[k].on.filter(q => q !== p && Math.hypot(q.x-p.x, q.y-p.y) < 38);
     const on = m.filter(q => !this.isOffside(p, q));
     const pool = (on.length > 0 && R() > .05) ? on : m;
@@ -399,9 +410,14 @@ class Match {
     p.stats.passes++;
 
     const vision = (p.passing/99)*0.70 + (p.dribbling/99)*0.30;
-    const sk = vision*(.7+.3*(p.st/100));
+    let sk = vision*(.7+.3*(p.st/100));
+    
+    // ✅ تأثير تكتيك الاستحواذ على دقة التمرير
+    if(this.s[p.k].tc === 'possession') sk *= 1.15;
+
     let accuracyBonus = 1;
     if(isCorner && p.origId === this.effectiveRoles.cornerTaker) accuracyBonus = 1.20;
+    
     const err = Math.pow(1-sk, 1.4)*15*(1/this.weather.accuracy)/accuracyBonus;
 
     const lx = Math.max(3, Math.min(L-3, m.x + p.dir*1.2 + (R()-.5)*err));
@@ -480,7 +496,10 @@ class Match {
     dt.fl++;
     const gx = car.dir > 0 ? L : 0;
     const ib = Math.abs(gx-car.x) < 16.5 && Math.abs(car.y-34) < 20.15;
-    const sev = R()+(def.aggr||60)/260;
+    let sev = R()+(def.aggr||60)/260;
+
+    // ✅ تكتيك الضغط يزيد من احتمالية الخطأ
+    if(dt.tc === 'press') sev += 0.15;
 
     if(sev > 1.22){
       def.rc = 1;
@@ -669,7 +688,11 @@ class Match {
       if(op){
         const defSkill = tacklePower(op);
         const passSkill = f.passer ? Math.pow(((f.passer.passing*0.7+f.passer.dribbling*0.3)+(f.passer.lvl-1)*0.8)/74, 3.0) : 1;
-        const ir = (defSkill/Math.max(0.1, passSkill))*0.5;
+        let ir = (defSkill/Math.max(0.1, passSkill))*0.5;
+        
+        // ✅ تكتيك الاستحواذ يقلل من احتمالية قطع الكرة
+        if (f.passer && this.s[f.passer.k].tc === 'possession') ir *= 0.8; 
+        
         if(R() < Math.min(.55, .32*ir)){
           op.stats.tackles++;
           b.fl = null;
@@ -792,7 +815,12 @@ class Match {
           const defSkill = tacklePower(d);
           const attSkill = dribblePower(car);
           const skillRatio = defSkill/Math.max(0.1, attSkill);
-          const dT = this.s[d.k].tc === 'defense' ? 1.30 : (this.s[d.k].tc === 'attack' ? .80 : 1);
+          
+          let dT = 1;
+          if(this.s[d.k].tc === 'defense') dT = 1.30;
+          else if(this.s[d.k].tc === 'attack') dT = .80;
+          else if(this.s[d.k].tc === 'press') dT = 1.40; // ✅ الضغط يزيد التدخلات
+
           const pb = dfs.length > 1 ? 1.50 : 1;
           const tc = 0.24*skillRatio*Math.pow(tr, .6)*dT*pb;
 
@@ -826,13 +854,24 @@ class Match {
         if(p.inst === 'press') instDrain = 1.5;
         if(p.inst === 'counter') instDrain = 0.85;
         if(p.inst === 'stayback') instDrain = 0.75;
-        const drainRate = 0.055*physFactor*tacB.staminaDrain*instDrain/ws;
+        
+        // ✅ تأثير التكتيك على اللياقة
+        const drainRate = 0.055*physFactor*tacB.staminaDrain*instDrain/ws; 
         p.st = Math.max(15, p.st-dt*drainRate);
         if(p.st < p.minSt) p.minSt = p.st;
 
         const os = this.opp(p.k).on.slice().sort((a,c) => (c.x*p.dir)-(a.x*p.dir));
         const ol = (os[1] || os[0] || {x: L/2}).x;
-        let ts = role === 'GK' ? 0 : (tc === 'attack' ? 6 : (tc === 'defense' ? -7 : (tc === 'counter' ? -3 : (tc === 'press' ? 5 : 0))))*p.dir;
+        
+        // ✅ تأثير التكتيك على التمركز (الحركة بدون كرة)
+        let ts = 0;
+        if (role !== 'GK') {
+            if (tc === 'attack') ts = 6 * p.dir;
+            else if (tc === 'defense') ts = -7 * p.dir;
+            else if (tc === 'counter') ts = -3 * p.dir;
+            else if (tc === 'press') ts = 5 * p.dir;
+        }
+
         if(p.inst === 'attack') ts += 8*p.dir;
         if(p.inst === 'defense') ts -= 8*p.dir;
         if(p.inst === 'counter') ts -= 4*p.dir;
@@ -903,7 +942,11 @@ class Match {
         if(dist > .3 && p.stun <= 0){
           const stFactor = 0.55+0.45*(p.st/100);
           const cp = b.o === p ? .82 : 1;
-          const instSpeed = p.inst === 'press' ? 1.05 : 1;
+          
+          // ✅ تكتيك الضغط يزيد من سرعة اللاعبين قليلاً
+          let instSpeed = 1;
+          if (p.inst === 'press' || tc === 'press') instSpeed = 1.05;
+
           const maxSp = (3.5+4.8*(p.pace/99))*cp*stFactor*instSpeed;
           const dvx = (dx/dist)*maxSp-p.vx;
           const dvy = (dy/dist)*maxSp-p.vy;

@@ -65,7 +65,6 @@
 
   <main id="main"></main>
   
-  <!-- ✅ تعديل التبويبات لتستدعي الدالة الذكية -->
   <nav class="bottom-nav" id="bottom-nav" hidden>
     <div class="nav-item" onclick="handleTabClick('lu', this)"><span>📋</span>التشكيلة</div>
     <div class="nav-item" onclick="handleTabClick('tb', this)"><span>📊</span>الترتيب</div>
@@ -77,7 +76,7 @@
   </nav>
 </div>
 
-<!-- باقي النوافذ المنبثقة (Modals) كما هي -->
+<!-- باقي النوافذ المنبثقة (Modals) -->
 <div id="ms" class="ov" hidden>
   <div style="display:flex;justify-content:space-between;padding:8px 12px;background:rgba(10,22,40,.95);border-bottom:1px solid rgba(251,191,36,.3);align-items:center">
     <b id="mr" style="font-size:11px;color:var(--gold)"></b>
@@ -122,7 +121,6 @@
   <div id="lg" style="flex:1;overflow:auto;padding:6px 10px"></div>
 </div>
 
-<!-- باقي الـ Modals (sm, pm, rs, cm, om, pen-m, game-over) -->
 <div id="sm" class="md" hidden onclick="if(event.target===this)this.hidden=true">
   <div class="mc mc-info">
     <button class="mc-close" onclick="$('sm').hidden=true">✕</button>
@@ -204,6 +202,7 @@
 <script src="js/engine.js"></script>
 <script src="js/season.js"></script>
 <script src="js/news.js"></script>
+<script src="js/images.js"></script> <!-- ✅ تم إضافة ملف الصور هنا -->
 <script src="js/ui.js"></script>
 <script src="js/match.js"></script>
 <script src="js/main.js"></script>
@@ -216,10 +215,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/auth.js"></script>
 
-<!-- ✅ سكربت توجيه التبويبات الذكي (لحل مشكلة عدم الفتح) -->
+<!-- ✅ سكربت توجيه التبويبات الذكي -->
 <script>
 async function handleTabClick(tab, el) {
-    // 1. التحقق من تبويب الترتيب
     if (tab === 'tb' && typeof G !== 'undefined' && G.multiplayerLeagueId && typeof showOnlineStandings === 'function') {
         const success = await showOnlineStandings();
         if (success) {
@@ -228,14 +226,12 @@ async function handleTabClick(tab, el) {
         }
     }
 
-    // 2. إجبار التبويبات على إعادة التحميل إذا كنا عائدين من شاشة أخرى (مثل جدول المباريات)
     if (typeof G !== 'undefined') {
         if (tab === 'comp' || tab === 'lu' || tab === 'tb') {
-            G.tab = ''; // هذه الخدعة تجبر الكود على إعادة رسم الشاشة
+            G.tab = ''; 
         }
     }
 
-    // 3. فتح التبويب العادي
     switchTab(tab);
     updateActiveNav(el);
 }

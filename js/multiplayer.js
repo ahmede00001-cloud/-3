@@ -1059,11 +1059,11 @@ function buildTeamFromSnapshot(snap, teamId) {
 // ============================================
 // 💰 5. سوق الانتقالات الاحترافي (صفحة كاملة)
 // ============================================
-async function loadLiveMarket() {
+async function loadLiveMarket(defaultTab = 'all') {
     if (!G || !G.multiplayerLeagueId) return showGameAlert('السوق الحي متاح داخل الدوري الأونلاين فقط!', '⚠️');
 
     $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);"><div style="font-size:30px; animation: logoBounce 1s infinite alternate;">🛒</div><br>جاري فتح سوق الانتقالات...</div>`;
-    window._currentMarketTab = 'all'; // التبويب الافتراضي
+    window._currentMarketTab = defaultTab; // التبويب الافتراضي أو الممرر
 
     try {
         const { data: { user } } = await _db.auth.getUser();
@@ -1116,8 +1116,7 @@ async function loadLiveMarket() {
 }
 
 function switchMarketTab(tab) {
-    window._currentMarketTab = tab;
-    loadLiveMarket(); // إعادة تحميل السوق بالتبويب الجديد
+    loadLiveMarket(tab); // تمرير التبويب الجديد للدالة
 }
 
 function renderMarketItems(listings, myUserId) {
@@ -1266,7 +1265,7 @@ async function confirmListPlayerForSale(pid) {
         
         $('cm').hidden = true;
         showOnlineToast('تم عرض اللاعب في السوق بنجاح', '✅');
-        loadLiveMarket(); // العودة للسوق لرؤية اللاعب
+        loadLiveMarket('my'); // العودة للسوق في تبويب عروضي لرؤية اللاعب الذي تم عرضه
         
     } catch (e) {
         console.error(e);
@@ -1304,7 +1303,7 @@ async function buyMarketPlayer(listingId) {
             await updateLobbySnapshot();
             broadcastEvent(`🔥 صفقة مدوية! اشترى ${me.name} النجم ${newPlayer.name} من ${listing.team_name} مقابل ${price}M!`, true, '💰');
             showOnlineToast(`مبروك! انضم ${newPlayer.name} لفريقك`, '🎉');
-            loadLiveMarket();
+            loadLiveMarket('all'); // العودة للسوق
         }, '💰', 'تأكيد الشراء');
         
     } catch (e) {
@@ -1332,7 +1331,7 @@ async function cancelMarketListing(listingId, playerId) {
             await updateLobbySnapshot();
             
             showOnlineToast(`استعدت اللاعب ${newPlayer.name} لتشكيلتك`, '✅');
-            loadLiveMarket();
+            loadLiveMarket('my'); // العودة لتبويب عروضي
             
         } catch (e) {
             console.error(e);

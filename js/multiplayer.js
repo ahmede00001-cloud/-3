@@ -412,7 +412,7 @@ async function processDueBotMatches(lobbyId) {
 }
 
 // ============================================
-// 👤 واجهة غرفة الانتظار وتفاصيل الفرق
+// 👤 واجهة غرفة الانتظار وتفاصيل الفرق (مع الصور)
 // ============================================
 function renderWaitingRoom() {
     const maxTeams = getLobbyMaxTeams();
@@ -471,8 +471,14 @@ function renderWaitingRoom() {
             ? `<button class="b g sm" style="padding:3px 8px; font-size:10px; margin-top:4px;" onclick="event.stopPropagation(); claimLiveTeam('${slot.id}', this)">اختيار 🤝</button>` 
             : '';
 
+        // ✅ استخدام شعار الفريق (clubBadgeHtml) هنا
+        let logoHtml = `<div class="bd" style="font-size:14px; width:36px; height:36px; margin:0 auto 6px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; background:rgba(255,255,255,0.1); color:#fff;">${slot.team_name ? slot.team_name[0] : '⚽'}</div>`;
+        if (typeof clubBadgeHtml === 'function') {
+            logoHtml = `<div style="margin:0 auto 6px; width:fit-content;">${clubBadgeHtml(slot.team_id, slot.team_name, 36)}</div>`;
+        }
+
         html += `<div class="team-select-card" onclick="showTeamDetailsModal('${slot.id}')" style="cursor:pointer; background:${bg}; border:1px solid ${border}; padding:8px; border-radius:10px; text-align:center; margin-bottom:5px;">
-            <div class="bd" style="font-size:14px; width:28px; height:28px; margin:0 auto 3px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; background:rgba(255,255,255,0.1); color:#fff;">${slot.team_name ? slot.team_name[0] : '⚽'}</div>
+            ${logoHtml}
             <b style="font-size:11px; display:block; color:#fff;">${slot.team_name}</b>
             ${statusHtml}
             ${actionBtn}
@@ -496,23 +502,38 @@ function showTeamDetailsModal(slotId) {
             const starters = slot.team_snapshot.starters;
             teamRating = slot.team_snapshot.R || Math.round(starters.reduce((acc, p) => acc + (p.r || 75), 0) / starters.length);
             
-            playersListHtml = starters.map(p => `
+            // ✅ استخدام صورة اللاعب (playerAvatarHtml) هنا
+            playersListHtml = starters.map(p => {
+                let avatar = '';
+                if (typeof playerAvatarHtml === 'function') {
+                    avatar = playerAvatarHtml(p, 28);
+                }
+                return `
                 <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); padding:6px 10px; border-radius:6px; margin-bottom:4px; font-size:12px;">
-                    <span style="color:#fff; font-weight:bold;">${p.name} <span style="font-size:10px; color:#94a3b8;">(${p.pos})</span></span>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        ${avatar}
+                        <span style="color:#fff; font-weight:bold;">${p.name} <span style="font-size:10px; color:#94a3b8;">(${p.pos})</span></span>
+                    </div>
                     <span style="color:#fbbf24; font-weight:bold;">⭐ ${p.r || 75}</span>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         }
     } else {
         const originalTeam = (typeof LEAGUES !== 'undefined' && LEAGUES['egypt']) ? LEAGUES['egypt'].teams.find(t => t[0] === slot.team_id) : null;
         teamRating = originalTeam ? originalTeam[2] : 75;
     }
 
+    // ✅ استخدام شعار الفريق هنا
+    let logoHtml = `<div style="font-size:32px;">🛡️</div>`;
+    if (typeof clubBadgeHtml === 'function') {
+        logoHtml = `<div style="display:flex; justify-content:center; margin-bottom:8px;">${clubBadgeHtml(slot.team_id, slot.team_name, 60)}</div>`;
+    }
+
     $('cmc').innerHTML = `
         <div class="mc mc-warning" style="max-height:85vh; display:flex; flex-direction:column; width:95%; max-width:450px;">
             <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
             <div class="mc-head" style="text-align:center; margin-bottom:10px;">
-                <div style="font-size:32px;">🛡️</div>
+                ${logoHtml}
                 <div class="mc-title" style="font-size:18px; color:#fff;">${slot.team_name}</div>
                 <div class="mc-sub" style="font-size:12px; color:#4ade80; margin-top:4px;">المدرب: <b>${managerText}</b></div>
                 <div style="margin-top:6px; display:inline-block; background:rgba(251,191,36,0.15); border:1px solid #fbbf24; padding:2px 10px; border-radius:6px; color:#fbbf24; font-size:12px; font-weight:bold;">
@@ -1057,13 +1078,13 @@ function buildTeamFromSnapshot(snap, teamId) {
 }
 
 // ============================================
-// 💰 5. سوق الانتقالات الاحترافي (صفحة كاملة)
+// 💰 5. سوق الانتقالات (مع الصور)
 // ============================================
-async function loadLiveMarket(defaultTab = 'all') {
+async function loadLiveMarket() {
     if (!G || !G.multiplayerLeagueId) return showGameAlert('السوق الحي متاح داخل الدوري الأونلاين فقط!', '⚠️');
 
     $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);"><div style="font-size:30px; animation: logoBounce 1s infinite alternate;">🛒</div><br>جاري فتح سوق الانتقالات...</div>`;
-    window._currentMarketTab = defaultTab; // التبويب الافتراضي أو الممرر
+    window._currentMarketTab = 'all'; // التبويب الافتراضي
 
     try {
         const { data: { user } } = await _db.auth.getUser();
@@ -1116,7 +1137,8 @@ async function loadLiveMarket(defaultTab = 'all') {
 }
 
 function switchMarketTab(tab) {
-    loadLiveMarket(tab); // تمرير التبويب الجديد للدالة
+    window._currentMarketTab = tab;
+    loadLiveMarket(); // إعادة تحميل السوق بالتبويب الجديد
 }
 
 function renderMarketItems(listings, myUserId) {
@@ -1137,17 +1159,25 @@ function renderMarketItems(listings, myUserId) {
         else if(p.r >= 75) rColor = '#4ade80'; // أخضر
         else if(p.r >= 65) rColor = '#22d3ee'; // أزرق
 
+        // ✅ إضافة صورة اللاعب
+        let avatarHtml = '';
+        if (typeof playerAvatarHtml === 'function') {
+            avatarHtml = playerAvatarHtml(p, 45);
+        } else {
+            avatarHtml = `<div style="width:45px; height:45px; border-radius:50%; background:rgba(0,0,0,.5); border:2px solid ${rColor}; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                    <span style="font-size:16px; font-weight:900; color:${rColor};">${p.r}</span>
+                    <span style="font-size:8px; color:#94a3b8;">${p.pos}</span>
+                </div>`;
+        }
+
         return `
         <div style="display:flex; align-items:center; justify-content:space-between; background:linear-gradient(135deg, rgba(30,41,59,.9), rgba(15,23,42,.9)); border:1px solid rgba(255,255,255,.1); border-right:4px solid ${isMine ? '#fbbf24' : '#3b82f6'}; border-radius:12px; padding:10px 12px; margin-bottom:10px; box-shadow:0 4px 10px rgba(0,0,0,.3);">
             
             <div style="display:flex; align-items:center; gap:12px; flex:1;">
-                <div style="width:45px; height:45px; border-radius:50%; background:rgba(0,0,0,.5); border:2px solid ${rColor}; display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 0 10px ${rColor}44;">
-                    <span style="font-size:16px; font-weight:900; color:${rColor}; line-height:1;">${p.r}</span>
-                    <span style="font-size:8px; color:#94a3b8; font-weight:bold; margin-top:2px;">${p.pos}</span>
-                </div>
+                ${avatarHtml}
                 
                 <div style="display:flex; flex-direction:column;">
-                    <div style="font-size:14px; font-weight:bold; color:#fff;">${p.name}</div>
+                    <div style="font-size:14px; font-weight:bold; color:#fff;">${p.name} <span style="font-size:10px; color:#fbbf24;">(⭐${p.r} • ${p.pos})</span></div>
                     <div style="font-size:10px; color:#94a3b8; margin-top:2px;">البائع: <span style="color:#cbd5e1;">${item.team_name}</span> (${item.manager_name || 'مدرب'})</div>
                 </div>
             </div>
@@ -1171,12 +1201,17 @@ function showSellPlayerListPage() {
 
     let listHtml = sortedPlayers.map(p => {
         let rColor = p.r >= 85 ? '#fbbf24' : (p.r >= 75 ? '#4ade80' : '#fff');
+        
+        // ✅ إضافة صورة اللاعب هنا
+        let avatarHtml = '';
+        if (typeof playerAvatarHtml === 'function') {
+            avatarHtml = playerAvatarHtml(p, 35);
+        }
+
         return `
         <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.05); border-radius:10px; padding:10px; margin-bottom:8px;">
             <div style="display:flex; align-items:center; gap:10px;">
-                <div style="width:35px; height:35px; border-radius:50%; background:rgba(255,255,255,.05); border:1px solid ${rColor}; display:flex; align-items:center; justify-content:center; font-weight:bold; color:${rColor}; font-size:14px;">
-                    ${p.r}
-                </div>
+                ${avatarHtml}
                 <div>
                     <div style="font-size:13px; font-weight:bold; color:#fff;">${p.name}</div>
                     <div style="font-size:10px; color:#94a3b8;">${p.pos} • ${p.age} سنة • القيمة: <span style="color:#fbbf24;">${p.value}M</span></div>
@@ -1262,9 +1297,6 @@ async function confirmListPlayerForSale(pid) {
         
         await updateLobbySnapshot();
         broadcastEvent(`💼 عرض نادي ${me.name} اللاعب ${p.name} (⭐${p.r}) للبيع بـ ${price}M!`, true, '🛒');
-        
-        $('cm').hidden = true;
-        showOnlineToast('تم عرض اللاعب في السوق بنجاح', '✅');
         loadLiveMarket('my'); // العودة للسوق في تبويب عروضي لرؤية اللاعب الذي تم عرضه
         
     } catch (e) {
@@ -1338,17 +1370,6 @@ async function cancelMarketListing(listingId, playerId) {
             showGameAlert('حدث خطأ', '❌');
         }
     }, '↩', 'إلغاء العرض');
-}
-
-async function listPlayerForSale(pid) {
-    if (!G.multiplayerLeagueId) {
-        return showGameAlert('هذا الخيار متاح فقط في اللعب الجماعي (الأونلاين).', '⚠️');
-    }
-    
-    const me = T[G.my];
-    if (me.ps.length <= 14) return showGameAlert('لا يمكنك بيع لاعب، تحتاج 14 لاعباً على الأقل.', '⚠️');
-    
-    openSellPriceModal(pid);
 }
 
 async function updateLobbySnapshot() {

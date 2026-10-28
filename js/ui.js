@@ -1,5 +1,5 @@
 // ============================================
-// ui.js - واجهة المستخدم الكاملة (تحديث الترتيب والسوق المباشر)
+// ui.js - واجهة المستخدم الكاملة (تدعم المباريات الودية)
 // ============================================
 
 let liveTbInterval = null;
@@ -383,6 +383,18 @@ function luH(t){
       </div>`;
   }
 
+  // ✅ إضافة زر المباراة الودية
+  const friendliesLeft = 2 - (G.season.friendlyMatchesPlayed || 0);
+  let friendlyBtnHtml = '';
+  if (friendliesLeft > 0) {
+      friendlyBtnHtml = `
+      <div style="text-align:center; margin-bottom:15px;">
+          <button class="b sm" style="background:linear-gradient(180deg,#8b5cf6,#6d28d9); color:#fff; padding:10px 15px; font-size:12px; font-weight:bold; width:100%; border-radius:10px; box-shadow:0 4px 0 #4c1d95, 0 6px 20px rgba(139,92,246,.4);" onclick="showFriendlyTeams()">
+              🤝 لعب مباراة ودية (${friendliesLeft} متبقية)
+          </button>
+      </div>`;
+  }
+
   const roleCards = `<div class="sec">👑 الأدوار الخاصة</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
       <div class="role-card ${G.captain?'active':''}"><div class="role-label">👑 الكابتن</div><select class="role-select" onchange="setRole('captain', this.value)">${buildRoleSelect('captain')}</select></div>
@@ -459,6 +471,7 @@ function luH(t){
   const ts = TAC_STYLE[G.tac] || TAC_STYLE.balanced;
 
   return `${missionCard}
+    ${friendlyBtnHtml}
     <div class="c" style="text-align:center;padding:8px">
       <div style="font-size:9px;color:var(--m);margin-bottom:4px">📈 آخر 5 مباريات</div>
       <div class="form-pills">${formPills}</div>
@@ -483,6 +496,43 @@ function luH(t){
     ${instSummary}
     <div class="sec">🔄 البدلاء</div>
     ${benchBlock}`;
+}
+
+// ✅ دالة جديدة لاختيار خصم ودي
+function showFriendlyTeams() {
+    if (G.season.friendlyMatchesPlayed >= 2) {
+        return alert('لقد استنفدت مبارياتك الودية لهذه الجولة.');
+    }
+
+    let teams = [];
+    if (typeof WORLD !== 'undefined') {
+        WORLD.forEach(t => { if(t[0] !== G.my) teams.push({id: t[0], name: t[1], rating: t[2]}); });
+    }
+    if (typeof AFRICAN !== 'undefined') {
+        AFRICAN.forEach(t => { if(t[0] !== G.my) teams.push({id: t[0], name: t[1], rating: t[2]}); });
+    }
+    
+    // خلط الفرق واختيار 6 عشوائياً
+    teams = teams.sort(() => Math.random() - 0.5).slice(0, 6);
+
+    let html = `<div class="mc-head"><div class="mc-icon">🤝</div><div class="mc-title">اختر خصمك الودي</div><div class="mc-sub">المباريات المتبقية: ${2 - G.season.friendlyMatchesPlayed}</div></div>
+    <div style="display:flex; flex-direction:column; gap:8px; max-height:60vh; overflow-y:auto; padding:5px;">`;
+
+    teams.forEach(t => {
+        html += `
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:10px; border-radius:10px;">
+            <div>
+                <div style="color:#fff; font-weight:bold; font-size:14px;">${t.name}</div>
+                <div style="color:#94a3b8; font-size:11px;">⭐ التقييم: ${t.rating}</div>
+            </div>
+            <button class="b g sm" style="padding:6px 12px; font-size:11px;" onclick="$('cm').hidden=true; startFriendlyMatch('${t.id}', '${t.name}', ${t.rating})">العب ▶</button>
+        </div>`;
+    });
+
+    html += `</div><div class="mc-actions" style="margin-top:10px;"><button class="b r full" onclick="$('cm').hidden=true">إلغاء</button></div>`;
+
+    $('cmc').innerHTML = `<div class="mc mc-warning">${html}</div>`;
+    $('cm').hidden = false;
 }
 
 // ============================================

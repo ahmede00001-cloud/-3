@@ -1,5 +1,5 @@
 // ============================================
-// season.js - المنطق الأساسي (النسخة النهائية المحصنة ضد تكرار المباريات)
+// season.js - المنطق الأساسي (النسخة النهائية المحصنة ضد تكرار المباريات + الودية)
 // ============================================
 
 function mk(leagueId = 'egypt'){
@@ -33,6 +33,7 @@ function generateSeason(myId, prev){
     leagueFixtures: {}, cupBracket: null, cafCL: null, cafCC: null,
     egyptSuper: null, cafSuper: null, clubWC: null,
     userCalendar: [], postponedRounds: [],
+    friendlyMatchesPlayed: 0, // ✅ إضافة عداد المباريات الودية
     qualified: {cafCL:false, cafCC:false, egyptSuper:false, cafSuper:false, clubWC:false}
   };
 
@@ -261,6 +262,7 @@ function advanceToDay(td){
   if(!G.season) return;
   simulateAIUpToDay(td);
   G.season.currentDay = td;
+  G.season.friendlyMatchesPlayed = 0; // ✅ تصفير عداد المباريات الودية في كل جولة
   applyTraining();
   updateLegendMarket();
   save();

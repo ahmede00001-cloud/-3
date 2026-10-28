@@ -943,69 +943,63 @@ function mgrH(){
     <div style="display:flex;justify-content:space-between;font-size:12px;color:#fff;margin-bottom:6px"><span>عدد اللاعبين:</span><b>${t.ps.length} / 25</b></div>
   </div>`;
 
-  // ✅ 6. ثقة مجلس الإدارة (مربوطة بالأونلاين والمحلي)
+  // ✅ 6. تقييم مجلس الإدارة (واقعي واحترافي)
   let boardConfidence = 100;
-  let boardTitle = "🏛️ ثقة مجلس الإدارة";
+  let boardTitle = "🏛️ تقييم مجلس الإدارة";
   
-  // التحقق مما إذا كان اللاعب في دوري أونلاين
   if (G.multiplayerLeagueId && typeof mySlot !== 'undefined' && mySlot && mySlot.played > 0) {
-      // 🌐 حساب الثقة بناءً على نتائج الأونلاين
-      boardTitle = "🔴 ثقة الإدارة (الدوري المباشر)";
-      
-      // حساب النسبة بناءً على النقاط المكتسبة من المباريات التي لعبتها
+      boardTitle = "🔴 تقييم الإدارة (الدوري المباشر)";
       const maxPossiblePoints = mySlot.played * 3;
       const pointRatio = (mySlot.points || 0) / (maxPossiblePoints || 1); 
       boardConfidence = Math.round(pointRatio * 100);
-      
-      // إضافة أو خصم بناءً على فارق الأهداف (كل هدف يفرق يزيد أو يقلل 1%)
       const gd = (mySlot.goals_for || 0) - (mySlot.goals_against || 0);
       boardConfidence += Math.min(10, Math.max(-10, gd)); 
-      
   } else {
-      // 🏠 حساب الثقة بناءً على الدوري المحلي (الفردي)
       const curPos = tbl().findIndex(x => x.id === G.my) + 1;
       if (curPos > 10) boardConfidence -= (curPos - 10) * 5;
       if (G.boardObjectives && G.boardObjectives.status === 'failed') boardConfidence -= 30;
       if (G.boardObjectives && G.boardObjectives.status === 'success') boardConfidence += 10;
   }
   
-  // تقييد النسبة بين 0 و 100
   if (boardConfidence > 100) boardConfidence = 100;
   if (boardConfidence < 0) boardConfidence = 0;
 
-  let confColor = '#4ade80';
-  let confText = 'مجلس الإدارة راضٍ جداً عن أدائك';
+  let confColor = '#22c55e'; // أخضر
+  let confStatus = 'مستقر';
   if (boardConfidence < 30) {
-      confColor = '#ef4444';
-      confText = 'مجلس الإدارة يفكر في إقالتك!';
+      confColor = '#ef4444'; // أحمر
+      confStatus = 'مهدد بالإقالة';
   } else if (boardConfidence < 60) {
-      confColor = '#fbbf24';
-      confText = 'مجلس الإدارة قلق من النتائج الأخيرة';
+      confColor = '#f59e0b'; // برتقالي
+      confStatus = 'تحت المراقبة';
   }
 
-  h += `<div class="c" style="border:1px solid ${confColor}; background:rgba(0,0,0,.2); position:relative; overflow:hidden;">
-    <div class="sec" style="color:${confColor}; display:flex; justify-content:space-between; align-items:center;">
+  h += `<div class="c" style="border:1px solid ${confColor}44; background:linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,41,59,0.9));">
+    <div class="sec" style="color:${confColor}; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:10px; margin-bottom:15px;">
         <span>${boardTitle}</span>
     </div>
     
-    <!-- استدعاء دالة رسم الشخصية -->
-    <div style="display:flex; justify-content:center; margin: 10px 0;">
-        ${getBoardAvatarSVG(boardConfidence)}
+    <div style="display:flex; align-items:center; justify-content:center; gap:20px; margin: 15px 0;">
+        
+        <!-- الرسم الواقعي (سيلويت لرجل أعمال) -->
+        ${getBoardRealisticSVG(boardConfidence)}
+
+        <!-- مؤشر الأداء الدائري -->
+        <div style="position:relative; width:100px; height:100px; border-radius:50%; background: conic-gradient(${confColor} ${boardConfidence}%, rgba(255,255,255,0.05) ${boardConfidence}%); display:flex; align-items:center; justify-content:center; box-shadow: inset 0 0 10px rgba(0,0,0,0.8);">
+            <!-- الدائرة الداخلية الشفافة -->
+            <div style="width:80px; height:80px; background:#0f172a; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+                <div style="font-size:24px; font-weight:900; color:${confColor}; text-shadow:0 0 10px ${confColor}88;">${boardConfidence}%</div>
+            </div>
+        </div>
     </div>
 
-    <div style="text-align:center; margin:10px 0;">
-        <div style="font-size:24px; font-weight:900; color:${confColor}; text-shadow:0 0 10px ${confColor}66;">${boardConfidence}%</div>
-        <div style="font-size:11px; color:#cbd5e1; margin-top:4px;">${confText}</div>
-    </div>
-    
-    <div style="height:10px; background:rgba(0,0,0,.5); border-radius:5px; overflow:hidden; box-shadow:inset 0 2px 4px rgba(0,0,0,.5);">
-        <div style="width:${boardConfidence}%; height:100%; background:${confColor}; border-radius:5px; transition:width .5s;"></div>
-    </div>
-    
-    <div style="font-size:10px; color:#94a3b8; margin-top:8px; text-align:right; border-right:2px solid ${confColor}; padding-right:6px;">
-        ${G.multiplayerLeagueId ? 
-          '📊 يتم حساب الثقة بناءً على نقاطك في الدوري المباشر (الأونلاين).' : 
-          '⚠️ إذا انخفضت الثقة إلى 0%، سيتم إقالتك فوراً من تدريب النادي!'}
+    <div style="text-align:center; background:rgba(0,0,0,0.3); padding:10px; border-radius:8px; border:1px solid ${confColor}33;">
+        <div style="font-size:14px; font-weight:900; color:${confColor}; margin-bottom:4px;">${confStatus}</div>
+        <div style="font-size:11px; color:#cbd5e1;">
+            ${G.multiplayerLeagueId ? 
+              'التقييم يعتمد على نتائجك ونقاطك في الدوري المباشر.' : 
+              'التقييم يعتمد على مركزك في الدوري وتحقيق الأهداف.'}
+        </div>
     </div>
   </div>`;
 
@@ -1045,66 +1039,43 @@ function mgrH(){
   return h;
 }
 
-// ✅ دالة رسم شخصية مجلس الإدارة بـ SVG
-function getBoardAvatarSVG(confidence) {
-    let browStyle, mouthStyle, bgGlow, strokeColor, extraEffects;
+// ✅ دالة رسم أيقونة واقعية لمجلس الإدارة
+function getBoardRealisticSVG(confidence) {
+    let suitColor, tieColor, accentColor;
     
     if (confidence >= 60) {
-        // راضٍ (مبتسم)
-        strokeColor = '#22c55e';
-        bgGlow = "rgba(34,197,94,0.15)";
-        browStyle = `<path d="M 30 38 Q 38 33 45 38" stroke="#0f172a" stroke-width="3" fill="none" stroke-linecap="round" /><path d="M 55 38 Q 62 33 70 38" stroke="#0f172a" stroke-width="3" fill="none" stroke-linecap="round" />`;
-        mouthStyle = `<path d="M 40 62 Q 50 75 60 62" stroke="#0f172a" stroke-width="3" fill="none" stroke-linecap="round" />`;
-        extraEffects = `<circle cx="25" cy="65" r="4" fill="#f87171" opacity="0.5" /><circle cx="75" cy="65" r="4" fill="#f87171" opacity="0.5" />`; // وجنتان حمراوان
+        suitColor = '#1e293b'; // كحلي داكن
+        tieColor = '#16a34a';  // كرافة خضراء (رضا)
+        accentColor = '#22c55e';
     } else if (confidence >= 30) {
-        // محايد (مستقيم)
-        strokeColor = '#fbbf24';
-        bgGlow = "rgba(251,191,36,0.15)";
-        browStyle = `<path d="M 30 38 L 45 38" stroke="#0f172a" stroke-width="3" fill="none" stroke-linecap="round" /><path d="M 55 38 L 70 38" stroke="#0f172a" stroke-width="3" fill="none" stroke-linecap="round" />`;
-        mouthStyle = `<path d="M 42 65 L 58 65" stroke="#0f172a" stroke-width="3" fill="none" stroke-linecap="round" />`;
-        extraEffects = ``;
+        suitColor = '#334155'; // رمادي داكن
+        tieColor = '#f59e0b';  // كرافة برتقالية (تحذير)
+        accentColor = '#f59e0b';
     } else {
-        // غاضب
-        strokeColor = '#ef4444';
-        bgGlow = "rgba(239,68,68,0.15)";
-        browStyle = `<path d="M 30 32 L 45 42" stroke="#0f172a" stroke-width="4" fill="none" stroke-linecap="round" /><path d="M 55 42 L 70 32" stroke="#0f172a" stroke-width="4" fill="none" stroke-linecap="round" />`;
-        mouthStyle = `<path d="M 40 70 Q 50 55 60 70" stroke="#0f172a" stroke-width="3" fill="none" stroke-linecap="round" />`;
-        extraEffects = `
-            <path d="M 75 20 L 85 30 M 85 20 L 75 30" stroke="#ef4444" stroke-width="3" stroke-linecap="round" />
-            <path d="M 15 25 L 25 35 M 25 25 L 15 35" stroke="#ef4444" stroke-width="3" stroke-linecap="round" />
-        `;
+        suitColor = '#1f2937'; // أسود داكن
+        tieColor = '#dc2626';  // كرافة حمراء (غضب)
+        accentColor = '#ef4444';
     }
 
     return `
-    <svg width="110" height="110" viewBox="0 0 100 100" style="filter: drop-shadow(0 0 15px ${bgGlow}); transition: all 0.5s ease;">
-        <!-- الدائرة الخلفية -->
-        <circle cx="50" cy="50" r="48" fill="rgba(0,0,0,0.4)" stroke="${strokeColor}" stroke-width="2" />
+    <svg width="90" height="90" viewBox="0 0 100 100" style="filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">
+        <!-- الخلفية -->
+        <circle cx="50" cy="50" r="46" fill="#0f172a" stroke="${accentColor}55" stroke-width="2" />
         
-        <!-- البدلة -->
-        <path d="M 15 100 Q 15 70 50 70 Q 85 70 85 100 Z" fill="${confidence < 30 ? '#111827' : '#1e293b'}" />
-        <!-- القميص -->
-        <path d="M 40 70 L 50 88 L 60 70 Z" fill="#f8fafc" />
-        <!-- الكرافة (التاي) -->
-        <path d="M 47 72 L 53 72 L 56 85 L 50 98 L 44 85 Z" fill="${confidence < 30 ? '#991b1b' : '#ef4444'}" />
+        <!-- البدلة (الكتفين) -->
+        <path d="M 15 95 Q 15 65 50 65 Q 85 65 85 95 Z" fill="${suitColor}" />
         
-        <!-- الرأس -->
-        <circle cx="50" cy="45" r="24" fill="#fcd34d" />
+        <!-- القميص الأبيض -->
+        <path d="M 42 65 L 50 85 L 58 65 Z" fill="#e2e8f0" />
         
-        <!-- الشعر -->
-        <path d="M 26 40 Q 26 18 50 18 Q 74 18 74 40 Q 65 28 50 28 Q 35 28 26 40 Z" fill="#1e293b" />
+        <!-- الكرافة -->
+        <path d="M 47 65 L 53 65 L 56 80 L 50 95 L 44 80 Z" fill="${tieColor}" />
         
-        <!-- العيون -->
-        <circle cx="38" cy="45" r="3" fill="#0f172a" />
-        <circle cx="62" cy="45" r="3" fill="#0f172a" />
-
-        <!-- الحواجب -->
-        ${browStyle}
-
-        <!-- الفم -->
-        ${mouthStyle}
+        <!-- الرأس (سيلويت بدون تفاصيل كرتونية) -->
+        <circle cx="50" cy="40" r="20" fill="#94a3b8" />
         
-        <!-- علامات الغضب أو السعادة -->
-        ${extraEffects}
+        <!-- الشعر (احترافي) -->
+        <path d="M 30 35 Q 30 15 50 15 Q 70 15 70 35 Q 60 25 50 25 Q 40 25 30 35 Z" fill="#0f172a" />
     </svg>
     `;
 }

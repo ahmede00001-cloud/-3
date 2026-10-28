@@ -423,12 +423,16 @@ function luH(t){
       else if(G.cornerTaker===p.id) roleBadge = '<div class="p-role-badge" style="color:#f97316;border-color:#f97316">🚩</div>';
       const mo = getMoraleEmoji(p.morale);
       const fm = getFormEmoji(p);
-      return `<div class="p-token ${isInj?'injured':''}" style="left:${slot.y*100}%; top:${(1-slot.x)*100}%; background:${t.c1}; color:${t.c2==='#FFFFFF'?'#000':t.c2}; border-color:${isInj?'#ef4444':borderC}; border-width:${isCap?'3px':'2px'};" onpointerdown="startDrag(event,${i},false,'${p.id}')">
+      
+      // ✅ إضافة الصورة داخل الملعب
+      return `<div class="p-token ${isInj?'injured':''}" style="left:${slot.y*100}%; top:${(1-slot.x)*100}%; background:${t.c1}; color:${t.c2==='#FFFFFF'?'#000':t.c2}; border-color:${isInj?'#ef4444':borderC}; border-width:${isCap?'3px':'2px'}; padding:0; overflow:hidden;" onpointerdown="startDrag(event,${i},false,'${p.id}')">
         ${capBadge}${roleBadge}${ii}
-        <div style="font-size:8px;opacity:.85">${slot.pos}</div>
-        <div>${p.r}</div>
-        <div class="fit-bar"><div style="width:${fit}%;background:${fitColor}"></div></div>
-        <div class="p-name-label">${p.name.split(' ')[0]} ${mo} ${fm}</div>
+        <div style="position:absolute; inset:0; opacity:0.8;">
+           ${typeof playerAvatarHtml === 'function' ? playerAvatarHtml(p, 42, 'border:none; border-radius:0;') : ''}
+        </div>
+        <div style="position:relative; z-index:2; font-size:8px; font-weight:900; background:rgba(0,0,0,0.6); padding:1px 4px; border-radius:4px;">${slot.pos} ${p.r}</div>
+        <div class="fit-bar" style="z-index:2;"><div style="width:${fit}%;background:${fitColor}"></div></div>
+        <div class="p-name-label" style="z-index:2;">${p.name.split(' ')[0]} ${mo} ${fm}</div>
       </div>`;
     }).join('')}
   </div>`;
@@ -447,11 +451,8 @@ function luH(t){
     <div class="bench-container">${players.sort((a,b)=>b.r-a.r).map(p => {
       const fit = p.fit != null ? Math.round(p.fit) : 100;
       const fitColor = fit>=85?'#22c55e':fit>=65?'#fbbf24':fit>=45?'#f97316':'#ef4444';
-      return `<div class="bench-player" onpointerdown="startDrag(event,-1,true,'${p.id}')">
-        <div style="width:38px;height:38px;border-radius:50%;background:${p.injury?'#7f1d1d':t.c1};border:2px solid ${p.injury?'#ef4444':fitColor};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11px;color:${t.c2==='#FFFFFF'?'#000':t.c2};box-shadow:0 2px 8px rgba(0,0,0,.5);position:relative">
-          ${p.injury?'🚑':p.r}
-          <div style="position:absolute;bottom:1px;left:3px;right:3px;height:2px;background:rgba(0,0,0,.6);border-radius:1px"><div style="height:100%;width:${fit}%;background:${fitColor};border-radius:1px"></div></div>
-        </div>
+      return `<div class="bench-player" onpointerdown="startDrag(event,-1,true,'${p.id}')" style="align-items:center; display:flex; flex-direction:column;">
+        ${typeof playerAvatarHtml === 'function' ? playerAvatarHtml(p, 40) : `<div style="width:38px;height:38px;border-radius:50%;background:${p.injury?'#7f1d1d':t.c1};border:2px solid ${p.injury?'#ef4444':fitColor};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11px;color:${t.c2==='#FFFFFF'?'#000':t.c2}">${p.r}</div>`}
         <div style="font-size:9px;margin-top:4px;max-width:48px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name.split(' ')[0]}</div>
       </div>`;
     }).join('')}</div></div>`
@@ -817,7 +818,13 @@ function crH(t){
     
     return `<div class="c" style="padding:8px;cursor:pointer;margin-bottom:4px;${p.injury?'border-color:#ef4444':''}${conYrs<=0?'border-color:#f87171':''}" onclick="showCard('${p.id}')">
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
-        <div style="width:36px;height:36px;border-radius:50%;background:${p.injury?'#7f1d1d':t.c1};border:2px solid ${p.injury?'#ef4444':'var(--gold)'};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11px;color:${t.c2==='#FFFFFF'?'#000':t.c2}">${p.r}</div>
+        
+        <!-- ✅ صورة اللاعب الجديدة -->
+        <div style="position:relative;">
+           ${typeof playerAvatarHtml === 'function' ? playerAvatarHtml(p, 40) : `<div style="width:40px;height:40px;border-radius:50%;background:${p.injury?'#7f1d1d':t.c1};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11px;color:${t.c2==='#FFFFFF'?'#000':t.c2}">${p.r}</div>`}
+           <div style="position:absolute; bottom:-2px; right:-2px; background:var(--gold); color:#000; font-size:9px; font-weight:900; padding:1px 4px; border-radius:8px; border:1px solid #000;">${p.r}</div>
+        </div>
+
         <div style="flex:1;min-width:0">
           <div style="font-size:10px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${inj}${p.name} ${mo}</div>
           <div style="font-size:9px;color:var(--m)">${p.pos} • L${p.lvl} • ${p.age}س</div>
@@ -896,6 +903,9 @@ function mgrH(){
       G.youthPlayers.forEach((p, idx) => {
           const ratingColor = p.r >= 75 ? '#fbbf24' : (p.r >= 65 ? '#4ade80' : '#fff');
           h += `<div style="min-width:100px; background:rgba(0,0,0,.4); padding:8px; border-radius:8px; text-align:center;">
+              <div style="display:flex; justify-content:center; margin-bottom:4px;">
+                ${typeof playerAvatarHtml === 'function' ? playerAvatarHtml(p, 40) : ''}
+              </div>
               <div style="font-size:16px; font-weight:900; color:${ratingColor};">${p.r}</div>
               <div style="font-size:9px; color:#94a3b8; margin-bottom:2px;">${p.pos}</div>
               <div style="font-size:11px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.name.split(' ')[0]}</div>
@@ -1360,7 +1370,9 @@ function showTeamPlayers(tid){
     <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
     
     <div style="text-align:center; margin-bottom: 15px;">
-      <div style="font-size:35px; margin-bottom:5px;">🛡️</div>
+      <div style="display:flex; justify-content:center; margin-bottom:5px;">
+         ${typeof clubBadgeHtml === 'function' ? clubBadgeHtml(tid, team.name, 50) : '<div style="font-size:35px;">🛡️</div>'}
+      </div>
       <div style="font-size:18px; font-weight:900; color:#fff;">${team.name}</div>
       <div style="font-size:11px; color:#94a3b8; margin-top:2px;">💰 ${team.budget.toFixed(1)}M • ⭐ ${team.R}</div>
     </div>
@@ -1386,13 +1398,16 @@ function showTeamPlayers(tid){
       const isS = st.includes(p.id);
       h += `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:8px; margin-bottom:6px; border-right:3px solid ${isS ? '#4ade80' : 'transparent'}; cursor:pointer;" onclick="showCard('${p.id}','${tid}')">
         
-        <div style="text-align:right;">
-          <div style="font-size:12px; font-weight:bold; color:#fff;">
-            ${p.injury ? '🚑 ' : ''}${p.name}
-          </div>
-          <div style="font-size:10px; color:#94a3b8;">
-            ${p.pos} ${isS ? '<span style="color:#4ade80; margin-right:4px;">• أساسي</span>' : ''}
-          </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            ${typeof playerAvatarHtml === 'function' ? playerAvatarHtml(p, 32) : ''}
+            <div style="text-align:right;">
+              <div style="font-size:12px; font-weight:bold; color:#fff;">
+                ${p.injury ? '🚑 ' : ''}${p.name}
+              </div>
+              <div style="font-size:10px; color:#94a3b8;">
+                ${p.pos} ${isS ? '<span style="color:#4ade80; margin-right:4px;">• أساسي</span>' : ''}
+              </div>
+            </div>
         </div>
 
         <div style="width:30px; height:30px; border-radius:50%; background:${isS ? '#4ade80' : '#475569'}; color:#000; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px;">
@@ -1415,10 +1430,6 @@ function showCard(pid, teamId){
   if(!team) return; const p = team.ps.find(x => x.id === pid); if(!p) return;
   const isO = teamId !== G.my; const mo = getMoraleEmoji(p.morale);
   
-  const maxed = p.lvl >= 10;
-  const xpPct = maxed ? 100 : Math.min(100, Math.round(((p.xp || 0) / xpNeeded(p.lvl)) * 100));
-  const xpText = maxed ? 'MAX LEVEL' : `${p.xp || 0} / ${xpNeeded(p.lvl)}`;
-  
   $('cmc').innerHTML = `<div class="mc mc-warning modal-bg-anim" style="padding: 20px 15px;">
     <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
     
@@ -1429,7 +1440,11 @@ function showCard(pid, teamId){
           <div style="font-size:45px; font-weight:900; color:#fbbf24; line-height:1;">${p.r}</div>
           <div style="font-size:12px; font-weight:bold; color:#94a3b8; margin-top: 2px;">${p.pos}</div>
         </div>
-        <div style="font-size:30px;">👤</div>
+        
+        <!-- ✅ صورة اللاعب -->
+        <div style="width:64px; height:64px;">
+            ${typeof playerAvatarHtml === 'function' ? playerAvatarHtml(p, 64, 'border:2px solid #fbbf24;') : '<div style="font-size:30px;">👤</div>'}
+        </div>
       </div>
       
       <div style="text-align:center; font-size:20px; font-weight:900; color:#fff; margin-top:10px;">${p.name}</div>

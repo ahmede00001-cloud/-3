@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف والمباريات (النسخة النهائية - جميع الفرق)
+// multiplayer.js - نظام الغرف والمباريات (نسخة محمية ومربوطة بـ RPC)
 // ============================================
 
 let currentLobby = null;
@@ -56,7 +56,7 @@ function stopLobbyTimers() {
 }
 
 // ============================================
-// 🎨 1. نظام النوافذ المخصصة
+// 🎨 1. نظام النوافذ المخصصة (بديل alert و confirm)
 // ============================================
 function showGameAlert(msg, icon = 'ℹ️', title = 'تنبيه') {
     $('cmc').innerHTML = `
@@ -191,6 +191,12 @@ function ensureLocalGameReady(slot) {
         if (typeof T === 'undefined' || Object.keys(T).length === 0) { if (typeof mk === 'function') mk('egypt'); }
         if (slot && slot.team_id && T[slot.team_id]) G.my = slot.team_id;
         else if (!G.my || !T[G.my]) G.my = Object.keys(T)[0];
+        
+        // مزامنة الميزانية مع السيرفر إن وجدت في بيانات المقعد
+        if (slot && slot.budget !== undefined && T[G.my]) {
+            T[G.my].budget = parseFloat(slot.budget);
+        }
+
         G.form = G.form || '4-3-3'; G.tac = G.tac || 'balanced';
         G.lu = autoFillLineup(T[G.my], G.form);
         if (!G.season && typeof generateSeason === 'function') G.season = generateSeason(G.my, null);
@@ -254,8 +260,7 @@ async function showLeaguesPage() {
             const { data: newLobby, error } = await _db.from('lobbies').insert({ status: 'waiting', expires_at: expDate }).select().single();
             if (error) throw error;
             
-            // ✅ التعديل هنا: إزالة slice(0, 10) لجلب جميع الفرق
-            const teams = LEAGUES['egypt'].teams; 
+            const teams = LEAGUES['egypt'].teams;
             await _db.from('lobby_slots').insert(teams.map(t => ({ lobby_id: newLobby.id, team_id: t[0], team_name: t[1] })));
             currentLobby = newLobby;
         }
@@ -326,8 +331,8 @@ async function forceGenerateMatches(lobbyId) {
                 const botSnap = generateBotSnapshot(slot.team_name, teamRating);
                 await _db.from('lobby_slots').update({
                     user_id: BOT_UUID, manager_name: 'مدرب آلي', team_snapshot: botSnap,
-                    played: 0, won: 0, drawn: 0, lost: 0, goals_for: 0, goals_against: 0, points: 0
-                }).eq('id', slot.id);
+                    played: 0, won: 0, drawn: 0, lost: 0, goals_for: 0, goals_against: 0, points: 0, budget: 100
+                }).eq('id', slot.id).is('user_id', null);
             }
         }
 
@@ -335,18 +340,23 @@ async function forceGenerateMatches(lobbyId) {
         const fixtures = generateDoubleRoundRobin(freshSlots);
 
         const baseServerTime = getServerNow();
-        const roundInterval = 24 * 60 * 60 * 1000; // 24 ساعة
+        const roundInterval = 24 * 60 * 60 * 1000; // 24 ساعة بين كل جولة
 
+        // (f.round - 1) تضمن أن الجولة الأولى متاحة للعب فوراً عند انطلاق الموسم
         const inserts = fixtures.map(f => ({
             lobby_id: lobbyId,
             round: f.round,
             home_slot_id: f.home.id,
             away_slot_id: f.away.id,
             match_seed: Math.floor(Math.random() * 900000) + 100000,
-            scheduled_time: new Date(baseServerTime + (f.round * roundInterval)).toISOString()
+            scheduled_time: new Date(baseServerTime + ((f.round - 1) * roundInterval)).toISOString()
         }));
         
-        const { error } = await _db.from('lobby_matches').insert(inserts);
+        // استخدام upsert مع ignoreDuplicates للتوافق مع القيد الفريد (uq_lobby_match) ومنع التكرار
+        const { error } = await _db
+            .from('lobby_matches')
+            .upsert(inserts, { onConflict: 'lobby_id,round,home_slot_id,away_slot_id', ignoreDuplicates: true });
+            
         if (error) throw error;
         
         return true;
@@ -413,13 +423,12 @@ async function processDueBotMatches(lobbyId) {
 }
 
 // ============================================
-// 👤 واجهة غرفة الانتظار وتفاصيل الفرق (مع الصور)
+// 👤 واجهة غرفة الانتظار وتفاصيل الفرق
 // ============================================
 function renderWaitingRoom() {
     const maxTeams = getLobbyMaxTeams();
     const joinedCount = currentSlots.filter(s => s.user_id && s.user_id !== BOT_UUID).length;
     const hasTeam = !!mySlot;
-    const isFull = joinedCount >= maxTeams;
     const currentMgrName = getManagerName();
 
     let html = `<div class="c" style="margin-top:10px; position:relative;">
@@ -472,13 +481,8 @@ function renderWaitingRoom() {
             ? `<button class="b g sm" style="padding:3px 8px; font-size:10px; margin-top:4px;" onclick="event.stopPropagation(); claimLiveTeam('${slot.id}', this)">اختيار 🤝</button>` 
             : '';
 
-        let logoHtml = `<div class="bd" style="font-size:14px; width:36px; height:36px; margin:0 auto 6px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; background:rgba(255,255,255,0.1); color:#fff;">${slot.team_name ? slot.team_name[0] : '⚽'}</div>`;
-        if (typeof clubBadgeHtml === 'function') {
-            logoHtml = `<div style="margin:0 auto 6px; width:fit-content;">${clubBadgeHtml(slot.team_id, slot.team_name, 36)}</div>`;
-        }
-
         html += `<div class="team-select-card" onclick="showTeamDetailsModal('${slot.id}')" style="cursor:pointer; background:${bg}; border:1px solid ${border}; padding:8px; border-radius:10px; text-align:center; margin-bottom:5px;">
-            ${logoHtml}
+            <div class="bd" style="font-size:14px; width:28px; height:28px; margin:0 auto 3px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; background:rgba(255,255,255,0.1); color:#fff;">${slot.team_name ? slot.team_name[0] : '⚽'}</div>
             <b style="font-size:11px; display:block; color:#fff;">${slot.team_name}</b>
             ${statusHtml}
             ${actionBtn}
@@ -502,36 +506,23 @@ function showTeamDetailsModal(slotId) {
             const starters = slot.team_snapshot.starters;
             teamRating = slot.team_snapshot.R || Math.round(starters.reduce((acc, p) => acc + (p.r || 75), 0) / starters.length);
             
-            playersListHtml = starters.map(p => {
-                let avatar = '';
-                if (typeof playerAvatarHtml === 'function') {
-                    avatar = playerAvatarHtml(p, 28);
-                }
-                return `
+            playersListHtml = starters.map(p => `
                 <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); padding:6px 10px; border-radius:6px; margin-bottom:4px; font-size:12px;">
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        ${avatar}
-                        <span style="color:#fff; font-weight:bold;">${p.name} <span style="font-size:10px; color:#94a3b8;">(${p.pos})</span></span>
-                    </div>
+                    <span style="color:#fff; font-weight:bold;">${p.name} <span style="font-size:10px; color:#94a3b8;">(${p.pos})</span></span>
                     <span style="color:#fbbf24; font-weight:bold;">⭐ ${p.r || 75}</span>
-                </div>`;
-            }).join('');
+                </div>
+            `).join('');
         }
     } else {
         const originalTeam = (typeof LEAGUES !== 'undefined' && LEAGUES['egypt']) ? LEAGUES['egypt'].teams.find(t => t[0] === slot.team_id) : null;
         teamRating = originalTeam ? originalTeam[2] : 75;
     }
 
-    let logoHtml = `<div style="font-size:32px;">🛡️</div>`;
-    if (typeof clubBadgeHtml === 'function') {
-        logoHtml = `<div style="display:flex; justify-content:center; margin-bottom:8px;">${clubBadgeHtml(slot.team_id, slot.team_name, 60)}</div>`;
-    }
-
     $('cmc').innerHTML = `
         <div class="mc mc-warning" style="max-height:85vh; display:flex; flex-direction:column; width:95%; max-width:450px;">
             <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
             <div class="mc-head" style="text-align:center; margin-bottom:10px;">
-                ${logoHtml}
+                <div style="font-size:32px;">🛡️</div>
                 <div class="mc-title" style="font-size:18px; color:#fff;">${slot.team_name}</div>
                 <div class="mc-sub" style="font-size:12px; color:#4ade80; margin-top:4px;">المدرب: <b>${managerText}</b></div>
                 <div style="margin-top:6px; display:inline-block; background:rgba(251,191,36,0.15); border:1px solid #fbbf24; padding:2px 10px; border-radius:6px; color:#fbbf24; font-size:12px; font-weight:bold;">
@@ -552,7 +543,6 @@ function showTeamDetailsModal(slotId) {
             ` : ''}
         </div>
     `;
-    $('cm').hidden = true;
     $('cm').hidden = false;
 }
 
@@ -572,13 +562,21 @@ async function claimLiveTeam(slotId, btnEl) {
         if (typeof G !== 'undefined') G.managerName = mgrName;
         localStorage.setItem('managerName', mgrName);
 
+        const initialBudget = T[G.my].budget !== undefined ? T[G.my].budget : 100;
+
         const snap = { 
             name: T[G.my].name, R: T[G.my].R, c1: T[G.my].c1, c2: T[G.my].c2,
             form: G.form, tac: G.tac, starters: G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean) 
         };
 
         const { data: updatedSlot, error } = await _db.from('lobby_slots')
-            .update({ user_id: user.id, manager_name: mgrName, team_snapshot: snap, played: 0, won: 0, drawn: 0, lost: 0, goals_for: 0, goals_against: 0, points: 0 })
+            .update({ 
+                user_id: user.id, 
+                manager_name: mgrName, 
+                team_snapshot: snap, 
+                played: 0, won: 0, drawn: 0, lost: 0, goals_for: 0, goals_against: 0, points: 0,
+                budget: initialBudget
+            })
             .eq('id', slotId).is('user_id', null).select();
 
         if (error) throw new Error(error.message);
@@ -681,6 +679,11 @@ async function loadMultiplayerCompData() {
             const mySlot = slots.find(s => s.user_id === user.id);
             if (!mySlot) { container.innerHTML = `<div style="color:#ef4444; text-align:center; padding:15px;">أنت لست مشاركاً في هذا الدوري.</div>`; return; }
 
+            // تحديث الميزانية المحلية بشكل مستمر من بيانات المقعد على السيرفر
+            if (mySlot.budget !== undefined && T && T[G.my]) {
+                T[G.my].budget = parseFloat(mySlot.budget);
+            }
+
             let html = '';
 
             if (lobby.status === 'waiting') {
@@ -708,7 +711,7 @@ async function loadMultiplayerCompData() {
                 myMatches.sort((a, b) => new Date(a.scheduled_time) - new Date(b.scheduled_time));
                 
                 let currentMatch = myMatches.find(m => !m.played);
-                let lastPlayedMatch = [...myMatches].reverse().find(m => m.played);
+                let lastPlayedMatch = [...myMatches].reverse().find(m => m.played); 
                 
                 html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; background:rgba(251,191,36,.15); padding:6px 12px; border-radius:8px;">
                     <span style="font-size:12px; color:#fbbf24; font-weight:bold;">🔥 مواجهة الدوري الأونلاين</span>
@@ -895,7 +898,7 @@ async function showLiveLeagueSchedule() {
 }
 
 // ============================================
-// ⚽ 4. محرك المباريات
+// ⚽ 4. محرك المباريات (مع دروع الحماية وربط RPC)
 // ============================================
 async function simulateUserMatch(matchId, lobbyId) {
     showGameConfirm('هل أنت متأكد من محاكاة المباراة سريعاً بدلاً من لعبها؟', async () => {
@@ -904,6 +907,7 @@ async function simulateUserMatch(matchId, lobbyId) {
 }
 
 async function playMultiplayerMatch(matchId, lobbyId, isReplay = false, autoSkip = false) {
+    let originalR = window.R;
     try {
         const { data: match } = await _db.from('lobby_matches').select('*').eq('id', matchId).single();
         if (!match) return showGameAlert('المباراة غير موجودة!', '❌');
@@ -917,23 +921,39 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay = false, autoSkip
             }
         }
 
-        const { data: slots } = await _db.from('lobby_slots').select('*').eq('lobby_id', lobbyId);
+        const { data: slotsData } = await _db.from('lobby_slots').select('*').eq('lobby_id', lobbyId);
+        
+        // 🛡️ درع الحماية 1: التأكد من أن المقاعد مصفوفة
+        const slots = Array.isArray(slotsData) ? slotsData : [];
+        if (slots.length === 0) throw new Error("تعذر جلب بيانات الفرق من السيرفر.");
+
         const { data: { user } } = await _db.auth.getUser();
         const mySlot = slots.find(s => s.user_id === user.id);
+        if (!mySlot) throw new Error("لم يتم العثور على فريقك في هذه المباراة.");
         
         const isHome = match.home_slot_id === mySlot.id;
         const oppId = isHome ? match.away_slot_id : match.home_slot_id;
         const oppSlot = slots.find(s => s.id === oppId);
         
-        const homeSlot = slots.find(s => s.id === match.home_slot_id);
-        const awaySlot = slots.find(s => s.id === match.away_slot_id);
+        if (!oppSlot) throw new Error("لم يتم العثور على بيانات الخصم.");
 
         ensureLocalGameReady(mySlot);
 
+        // 🛡️ درع الحماية 2: التأكد من أن تشكيلة اللاعب G.lu مصفوفة سليمة
+        if (!Array.isArray(G.lu)) {
+            if (typeof autoFillLineup === 'function') {
+                G.lu = autoFillLineup(T[G.my], G.form || '4-3-3');
+            } else {
+                G.lu = [];
+            }
+        }
+
         let myTeamData = { 
             name: T[G.my].name, R: T[G.my].R, c1: T[G.my].c1, c2: T[G.my].c2,
-            form: G.form, tac: G.tac, starters: G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean) 
+            form: G.form, tac: G.tac, 
+            starters: G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean) 
         };
+        
         let oppTeamData = oppSlot?.team_snapshot;
 
         if (!isReplay) {
@@ -941,23 +961,21 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay = false, autoSkip
             await _db.from('lobby_matches').update(updateData).eq('id', matchId);
             await updateLobbySnapshot();
         } else {
-            if (match.home_snapshot) {
-                if (isHome) myTeamData = match.home_snapshot;
-            }
-            if (match.away_snapshot) {
-                if (!isHome) myTeamData = match.away_snapshot;
-            }
+            if (match.home_snapshot && isHome) myTeamData = match.home_snapshot;
+            if (match.away_snapshot && !isHome) myTeamData = match.away_snapshot;
         }
 
-        let oppTeamId = 'OPP_' + oppSlot.id.substring(0, 6);
-        if (!oppTeamData || !oppTeamData.starters || oppTeamData.starters.length < 11) {
-            T[oppTeamId] = generateBotSnapshot(oppSlot.team_name, 75);
-            T[oppTeamId].ps = T[oppTeamId].starters;
+        let oppTeamId = 'OPP_' + String(oppSlot.id).substring(0, 6);
+        
+        // 🛡️ درع الحماية 3: تمرير البوت أيضاً عبر buildTeamFromSnapshot لضمان وجود fit و stats
+        if (!oppTeamData || !oppTeamData.starters || !Array.isArray(oppTeamData.starters) || oppTeamData.starters.length < 11) {
+            const botSnap = generateBotSnapshot(oppSlot.team_name, 75);
+            T[oppTeamId] = buildTeamFromSnapshot(botSnap, oppTeamId);
         } else {
             T[oppTeamId] = buildTeamFromSnapshot(oppTeamData, oppTeamId);
         }
 
-        let myTeamId = 'MY_' + mySlot.id.substring(0, 6);
+        let myTeamId = 'MY_' + String(mySlot.id).substring(0, 6);
         if (isReplay && myTeamData) {
              T[myTeamId] = buildTeamFromSnapshot(myTeamData, myTeamId);
         }
@@ -965,8 +983,12 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay = false, autoSkip
         const myStarters = isReplay ? T[myTeamId].ps.slice(0, 11) : G.lu.map(id => T[G.my].ps.find(p => p.id === id)).filter(Boolean);
         const oppStarters = T[oppTeamId].ps.slice(0, 11);
 
+        if (myStarters.length === 0 || oppStarters.length === 0) {
+            throw new Error("التشكيلة غير مكتملة. تأكد من وجود 11 لاعباً في الفريق.");
+        }
+
         let currentSeed = match.match_seed || 543210;
-        const originalR = window.R;
+        
         window.R = function() {
             currentSeed = (currentSeed * 9301 + 49297) % 233280;
             return currentSeed / 233280;
@@ -1030,6 +1052,12 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay = false, autoSkip
 
     } catch (err) {
         console.error("MP Match Error:", err);
+        
+        // 🛡️ درع الحماية 4: تنظيف الموارد في حال حدوث خطأ
+        if (originalR) window.R = originalR; 
+        if (activeMatchChannel) { _db.removeChannel(activeMatchChannel); activeMatchChannel = null; }
+        window._mpMatchCallback = null;
+        
         showGameAlert('حدث خطأ أثناء تجهيز المباراة: ' + err.message, '❌');
         if (typeof dash === 'function') dash();
     }
@@ -1054,172 +1082,169 @@ function endMultiplayerMatch(hg, ag) {
 
 async function finalizeMultiplayerMatch(matchId, lobbyId, isHome, hg, ag, mySlot, oppSlot, slots) {
     try {
-        const { data: checkM } = await _db.from('lobby_matches').select('played').eq('id', matchId).single();
-        if (!checkM || !checkM.played) {
-            await _db.from('lobby_matches').update({ home_score: hg, away_score: ag, played: true }).eq('id', matchId);
+        // استدعاء RPC الآمن الذي يسجل النتيجة ويحدث الترتيب ذرّياً على السيرفر
+        const { data, error } = await _db.rpc('submit_match_result', {
+            p_match_id: String(matchId),
+            p_home: hg,
+            p_away: ag
+        });
+
+        if (error) throw error;
+
+        if (data && !data.already_played) {
             const homeSlot = slots.find(s => s.id === (isHome ? mySlot.id : oppSlot.id));
             const awaySlot = slots.find(s => s.id === (isHome ? oppSlot.id : mySlot.id));
-            await updateStandingsDb(homeSlot, awaySlot, hg, ag);
-            broadcastEvent(`🏁 انتهت: ${homeSlot.team_name} ${hg} - ${ag} ${awaySlot.team_name}`, true, '⚽');
+            if (homeSlot && awaySlot) {
+                broadcastEvent(`🏁 انتهت: ${homeSlot.team_name} ${hg} - ${ag} ${awaySlot.team_name}`, true, '⚽');
+            }
         }
         
         if (typeof saveToCloud === 'function') await saveToCloud();
         if (typeof loadMultiplayerCompData === 'function') loadMultiplayerCompData();
-    } catch (err) { console.error('خطأ حفظ النتيجة:', err); }
+    } catch (err) {
+        console.error('خطأ حفظ النتيجة:', err);
+    }
 }
 
 function buildTeamFromSnapshot(snap, teamId) {
     if (!snap) snap = { name: 'فريق', starters: [] };
-    const ps = (snap.starters || []).map((p, idx) => ({ ...p, id: p.id || (teamId + '_' + idx), fit: 100, morale: p.morale || 85, susp: 0, injury: null, stats: { matches:0, goals:0, assists:0, rating:0, passes: 0, tackles: 0, shots: 0 } }));
+    
+    let startersArray = [];
+    if (Array.isArray(snap.starters)) {
+        startersArray = snap.starters;
+    } else if (snap.starters && typeof snap.starters === 'object') {
+        startersArray = Object.values(snap.starters);
+    }
+
+    const ps = startersArray.map((p, idx) => ({ 
+        ...p, 
+        id: p.id || (teamId + '_' + idx), 
+        fit: 100, 
+        morale: p.morale || 85, 
+        susp: 0, 
+        injury: null, 
+        stats: { matches:0, goals:0, assists:0, rating:0, passes: 0, tackles: 0, shots: 0 } 
+    }));
+    
     const avgR = ps.length ? Math.round(ps.reduce((s, p) => s + (p.r || 75), 0) / ps.length) : 75;
-    return { id: teamId, name: snap.name || 'فريق منافس', R: snap.R || avgR, c1: snap.c1 || '#1e40af', c2: snap.c2 || '#ffffff', budget: 100, ps: ps, form: snap.form || '4-3-3', tac: snap.tac || 'balanced' };
+    return { 
+        id: teamId, 
+        name: snap.name || 'فريق منافس', 
+        R: snap.R || avgR, 
+        c1: snap.c1 || '#1e40af', 
+        c2: snap.c2 || '#ffffff', 
+        budget: 100, 
+        ps: ps, 
+        form: snap.form || '4-3-3', 
+        tac: snap.tac || 'balanced' 
+    };
 }
 
 // ============================================
-// 💰 5. سوق الانتقالات (مع الصور)
+// 💰 5. سوق الانتقالات (مربوط بـ RPC مع مزامنة الميزانية)
 // ============================================
 async function loadLiveMarket() {
     if (!G || !G.multiplayerLeagueId) return showGameAlert('السوق الحي متاح داخل الدوري الأونلاين فقط!', '⚠️');
 
-    $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold);"><div style="font-size:30px; animation: logoBounce 1s infinite alternate;">🛒</div><br>جاري فتح سوق الانتقالات...</div>`;
-    window._currentMarketTab = 'all';
+    $('cmc').innerHTML = `<div class="mc" style="text-align:center; padding:30px; color:#fbbf24;">⏳ جاري فتح سوق الانتقالات المباشر...</div>`;
+    $('cm').hidden = false;
 
     try {
         const { data: { user } } = await _db.auth.getUser();
-        const { data: listings, error } = await _db.from('market_listings').select('*').eq('lobby_id', G.multiplayerLeagueId).order('created_at', { ascending: false });
+        const me = T[G.my];
+
+        // مزامنة ميزانية اللاعب من السيرفر أولاً (لإظهار أرباح المبيعات فوراً)
+        if (user) {
+            const { data: mySlotData } = await _db
+                .from('lobby_slots')
+                .select('budget')
+                .eq('lobby_id', G.multiplayerLeagueId)
+                .eq('user_id', user.id)
+                .single();
+
+            if (mySlotData && mySlotData.budget !== undefined) {
+                me.budget = parseFloat(mySlotData.budget);
+                save();
+            }
+        }
+
+        const { data: listings, error } = await _db
+            .from('market_listings')
+            .select('*')
+            .eq('lobby_id', G.multiplayerLeagueId)
+            .order('created_at', { ascending: false })
+            .limit(30);
+            
         if (error) throw error;
 
-        const me = T[G.my];
-        
-        const allListings = listings || [];
-        const myListings = allListings.filter(l => l.user_id === user.id);
-        const otherListings = allListings.filter(l => l.user_id !== user.id);
-
-        let html = `
-        <div class="c" style="padding: 0; overflow: hidden; border: 1px solid rgba(251,191,36,.4);">
-            <div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,58,138,0.95)); padding: 15px; border-bottom: 1px solid rgba(251,191,36,.3); display: flex; justify-content: space-between; align-items: center;">
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <button class="b sm" style="background:#475569; padding:8px 12px;" onclick="dash()">⬅ عودة</button>
-                    <h2 style="color:var(--gold); font-size:16px; margin:0; font-weight:900; text-shadow:0 2px 4px rgba(0,0,0,.5);">🛒 سوق الانتقالات</h2>
+        let itemsHtml = (listings || []).map(item => {
+            const p = item.player_data;
+            const isMine = user && item.user_id === user.id;
+            return `
+            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.35); padding:10px; border-radius:10px; margin-bottom:8px; border-right:4px solid ${isMine ? '#fbbf24' : '#4ade80'};">
+                <div style="text-align:right;">
+                    <div style="font-size:13px; font-weight:bold; color:#fff;">${p.name} <span style="font-size:10px; color:#fbbf24;">(⭐${p.r} • ${p.pos})</span></div>
+                    <div style="font-size:10px; color:#94a3b8;">البائع: ${item.team_name} (${item.manager_name || 'مدرب'})</div>
                 </div>
-                <div style="text-align:left; background:rgba(0,0,0,.4); padding:5px 12px; border-radius:8px; border:1px solid rgba(74,222,128,.3);">
-                    <div style="font-size:9px; color:#94a3b8;">ميزانيتك</div>
-                    <div style="font-size:14px; color:#4ade80; font-weight:900;">${me.budget.toFixed(1)}M</div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="color:#4ade80; font-weight:900; font-size:13px;">${item.asking_price}M</span>
+                    ${isMine 
+                        ? `<button class="b r sm" style="padding:5px 10px; font-size:10px;" onclick="cancelMarketListing('${item.id}', '${p.id}')">استرجاع ↩</button>`
+                        : `<button class="b g sm" style="padding:5px 12px; font-size:10px;" onclick="buyMarketPlayer('${item.id}')">شراء 💰</button>`
+                    }
+                </div>
+            </div>`;
+        }).join('');
+
+        $('cmc').innerHTML = `
+            <div class="mc mc-warning" style="max-height:85vh; display:flex; flex-direction:column; width:95%; max-width:480px;">
+                <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
+                <div class="mc-head">
+                    <div class="mc-icon" style="font-size:32px;">🛒</div>
+                    <div class="mc-title">سوق الانتقالات المباشر 🔴</div>
+                    <div class="mc-sub">ميزانيتك الحالية: <b style="color:#4ade80">${me.budget.toFixed(1)}M</b></div>
+                </div>
+
+                <button class="b g full" style="margin:10px 0; padding:10px; font-weight:bold;" onclick="showSellPlayerListModal()">➕ اعرض لاعباً من فريقك للبيع</button>
+
+                <div style="overflow-y:auto; flex:1; padding-right:4px;">
+                    ${itemsHtml || '<div style="text-align:center; color:#94a3b8; padding:25px;">لا يوجد لاعبون معروضون حالياً.. كن أول من يعرض نجمه!</div>'}
                 </div>
             </div>
-
-            <div style="display:flex; background:rgba(0,0,0,.3);">
-                <div style="flex:1; text-align:center; padding:12px; font-size:12px; font-weight:bold; cursor:pointer; border-bottom:3px solid ${window._currentMarketTab === 'all' ? 'var(--gold)' : 'transparent'}; color:${window._currentMarketTab === 'all' ? 'var(--gold)' : '#94a3b8'};" onclick="switchMarketTab('all')">🌍 السوق (${otherListings.length})</div>
-                <div style="flex:1; text-align:center; padding:12px; font-size:12px; font-weight:bold; cursor:pointer; border-bottom:3px solid ${window._currentMarketTab === 'my' ? 'var(--gold)' : 'transparent'}; color:${window._currentMarketTab === 'my' ? 'var(--gold)' : '#94a3b8'};" onclick="switchMarketTab('my')">📋 عروضي (${myListings.length})</div>
-            </div>
-
-            <div style="padding: 15px; max-height: 65vh; overflow-y: auto;" id="market-content-area">
-                ${renderMarketItems(window._currentMarketTab === 'all' ? otherListings : myListings, user.id)}
-            </div>
-            
-            <div style="padding: 10px 15px; background: rgba(0,0,0,.4); border-top: 1px solid rgba(255,255,255,.1);">
-                <button class="b g full" style="padding:12px; font-weight:bold; font-size:14px;" onclick="showSellPlayerListPage()">➕ اعرض لاعباً من فريقك للبيع</button>
-            </div>
-        </div>`;
-        
-        $('main').innerHTML = html;
-
+        `;
     } catch (e) {
-        $('main').innerHTML = `<div class="c" style="text-align:center; color:#ef4444; padding:20px;">تعذر تحميل السوق: ${e.message}<br><br><button class="b a" onclick="dash()">عودة</button></div>`;
+        $('cmc').innerHTML = `<div class="mc" style="padding:20px; text-align:center; color:#ef4444;">تعذر تحميل السوق: ${e.message}</div>`;
     }
 }
 
-function switchMarketTab(tab) {
-    window._currentMarketTab = tab;
-    loadLiveMarket();
-}
-
-function renderMarketItems(listings, myUserId) {
-    if (listings.length === 0) {
-        return `<div style="text-align:center; color:#94a3b8; padding:40px 20px;">
-            <div style="font-size:40px; opacity:0.5; margin-bottom:10px;">🕸️</div>
-            <div style="font-size:14px; font-weight:bold;">لا يوجد لاعبون هنا حالياً</div>
-            <div style="font-size:11px; margin-top:5px;">${window._currentMarketTab === 'all' ? 'كن أول من يعرض لاعباً في السوق!' : 'لم تقم بعرض أي لاعب للبيع بعد.'}</div>
-        </div>`;
-    }
-
-    return listings.map(item => {
-        const p = item.player_data;
-        const isMine = item.user_id === myUserId;
-        
-        let rColor = '#fff';
-        if(p.r >= 85) rColor = '#fbbf24';
-        else if(p.r >= 75) rColor = '#4ade80';
-        else if(p.r >= 65) rColor = '#22d3ee';
-
-        let avatarHtml = '';
-        if (typeof playerAvatarHtml === 'function') {
-            avatarHtml = playerAvatarHtml(p, 45);
-        } else {
-            avatarHtml = `<div style="width:45px; height:45px; border-radius:50%; background:rgba(0,0,0,.5); border:2px solid ${rColor}; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-                    <span style="font-size:16px; font-weight:900; color:${rColor};">${p.r}</span>
-                    <span style="font-size:8px; color:#94a3b8;">${p.pos}</span>
-                </div>`;
-        }
-
-        return `
-        <div style="display:flex; align-items:center; justify-content:space-between; background:linear-gradient(135deg, rgba(30,41,59,.9), rgba(15,23,42,.9)); border:1px solid rgba(255,255,255,.1); border-right:4px solid ${isMine ? '#fbbf24' : '#3b82f6'}; border-radius:12px; padding:10px 12px; margin-bottom:10px; box-shadow:0 4px 10px rgba(0,0,0,.3);">
-            
-            <div style="display:flex; align-items:center; gap:12px; flex:1;">
-                ${avatarHtml}
-                
-                <div style="display:flex; flex-direction:column;">
-                    <div style="font-size:14px; font-weight:bold; color:#fff;">${p.name} <span style="font-size:10px; color:#fbbf24;">(⭐${p.r} • ${p.pos})</span></div>
-                    <div style="font-size:10px; color:#94a3b8; margin-top:2px;">البائع: <span style="color:#cbd5e1;">${item.team_name}</span> (${item.manager_name || 'مدرب'})</div>
-                </div>
-            </div>
-
-            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; border-right:1px solid rgba(255,255,255,.1); padding-right:12px;">
-                <div style="font-size:15px; font-weight:900; color:#4ade80;">${item.asking_price}M</div>
-                ${isMine 
-                    ? `<button class="b r sm" style="padding:4px 10px; font-size:10px;" onclick="cancelMarketListing('${item.id}', '${p.id}')">استرجاع ↩</button>`
-                    : `<button class="b g sm" style="padding:4px 12px; font-size:11px; font-weight:bold;" onclick="buyMarketPlayer('${item.id}')">شراء 💰</button>`
-                }
-            </div>
-        </div>`;
-    }).join('');
-}
-
-function showSellPlayerListPage() {
+function showSellPlayerListModal() {
     const me = T[G.my];
-    if (me.ps.length <= 14) return showGameAlert('لا يمكنك بيع لاعب، تحتاج 14 لاعباً على الأقل في فريقك.', '⚠️');
+    if (me.ps.length <= 14) return showGameAlert('لا يمكنك بيع لاعب، تحتاج 14 لاعباً على الأقل.', '⚠️');
 
-    const sortedPlayers = [...me.ps].sort((a,b) => b.r - a.r);
-
-    let listHtml = sortedPlayers.map(p => {
-        let rColor = p.r >= 85 ? '#fbbf24' : (p.r >= 75 ? '#4ade80' : '#fff');
-        let avatarHtml = '';
-        if (typeof playerAvatarHtml === 'function') {
-            avatarHtml = playerAvatarHtml(p, 35);
-        }
-
-        return `
-        <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.05); border-radius:10px; padding:10px; margin-bottom:8px;">
-            <div style="display:flex; align-items:center; gap:10px;">
-                ${avatarHtml}
-                <div>
-                    <div style="font-size:13px; font-weight:bold; color:#fff;">${p.name}</div>
-                    <div style="font-size:10px; color:#94a3b8;">${p.pos} • ${p.age} سنة • القيمة: <span style="color:#fbbf24;">${p.value}M</span></div>
-                </div>
+    let listHtml = me.ps.map(p => `
+        <div style="cursor:pointer; margin-bottom:6px; padding:10px; border-radius:8px; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.1); display:flex; justify-content:space-between; align-items:center;" onclick="openSellPriceModal('${p.id}')">
+            <div style="text-align:right;">
+                <div style="font-size:13px; font-weight:bold; color:#fff;">${p.name}</div>
+                <div style="font-size:10px; color:#94a3b8;">${p.pos} • العمر: ${p.age}</div>
             </div>
-            <button class="b g sm" style="padding:6px 12px; font-size:11px; font-weight:bold;" onclick="openSellPriceModal('${p.id}')">عرض للبيع 🏷️</button>
-        </div>`;
-    }).join('');
-
-    $('main').innerHTML = `
-        <div class="c">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:10px;">
-                <button class="b sm" style="background:#475569;" onclick="loadLiveMarket()">⬅ عودة للسوق</button>
-                <h2 style="color:var(--gold); font-size:16px; margin:0;">اختر لاعباً للبيع</h2>
+            <div style="text-align:left;">
+                <div style="color:#fbbf24; font-weight:bold; font-size:14px;">⭐ ${p.r}</div>
+                <div style="font-size:10px; color:#4ade80;">${p.value}M</div>
             </div>
-            <div style="max-height: 65vh; overflow-y: auto; padding-right:4px;">
+        </div>
+    `).join('');
+
+    $('cmc').innerHTML = `
+        <div class="mc mc-warning" style="max-height:85vh; display:flex; flex-direction:column; width:95%; max-width:400px;">
+            <button class="mc-close" onclick="loadLiveMarket()">✕</button>
+            <div class="mc-head" style="margin-bottom:10px;">
+                <div class="mc-icon" style="font-size:30px;">👥</div>
+                <div class="mc-title">اختر لاعباً للبيع</div>
+            </div>
+            <div style="overflow-y:auto; flex:1; padding-right:5px; max-height:55vh;">
                 ${listHtml}
             </div>
+            <button class="b r full" style="margin-top:10px;" onclick="loadLiveMarket()">إلغاء</button>
         </div>
     `;
 }
@@ -1227,31 +1252,31 @@ function showSellPlayerListPage() {
 function openSellPriceModal(pid) {
     if (!G.multiplayerLeagueId) return;
     const me = T[G.my];
+    
     const p = me.ps.find(x => x.id === pid);
     if (!p) return;
 
     $('cmc').innerHTML = `
-        <div class="mc mc-warning" style="width:90%; max-width:380px; text-align:center; padding:25px 20px;">
-            <button class="mc-close" onclick="$('cm').hidden=true">✕</button>
-            <div class="mc-head" style="margin-bottom:15px;">
-                <div style="font-size:40px; margin-bottom:10px;">🏷️</div>
-                <div class="mc-title" style="font-size:18px; color:#fff;">تحديد سعر البيع</div>
-                <div class="mc-sub" style="font-size:12px; color:#4ade80; margin-top:5px; font-weight:bold;">${p.name} (${p.pos} • ⭐${p.r})</div>
-                <div style="font-size:11px; color:#94a3b8; margin-top:4px;">القيمة السوقية المقدرة: ${p.value}M</div>
+        <div class="mc mc-warning" style="width:95%; max-width:380px; text-align:center;">
+            <button class="mc-close" onclick="showSellPlayerListModal()">✕</button>
+            <div class="mc-head" style="margin-bottom:12px;">
+                <div style="font-size:35px;">🏷️</div>
+                <div class="mc-title" style="font-size:16px;">تحديد سعر البيع</div>
+                <div class="mc-sub" style="font-size:12px; color:#fff; margin-top:4px;">اللاعب: <b>${p.name}</b> (⭐${p.r})</div>
+                <div style="font-size:11px; color:#94a3b8; margin-top:2px;">القيمة السوقية المقدرة: ${p.value}M</div>
             </div>
 
-            <div style="margin-bottom:20px; background:rgba(0,0,0,.4); padding:15px; border-radius:12px; border:1px solid rgba(251,191,36,.2);">
-                <label style="display:block; font-size:11px; color:#fbbf24; font-weight:bold; margin-bottom:8px;">السعر المطلوب (بالمليون M)</label>
-                <input type="number" id="custom-sell-price" value="${p.value}" step="0.5" style="width:100%; background:#0f172a; border:2px solid #334155; color:#4ade80; padding:12px; border-radius:10px; text-align:center; font-size:22px; font-family:Cairo; font-weight:900; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='#4ade80'" onblur="this.style.borderColor='#334155'">
+            <div style="margin-bottom:15px;">
+                <input type="number" id="custom-sell-price" value="${p.value}" step="0.5" style="width:80%; background:#0f172a; border:1px solid #334155; color:#fff; padding:10px; border-radius:8px; text-align:center; font-size:16px; font-family:Cairo; font-weight:bold;">
+                <div style="font-size:10px; color:#94a3b8; margin-top:5px;">أدخل السعر المطلوب بالمليون (M)</div>
             </div>
 
-            <div style="display:flex; gap:10px;">
-                <button class="b r" style="flex:1; padding:12px; font-weight:bold;" onclick="$('cm').hidden=true">إلغاء</button>
-                <button class="b g" style="flex:1; padding:12px; font-weight:bold;" onclick="confirmListPlayerForSale('${p.id}')">تأكيد العرض 📢</button>
+            <div style="display:flex; gap:8px;">
+                <button class="b r" style="flex:1; padding:10px;" onclick="showSellPlayerListModal()">رجوع ⬅</button>
+                <button class="b g" style="flex:1; padding:10px;" onclick="confirmListPlayerForSale('${p.id}')">تأكيد العرض 📢</button>
             </div>
         </div>
     `;
-    $('cm').hidden = false;
 }
 
 async function confirmListPlayerForSale(pid) {
@@ -1287,46 +1312,44 @@ async function confirmListPlayerForSale(pid) {
         
         await updateLobbySnapshot();
         broadcastEvent(`💼 عرض نادي ${me.name} اللاعب ${p.name} (⭐${p.r}) للبيع بـ ${price}M!`, true, '🛒');
-        loadLiveMarket('my');
+        loadLiveMarket();
         
     } catch (e) {
         console.error(e);
         showGameAlert('حدث خطأ أثناء عرض اللاعب', '❌');
+        loadLiveMarket();
     }
 }
 
 async function buyMarketPlayer(listingId) {
     if (!G.multiplayerLeagueId) return;
     const me = T[G.my];
-    if (me.ps.length >= 25) return showGameAlert('فريقك ممتلئ! لا يمكنك شراء المزيد.', '⚠️');
+    if (me.ps.length >= 25) return showGameAlert('فريقك ممتلئ!', '⚠️');
     
     try {
-        const { data: { user } } = await _db.auth.getUser();
-        if (!user) return showGameAlert('يجب تسجيل الدخول.', '⚠️');
+        // استدعاء RPC الآمن الذي يخصم من المشتري ويضيف للبائع ويحذف العرض ذرّياً
+        const { data, error } = await _db.rpc('buy_market_player', {
+            p_listing_id: String(listingId)
+        });
+
+        if (error) {
+            if (error.message.includes('insufficient_budget')) return showGameAlert('ميزانيتك غير كافية لإتمام الصفقة!', '⚠️');
+            if (error.message.includes('listing_unavailable')) return showGameAlert('هذا العرض لم يعد متاحاً أو سبقك مدرب آخر!', '🏃‍♂️');
+            if (error.message.includes('own_listing')) return showGameAlert('لا يمكنك شراء لاعبك!', '⚠️');
+            throw error;
+        }
         
-        const { data: listing } = await _db.from('market_listings').select('*').eq('id', listingId).single();
-        if (!listing) return showGameAlert('هذا العرض لم يعد متاحاً!', '⚠️');
-        if (listing.user_id === user.id) return showGameAlert('لا يمكنك شراء لاعبك!', '⚠️');
+        // تحديث الميزانية المحلية بالرقم الدقيق القادم من السيرفر
+        me.budget = parseFloat(data.budget);
         
-        const price = listing.asking_price;
-        if (me.budget < price) return showGameAlert(`ميزانيتك غير كافية! تحتاج ${price}M.`, '⚠️');
+        const newPlayer = { ...data.player, id: 'M_' + Date.now() };
+        me.ps.push(newPlayer);
+        autoAssignRoles();
+        save();
         
-        showGameConfirm(`هل أنت متأكد من شراء <b>${listing.player_data.name}</b> مقابل <b>${price}M</b>؟`, async () => {
-            me.budget = Math.round((me.budget - price) * 10) / 10;
-            
-            const newPlayer = { ...listing.player_data, id: 'M_' + Date.now() };
-            me.ps.push(newPlayer);
-            autoAssignRoles();
-            
-            const { error: delErr } = await _db.from('market_listings').delete().eq('id', listingId);
-            if (delErr) throw delErr;
-            
-            save();
-            await updateLobbySnapshot();
-            broadcastEvent(`🔥 صفقة مدوية! اشترى ${me.name} النجم ${newPlayer.name} من ${listing.team_name} مقابل ${price}M!`, true, '💰');
-            showOnlineToast(`مبروك! انضم ${newPlayer.name} لفريقك`, '🎉');
-            loadLiveMarket('all');
-        }, '💰', 'تأكيد الشراء');
+        await updateLobbySnapshot();
+        broadcastEvent(`🔥 صفقة مدوية! اشترى ${me.name} النجم ${newPlayer.name} من ${data.seller_team} مقابل ${data.price}M!`, true, '💰');
+        loadLiveMarket();
         
     } catch (e) {
         console.error(e);
@@ -1335,31 +1358,32 @@ async function buyMarketPlayer(listingId) {
 }
 
 async function cancelMarketListing(listingId, playerId) {
-    showGameConfirm('هل أنت متأكد من إلغاء عرض البيع؟ سيعود اللاعب لفريقك.', async () => {
-        try {
-            const { data: { user } } = await _db.auth.getUser();
-            if (!user) return;
-            
-            const { data: listing } = await _db.from('market_listings').select('*').eq('id', listingId).single();
-            if (!listing) return;
-            
-            const me = T[G.my];
-            const newPlayer = { ...listing.player_data, id: playerId || ('R_' + Date.now()) };
-            me.ps.push(newPlayer);
-            autoAssignRoles();
-            
-            await _db.from('market_listings').delete().eq('id', listingId);
-            save();
-            await updateLobbySnapshot();
-            
-            showOnlineToast(`استعدت اللاعب ${newPlayer.name} لتشكيلتك`, '✅');
-            loadLiveMarket('my');
-            
-        } catch (e) {
-            console.error(e);
-            showGameAlert('حدث خطأ', '❌');
+    try {
+        // استدعاء RPC الآمن لمنع تعارض الاسترجاع مع الشراء في نفس اللحظة
+        const { data: playerData, error } = await _db.rpc('cancel_market_listing', {
+            p_listing_id: String(listingId)
+        });
+
+        if (error) {
+            if (error.message.includes('listing_unavailable')) return showGameAlert('تم شراء اللاعب بالفعل قبل استرجاعه!', '⚠️');
+            throw error;
         }
-    }, '↩', 'إلغاء العرض');
+        
+        const me = T[G.my];
+        const newPlayer = { ...playerData, id: playerId || ('R_' + Date.now()) };
+        me.ps.push(newPlayer);
+        autoAssignRoles();
+        
+        save();
+        await updateLobbySnapshot();
+        
+        showOnlineToast(`استعدت اللاعب ${newPlayer.name} لتشكيلتك`, '✅');
+        loadLiveMarket();
+        
+    } catch (e) {
+        console.error(e);
+        showGameAlert('حدث خطأ أثناء الاسترجاع', '❌');
+    }
 }
 
 async function updateLobbySnapshot() {

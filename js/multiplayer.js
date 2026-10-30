@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف والمباريات وأيام الموسم (مربوط بـ RPC)
+// multiplayer.js - النسخة النهائية المحمية (حذف تلقائي + منع العودة بعد الاستقالة)
 // ============================================
 
 let currentLobby = null;
@@ -18,7 +18,6 @@ let activeMatchChannel = null;
 const BOT_UUID = '00000000-0000-0000-0000-000000000000'; 
 let serverTimeOffset = 0;
 
-// مدة اليوم الواحد في اللعبة (24 ساعة)
 const SEASON_DAY_INTERVAL = 24 * 60 * 60 * 1000; 
 
 function ensureG() { if (typeof G === 'undefined' || !G) G = {}; }
@@ -59,7 +58,7 @@ function stopLobbyTimers() {
 }
 
 // ============================================
-// 🎨 1. نظام النوافذ المخصصة (بديل alert و confirm)
+// 🎨 1. نظام النوافذ المخصصة
 // ============================================
 function showGameAlert(msg, icon = 'ℹ️', title = 'تنبيه') {
     $('cmc').innerHTML = `
@@ -157,50 +156,49 @@ function broadcastEvent(msg, showLocally = true, icon = '📢') {
 }
 
 // ============================================
-// 🏟️ 2. إدارة الغرف والدوريات
+// 🏟️ 2. إدارة الغرف والدوريات (منع العودة بعد الاستقالة)
 // ============================================
 async function resignFromLobby() {
     if (!G || !G.multiplayerLeagueId) return showGameAlert('أنت لست مشتركاً في أي غرفة حالياً.', '⚠️');
     
-    showGameConfirm("هل أنت متأكد من تقديم الاستقالة ومغادرة الدوري الأونلاين؟", async () => {
+    showGameConfirm("هل أنت متأكد من تقديم الاستقالة؟ (لن يمكنك العودة لهذه الغرفة مجدداً)", async () => {
         try {
             $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">⏳ جاري تقديم الاستقالة...</div>`;
             const { data: { user } } = await _db.auth.getUser();
             if (!user) throw new Error("يجب تسجيل الدخول أولاً.");
-            await _db.from('lobby_slots').update({ user_id: null, manager_name: null, team_snapshot: null }).eq('lobby_id', G.multiplayerLeagueId).eq('user_id', user.id);
+
+            const oldLobbyId = G.multiplayerLeagueId;
+
+            await _db.from('lobby_slots')
+                .update({ user_id: null, manager_name: null, team_snapshot: null })
+                .eq('lobby_id', oldLobbyId)
+                .eq('user_id', user.id);
+
+            let resignedLeagues = JSON.parse(localStorage.getItem('resigned_leagues') || '[]');
+            if (!resignedLeagues.includes(oldLobbyId)) {
+                resignedLeagues.push(oldLobbyId);
+                localStorage.setItem('resigned_leagues', JSON.stringify(resignedLeagues));
+            }
+
             delete G.multiplayerLeagueId;
             stopLobbyTimers();
             stopLiveBroadcast();
             save();
-            showOnlineToast('تم تقديم استقالتك بنجاح', '✅');
+            
+            showOnlineToast('تم تقديم استقالتك ومغادرة الدوري نهائياً', '✅');
             showLeaguesPage();
         } catch (err) { showGameAlert('حدث خطأ: ' + err.message, '❌'); dash(); }
-    }, '🚪', 'تقديم استقالة');
+    }, '🚪', 'تقديم استقالة نهائية');
 }
 
 async function resetOrDeleteFinishedLeague() {
-    if (!G || !G.multiplayerLeagueId) return;
+    delete G.multiplayerLeagueId;
+    stopLobbyTimers();
+    stopLiveBroadcast();
+    save();
     
-    showGameConfirm("هل تريد بدء موسم جديد والانتقال لغرفة أخرى؟", async () => {
-        try {
-            $('main').innerHTML = `<div style="text-align:center; padding:50px; color:var(--gold); font-weight:bold;">⏳ جاري تجهيز موسم جديد...</div>`;
-            const { data: { user } } = await _db.auth.getUser();
-            if (!user) return;
-
-            await _db.from('lobby_slots').update({ user_id: null, manager_name: null, team_snapshot: null }).eq('lobby_id', G.multiplayerLeagueId).eq('user_id', user.id);
-            
-            delete G.multiplayerLeagueId;
-            stopLobbyTimers();
-            stopLiveBroadcast();
-            save();
-            
-            showOnlineToast('تم الانتقال لموسم جديد بنجاح', '🎉');
-            showLeaguesPage();
-        } catch (e) {
-            showGameAlert('خطأ: ' + e.message, '❌');
-            dash();
-        }
-    }, '🔄', 'موسم جديد');
+    showOnlineToast('جاري الانتقال لدوري جديد...', '🚀');
+    showLeaguesPage();
 }
 
 function generateBotSnapshot(teamName, teamRating = 75) {
@@ -233,17 +231,16 @@ function ensureLocalGameReady(slot) {
 async function showLeaguesPage() {
     stopLobbyTimers(); isSeasonStarting = false; ensureG(); 
     const maxTeams = getLobbyMaxTeams();
+    const resignedLeagues = JSON.parse(localStorage.getItem('resigned_leagues') || '[]');
     
     if (G.multiplayerLeagueId) {
-        try {
-            const { data: { user } } = await _db.auth.getUser();
-            if (user) {
-                // تجاهل الغرف التي انتهت حالتها (finished) حتى لا يعلق بها المستخدم
-                const { data: lobbyCheck } = await _db.from('lobbies').select('status').eq('id', G.multiplayerLeagueId).single();
-                if (lobbyCheck && lobbyCheck.status === 'finished') {
-                    delete G.multiplayerLeagueId;
-                    save();
-                } else {
+        if (resignedLeagues.includes(G.multiplayerLeagueId)) {
+            delete G.multiplayerLeagueId;
+            save();
+        } else {
+            try {
+                const { data: { user } } = await _db.auth.getUser();
+                if (user) {
                     const { data: slots } = await _db.from('lobby_slots').select('*').eq('lobby_id', G.multiplayerLeagueId).eq('user_id', user.id);
                     if (slots && slots.length > 0) {
                         mySlot = slots[0]; ensureLocalGameReady(mySlot); startGlobalLobbyWatcher();
@@ -251,8 +248,8 @@ async function showLeaguesPage() {
                         if (typeof dash === 'function') { dash(); return; }
                     }
                 }
-            }
-        } catch (e) { console.error(e); }
+            } catch (e) { console.error(e); }
+        }
     }
 
     $('main').innerHTML = `<div style="text-align:center; padding:50px 20px;"><div style="font-size:40px; animation: logoBounce 1s infinite alternate;">⏳</div><div style="color:var(--gold); font-weight:bold; margin-top:15px; font-size:16px;">جاري البحث عن غرفة أونلاين...</div></div>`;
@@ -265,23 +262,33 @@ async function showLeaguesPage() {
         const { data: mySlots } = await _db.from('lobby_slots').select('lobby_id, lobbies!inner(id, status)').eq('user_id', user.id).in('lobbies.status', ['waiting', 'active']).limit(1);
 
         if (mySlots && mySlots.length > 0) {
-            const { data: lobbyData } = await _db.from('lobbies').select('*').eq('id', mySlots[0].lobby_id).single();
-            currentLobby = lobbyData; G.multiplayerLeagueId = currentLobby.id; save();
-            await loadLobbyData(); ensureLocalGameReady(mySlot); startGlobalLobbyWatcher();
-            initLiveBroadcast(currentLobby.id);
+            const activeLobbyId = mySlots[0].lobby_id;
             
-            if (mySlot || currentLobby.status === 'active') {
-                if (typeof dash === 'function') { dash(); return; }
-            } else {
-                renderWaitingRoom(); startCountdownTimer(); liveInterval = setInterval(fetchUpdates, 3000);
+            // تحقق إن لم يكن قد استقال منها مسبقاً
+            if (!resignedLeagues.includes(activeLobbyId)) {
+                const { data: lobbyData } = await _db.from('lobbies').select('*').eq('id', activeLobbyId).single();
+                if (lobbyData) {
+                    currentLobby = lobbyData; G.multiplayerLeagueId = currentLobby.id; save();
+                    await loadLobbyData(); ensureLocalGameReady(mySlot); startGlobalLobbyWatcher();
+                    initLiveBroadcast(currentLobby.id);
+                    
+                    if (mySlot || currentLobby.status === 'active') {
+                        if (typeof dash === 'function') { dash(); return; }
+                    } else {
+                        renderWaitingRoom(); startCountdownTimer(); liveInterval = setInterval(fetchUpdates, 3000);
+                    }
+                    return;
+                }
             }
-            return;
         }
 
         let { data: openLobbies } = await _db.from('lobbies').select('*').eq('status', 'waiting').gt('expires_at', new Date(getServerNow()).toISOString()).order('created_at', { ascending: true });
         let availableLobbies = [];
         if (openLobbies) {
             for (const l of openLobbies) {
+                // استبعاد الدوريات التي سبق للمدرب الاستقالة منها
+                if (resignedLeagues.includes(l.id)) continue;
+
                 const { count } = await _db.from('lobby_slots').select('*', { count: 'exact', head: true }).eq('lobby_id', l.id).not('user_id', 'is', null);
                 if (count < maxTeams) availableLobbies.push({ lobby: l, count: count });
             }
@@ -321,7 +328,15 @@ async function fetchUpdates() {
     const maxTeams = getLobbyMaxTeams();
     try {
         const { data: lobby } = await _db.from('lobbies').select('*').eq('id', currentLobby.id).single();
-        if (lobby) currentLobby = lobby;
+        if (!lobby) {
+            // إذا تم حذف الدوري تلقائيا من السيرفر لانتهاء الموسم
+            stopLobbyTimers();
+            delete G.multiplayerLeagueId;
+            save();
+            showLeaguesPage();
+            return;
+        }
+        currentLobby = lobby;
 
         if (currentLobby.status === 'active') { stopLobbyTimers(); ensureLocalGameReady(mySlot); if (typeof dash === 'function') dash(); return; }
 
@@ -638,7 +653,13 @@ function startGlobalLobbyWatcher() {
         try {
             if (!G || !G.multiplayerLeagueId) return;
             const { data: lobby } = await _db.from('lobbies').select('*').eq('id', G.multiplayerLeagueId).single();
-            if (!lobby) return;
+            if (!lobby) {
+                stopLobbyTimers();
+                delete G.multiplayerLeagueId;
+                save();
+                showLeaguesPage();
+                return;
+            }
 
             if (lobby.status === 'waiting') {
                 const timeUp = new Date(lobby.expires_at).getTime() <= getServerNow();
@@ -690,20 +711,16 @@ async function loadMultiplayerCompData() {
             await processDueBotMatches(G.multiplayerLeagueId);
 
             const { data: lobby } = await _db.from('lobbies').select('*').eq('id', G.multiplayerLeagueId).single();
-            if (!lobby) return;
-            currentLobby = lobby;
-
-            // التحقق مما إذا كان الدوري قد انتهى تلقائياً من السيرفر
-            if (lobby.status === 'finished') {
+            if (!lobby) {
                 container.innerHTML = `
                 <div style="text-align:center; padding:30px; background:rgba(0,0,0,.4); border:2px solid #4ade80; border-radius:15px;">
                     <div style="font-size:40px; margin-bottom:10px;">🏆</div>
-                    <div style="color:#4ade80; font-size:16px; font-weight:bold; margin-bottom:10px;">انتهى الموسم رسمياً!</div>
-                    <div style="font-size:12px; color:#cbd5e1; margin-bottom:20px;">تم لعب جميع مباريات الدوري وتحديد البطل في جدول الترتيب.</div>
-                    <button class="b g" style="padding:12px 25px; font-weight:bold;" onclick="resetOrDeleteFinishedLeague()">🚀 الانتقال لموسم جديد وغرفة جديدة</button>
+                    <div style="color:#4ade80; font-size:16px; font-weight:bold; margin-bottom:10px;">انتهى الموسم وحُذفت الغرفة تلقائياً!</div>
+                    <button class="b g" style="padding:12px 25px; font-weight:bold;" onclick="resetOrDeleteFinishedLeague()">🚀 الانتقال لدوري جديد</button>
                 </div>`;
                 return;
             }
+            currentLobby = lobby;
 
             const { data: slots } = await _db.from('lobby_slots').select('*').eq('lobby_id', lobby.id).order('team_name');
             let { data: matches } = await _db.from('lobby_matches').select('*').eq('lobby_id', lobby.id).order('round');
@@ -788,8 +805,7 @@ async function loadMultiplayerCompData() {
                 if (!currentMatch && !lastPlayedMatch) {
                     html += `
                     <div style="text-align:center; padding:20px; background:rgba(0,0,0,.3); border-radius:10px;">
-                        <div style="color:#4ade80; font-size:14px; font-weight:bold; margin-bottom:10px;">🏆 اكتمل الموسم! لقد خضت جميع مبارياتك بنجاح.</div>
-                        <div style="font-size:11px; color:#cbd5e1; margin-bottom:15px;">انتهت منافسات هذا الدوري، يمكنك بدء موسم جديد ومنافسة مدربين جدد.</div>
+                        <div style="color:#4ade80; font-size:14px; font-weight:bold; margin-bottom:10px;">🏆 اكتمل الموسم وانتهت الغرفة تلقائياً!</div>
                         <button class="b g" style="padding:10px 20px; font-weight:bold;" onclick="resetOrDeleteFinishedLeague()">🚀 الانتقال لموسم جديد</button>
                     </div>`;
                 } else {
@@ -981,7 +997,7 @@ async function showLiveLeagueSchedule() {
 }
 
 // ============================================
-// ⚽ 4. محرك المباريات (مع دروع الحماية وربط RPC)
+// ⚽ 4. محرك المباريات
 // ============================================
 async function simulateUserMatch(matchId, lobbyId) {
     showGameConfirm('هل أنت متأكد من محاكاة المباراة سريعاً بدلاً من لعبها؟', async () => {
@@ -1176,9 +1192,8 @@ async function finalizeMultiplayerMatch(matchId, lobbyId, isHome, hg, ag, mySlot
                 broadcastEvent(`🏁 انتهت: ${homeSlot.team_name} ${hg} - ${ag} ${awaySlot.team_name}`, true, '⚽');
             }
             
-            // إذا كانت هذه المباراة هي الأخيرة وأصبح الموسم منتهياً
             if (data.season_finished) {
-                showOnlineToast('🏆 انتهى الموسم رسمياً وتم تحديد البطل!', '🏆');
+                showOnlineToast('🏆 انتهى الموسم وحُذفت الغرفة تلقائياً!', '🏆');
             }
         }
         
@@ -1224,7 +1239,7 @@ function buildTeamFromSnapshot(snap, teamId) {
 }
 
 // ============================================
-// 💰 5. سوق الانتقالات (مربوط بـ RPC مع مزامنة الميزانية)
+// 💰 5. سوق الانتقالات
 // ============================================
 async function loadLiveMarket() {
     if (!G || !G.multiplayerLeagueId) return showGameAlert('السوق الحي متاح داخل الدوري الأونلاين فقط!', '⚠️');

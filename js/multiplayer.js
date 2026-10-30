@@ -1,5 +1,5 @@
 // ============================================
-// multiplayer.js - نظام الغرف والمباريات (نسخة محمية ومربوطة بـ RPC)
+// multiplayer.js - نظام الغرف والمباريات وأيام الموسم (مربوط بـ RPC)
 // ============================================
 
 let currentLobby = null;
@@ -17,6 +17,9 @@ let activeMatchChannel = null;
 
 const BOT_UUID = '00000000-0000-0000-0000-000000000000'; 
 let serverTimeOffset = 0;
+
+// مدة اليوم الواحد في اللعبة (24 ساعة)
+const SEASON_DAY_INTERVAL = 24 * 60 * 60 * 1000; 
 
 function ensureG() { if (typeof G === 'undefined' || !G) G = {}; }
 
@@ -340,19 +343,17 @@ async function forceGenerateMatches(lobbyId) {
         const fixtures = generateDoubleRoundRobin(freshSlots);
 
         const baseServerTime = getServerNow();
-        const roundInterval = 24 * 60 * 60 * 1000; // 24 ساعة بين كل جولة
 
-        // (f.round - 1) تضمن أن الجولة الأولى متاحة للعب فوراً عند انطلاق الموسم
+        // f.round * SEASON_DAY_INTERVAL تجعل اليوم 1 مخصصاً للتحضير والعرض، وتبدأ الجولة 1 في اليوم 2
         const inserts = fixtures.map(f => ({
             lobby_id: lobbyId,
             round: f.round,
             home_slot_id: f.home.id,
             away_slot_id: f.away.id,
             match_seed: Math.floor(Math.random() * 900000) + 100000,
-            scheduled_time: new Date(baseServerTime + ((f.round - 1) * roundInterval)).toISOString()
+            scheduled_time: new Date(baseServerTime + (f.round * SEASON_DAY_INTERVAL)).toISOString()
         }));
         
-        // استخدام upsert مع ignoreDuplicates للتوافق مع القيد الفريد (uq_lobby_match) ومنع التكرار
         const { error } = await _db
             .from('lobby_matches')
             .upsert(inserts, { onConflict: 'lobby_id,round,home_slot_id,away_slot_id', ignoreDuplicates: true });
@@ -384,7 +385,7 @@ async function tryStartSeason() {
         const success = await forceGenerateMatches(currentLobby.id);
         if (!success) throw new Error("فشل في توليد المباريات.");
 
-        showOnlineToast('🏆 انطلق الموسم الأونلاين رسمياً! بالتوفيق لجميع المدربين', '🎉');
+        showOnlineToast('🏆 انطلق الموسم (اليوم 1: فترة الإعداد والانتقالات)! بالتوفيق لجميع المدربين', '🎉');
         stopLobbyTimers(); startGlobalLobbyWatcher(); ensureLocalGameReady(mySlot);
         if (typeof dash === 'function') dash(); 
     } catch (e) { 
@@ -639,7 +640,7 @@ async function forceNewLobby() {
 }
 
 // ============================================
-// 🏆 3. واجهة البطولات والترتيب والمباريات
+// 🏆 3. واجهة البطولات وأيام الموسم والمباريات
 // ============================================
 async function loadMultiplayerCompData() {
     if (mpCompInterval) clearInterval(mpCompInterval);
@@ -708,14 +709,41 @@ async function loadMultiplayerCompData() {
                     </div>`;
             } else {
                 let myMatches = (matches || []).filter(m => (m.home_slot_id === mySlot.id || m.away_slot_id === mySlot.id));
-                myMatches.sort((a, b) => new Date(a.scheduled_time) - new Date(b.scheduled_time));
+                myMatches.sort((a, b) => a.round - b.round);
                 
                 let currentMatch = myMatches.find(m => !m.played);
                 let lastPlayedMatch = [...myMatches].reverse().find(m => m.played); 
+
+                // 📅 حساب "اليوم الحالي" في الموسم بناءً على موعد الجولة الأولى
+                const firstRoundMatch = (matches || []).find(m => m.round === 1);
+                const now = getServerNow();
                 
-                html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; background:rgba(251,191,36,.15); padding:6px 12px; border-radius:8px;">
-                    <span style="font-size:12px; color:#fbbf24; font-weight:bold;">🔥 مواجهة الدوري الأونلاين</span>
-                    <button class="b sm" style="background:#0ea5e9; color:#fff; font-size:10px; padding:4px 10px;" onclick="loadLiveMarket()">🛒 سوق اللاعبين الحي</button>
+                let seasonDay = 1;
+                let dayTitle = '🛠️ اليوم 1: فترة الإعداد وعرض الصفقات';
+                let daySub = 'جهّز تكتيكك واعرض أو اشترِ اللاعبين قبل انطلاق الجولة الأولى';
+                
+                if (firstRoundMatch && firstRoundMatch.scheduled_time) {
+                    const r1Time = new Date(firstRoundMatch.scheduled_time).getTime();
+                    const seasonStartTime = r1Time - SEASON_DAY_INTERVAL;
+                    seasonDay = Math.max(1, Math.floor((now - seasonStartTime) / SEASON_DAY_INTERVAL) + 1);
+                    
+                    if (seasonDay === 1) {
+                        dayTitle = '🛠️ اليوم 1: يوم التحضير وسوق الانتقالات';
+                        daySub = 'فترة إعداد وعرض اللاعبين (لا توجد مباريات اليوم)';
+                    } else {
+                        dayTitle = `📅 اليوم ${seasonDay} من الموسم • منافسات الجولة ${seasonDay - 1}`;
+                        daySub = 'خُض مباراتك وتابع الصفقات في السوق الحي';
+                    }
+                }
+
+                // شريط اليوم العلوي + زر السوق
+                html += `
+                <div style="background:linear-gradient(90deg, rgba(14,165,233,0.2), rgba(30,58,138,0.4)); border:1px solid #38bdf8; padding:8px 12px; border-radius:10px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                    <div>
+                        <div style="font-size:12px; color:#38bdf8; font-weight:900;">${dayTitle}</div>
+                        <div style="font-size:10px; color:#cbd5e1; margin-top:2px;">${daySub}</div>
+                    </div>
+                    <button class="b sm" style="background:#0ea5e9; color:#fff; font-size:10px; padding:6px 10px; white-space:nowrap;" onclick="loadLiveMarket()">🛒 سوق الانتقالات</button>
                 </div>`;
 
                 if (!currentMatch && !lastPlayedMatch) {
@@ -727,7 +755,6 @@ async function loadMultiplayerCompData() {
                         const opp = slots.find(s => s.id === oppId) || { team_name: 'خصم' };
                         const isHumanOpp = opp.user_id && opp.user_id !== BOT_UUID;
                         const matchTime = currentMatch.scheduled_time ? new Date(currentMatch.scheduled_time).getTime() : new Date().getTime();
-                        const now = getServerNow();
                         const isTimeUp = now >= matchTime;
                         const timeString = new Date(matchTime).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
@@ -743,17 +770,24 @@ async function loadMultiplayerCompData() {
                             const diffSecs = Math.ceil((matchTime - now) / 1000);
                             const diffMins = Math.floor(diffSecs / 60);
                             const diffHours = Math.floor(diffMins / 60);
+                            const diffDays = Math.floor(diffHours / 24);
+                            const remHours = diffHours % 24;
                             const remMins = diffMins % 60;
 
                             let timeLeftText = '';
-                            if (diffHours > 0) timeLeftText += `${diffHours} ساعة و `;
+                            if (diffDays > 0) timeLeftText += `${diffDays} يوم و `;
+                            if (remHours > 0) timeLeftText += `${remHours} ساعة و `;
                             timeLeftText += `${remMins} دقيقة`;
 
-                            btnHtml = `<div style="font-size:12px; color:#fbbf24; font-weight:bold; background:rgba(251,191,36,.1); padding:10px; border-radius:8px; text-align:center; width:100%; margin-top:15px;">⏳ موعد الجولة الثابت بعد: ${timeLeftText}</div>`;
+                            const waitLabel = currentMatch.round === 1 
+                                ? `⏳ ينتهي اليوم التحضيري وتبدأ الجولة 1 بعد: ${timeLeftText}`
+                                : `⏳ تفتح الجولة ${currentMatch.round} (اليوم ${currentMatch.round + 1}) بعد: ${timeLeftText}`;
+
+                            btnHtml = `<div style="font-size:12px; color:#fbbf24; font-weight:bold; background:rgba(251,191,36,.1); padding:10px; border-radius:8px; text-align:center; width:100%; margin-top:15px;">${waitLabel}</div>`;
                         }
 
                         html += `<div style="display:flex; flex-direction:column; align-items:center; background:linear-gradient(135deg, rgba(15,34,56,.95), rgba(30,58,138,.95)); border:2px solid #fbbf24; padding:18px; border-radius:15px; box-shadow:0 4px 15px rgba(0,0,0,0.5);">
-                            <div style="font-size:11px; color:#22d3ee; font-weight:bold; margin-bottom:8px;">الجولة ${currentMatch.round} • ${timeString} ${isHumanOpp ? '• 👤 ضد مدرب حقيقي' : '• 🤖 ضد مدرب آلي'}</div>
+                            <div style="font-size:11px; color:#22d3ee; font-weight:bold; margin-bottom:8px;">المواجهة القادمة: الجولة ${currentMatch.round} (اليوم ${currentMatch.round + 1}) • ${timeString} ${isHumanOpp ? '• 👤 ضد مدرب حقيقي' : '• 🤖 ضد مدرب آلي'}</div>
                             
                             <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin:8px 0;">
                                 <div style="flex:1; text-align:center; font-size:15px; font-weight:bold; color:${isHome ? '#fbbf24' : '#fff'};">
@@ -780,7 +814,7 @@ async function loadMultiplayerCompData() {
 
                         html += `
                         <div style="margin-top:15px; background:rgba(0,0,0,.4); border:1px solid #3b82f6; border-radius:10px; padding:12px; text-align:center;">
-                            <div style="color:#fbbf24; font-size:12px; font-weight:bold; margin-bottom:5px;">📺 إعادة المباراة السابقة (الجولة ${lastPlayedMatch.round})</div>
+                            <div style="color:#fbbf24; font-size:12px; font-weight:bold; margin-bottom:5px;">📺 إعادة المباراة السابقة (الجولة ${lastPlayedMatch.round} - اليوم ${lastPlayedMatch.round + 1})</div>
                             <div style="font-size:14px; color:#fff; font-weight:bold; margin-bottom:10px;">
                                 ${mySlot.team_name} <span style="color:#4ade80; margin:0 5px;">${myGoals} - ${oppGoals}</span> ${lpOpp.team_name}
                             </div>
@@ -860,9 +894,14 @@ async function showLiveLeagueSchedule() {
         let html = `<div class="c" style="margin-top:10px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                 <button class="b sm" style="background:#475569;" onclick="dash()">⬅ عودة</button>
-                <h2 style="color:var(--gold); font-size:16px;">🏆 جدول مبارياتي</h2>
+                <h2 style="color:var(--gold); font-size:16px;">🏆 جدول أيام ومباريات الدوري</h2>
             </div>
-            <div style="display:flex; flex-direction:column; gap:8px; max-height:70vh; overflow-y:auto;">`;
+            <div style="display:flex; flex-direction:column; gap:8px; max-height:70vh; overflow-y:auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(14,165,233,.15); padding:10px; border-radius:8px; border-left:4px solid #38bdf8;">
+                    <div style="font-size:10px; color:#38bdf8; font-weight:bold; width:55px;">اليوم 1</div>
+                    <div style="font-size:12px; font-weight:bold; color:#fff; flex:1; text-align:center;">🛠️ يوم الإعداد وعرض الصفقات (بدون مباريات)</div>
+                    <div style="width:80px; text-align:left;"><span style="color:#38bdf8; font-size:10px;">تحضيري</span></div>
+                </div>`;
 
         myMatches.forEach(m => {
             const isHome = m.home_slot_id === mySlot.id;
@@ -874,7 +913,7 @@ async function showLiveLeagueSchedule() {
             let scoreHtml = m.played ? `<b style="color:${m.home_score > m.away_score ? (isHome ? '#4ade80' : '#ef4444') : (m.home_score < m.away_score ? (isHome ? '#ef4444' : '#4ade80') : '#fbbf24')}">${m.home_score} - ${m.away_score}</b>` : `<span style="color:#fbbf24; font-size:10px;">${timeString}</span>`;
 
             html += `<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,.3); padding:10px; border-radius:8px; border-left:4px solid ${m.played ? '#475569' : '#fbbf24'};">
-                <div style="font-size:10px; color:#94a3b8; width:40px;">ج${m.round}</div>
+                <div style="font-size:10px; color:#94a3b8; width:55px;">اليوم ${m.round + 1}<br><span style="color:#fbbf24; font-size:9px;">(جولة ${m.round})</span></div>
                 <div style="font-size:12px; font-weight:bold; color:#fff; flex:1; text-align:center;">
                     ${isHome ? mySlot.team_name : opp.team_name} 
                     <span style="margin:0 8px;">${scoreHtml}</span> 
@@ -1033,11 +1072,11 @@ async function playMultiplayerMatch(matchId, lobbyId, isReplay = false, autoSkip
 
         if($('mh')) $('mh').textContent = Mt.h.name;
         if($('ma')) $('ma').textContent = Mt.a.name;
-        if($('weather-badge')) $('weather-badge').textContent = isReplay ? '📺 إعادة' : `🔴 مباشر • جولة ${match.round}`;
+        if($('weather-badge')) $('weather-badge').textContent = isReplay ? '📺 إعادة' : `🔴 اليوم ${match.round + 1} • جولة ${match.round}`;
         shown = 0; paused = false; speed = isReplay ? 3 : 2;
         if($('bs')) $('bs').textContent = '×'+speed;
         if($('lg')) $('lg').innerHTML = '';
-        if($('mr')) $('mr').textContent = isReplay ? `إعادة: الدوري الأونلاين • الجولة ${match.round}` : `الدوري الأونلاين • الجولة ${match.round}`;
+        if($('mr')) $('mr').textContent = isReplay ? `إعادة: الدوري الأونلاين • الجولة ${match.round}` : `الدوري الأونلاين • اليوم ${match.round + 1} (الجولة ${match.round})`;
         if($('live-commentary')) $('live-commentary').style.display = 'none';
         if($('momentum-pointer')) $('momentum-pointer').style.left = '50%';
         if(typeof mtac === 'function') mtac(G.tac);
@@ -1082,7 +1121,6 @@ function endMultiplayerMatch(hg, ag) {
 
 async function finalizeMultiplayerMatch(matchId, lobbyId, isHome, hg, ag, mySlot, oppSlot, slots) {
     try {
-        // استدعاء RPC الآمن الذي يسجل النتيجة ويحدث الترتيب ذرّياً على السيرفر
         const { data, error } = await _db.rpc('submit_match_result', {
             p_match_id: String(matchId),
             p_home: hg,
@@ -1327,7 +1365,6 @@ async function buyMarketPlayer(listingId) {
     if (me.ps.length >= 25) return showGameAlert('فريقك ممتلئ!', '⚠️');
     
     try {
-        // استدعاء RPC الآمن الذي يخصم من المشتري ويضيف للبائع ويحذف العرض ذرّياً
         const { data, error } = await _db.rpc('buy_market_player', {
             p_listing_id: String(listingId)
         });
@@ -1339,7 +1376,6 @@ async function buyMarketPlayer(listingId) {
             throw error;
         }
         
-        // تحديث الميزانية المحلية بالرقم الدقيق القادم من السيرفر
         me.budget = parseFloat(data.budget);
         
         const newPlayer = { ...data.player, id: 'M_' + Date.now() };
@@ -1359,7 +1395,6 @@ async function buyMarketPlayer(listingId) {
 
 async function cancelMarketListing(listingId, playerId) {
     try {
-        // استدعاء RPC الآمن لمنع تعارض الاسترجاع مع الشراء في نفس اللحظة
         const { data: playerData, error } = await _db.rpc('cancel_market_listing', {
             p_listing_id: String(listingId)
         });
